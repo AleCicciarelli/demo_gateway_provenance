@@ -1,0 +1,14 @@
+version: "3.9"
+
+services:
+  gateway:
+    image: ghcr.io/YOUR_GITHUB_USERNAME/demo-provenance-gateway:latest
+    container_name: demo_gateway
+    ports:
+      - "9000:9000"
+    env_file:
+      - .env
+    volumes:
+      - ./tpch_no_provsql:/app/tpch_no_provsql
+      - ./faiss_index_tpch:/app/faiss_index_tpch
+      - ./logs:/app/logs

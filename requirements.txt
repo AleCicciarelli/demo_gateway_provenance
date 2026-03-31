@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+requests
+pydantic
+langchain
+langchain-community
+langchain-core
+sentence-transformers
+faiss-cpu
+sqlglot
