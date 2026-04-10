@@ -1,8 +1,6 @@
-version: "3.9"
-
 services:
   gateway:
-    image: ghcr.io/YOUR_GITHUB_USERNAME/demo-provenance-gateway:latest
+    image: ghcr.io/alecicciarelli/demo_gateway_provenance:latest
     container_name: demo_gateway
     ports:
       - "9000:9000"

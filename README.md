@@ -7,8 +7,6 @@ This project provides a local demo environment for the gateway, using:
 - local CSV data and FAISS index
 
 ## 1. Prerequisites
-
-### On macOS
 Install:
 - Docker Desktop
 - Ollama
