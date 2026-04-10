@@ -26,18 +26,20 @@ app = FastAPI()
 # =========================
 # Config
 # =========================
-LOG_PATH = os.getenv("GATEWAY_LOG_PATH", os.path.expanduser("~/demo_provenance_llm_gateway/provsql_gateway_logs.jsonl"))
+LOG_PATH = os.getenv("GATEWAY_LOG_PATH", "/app/logs/provsql_gateway_logs.jsonl")
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
-CSV_DIR = os.getenv("CSV_DIR", os.path.expanduser("~/demo_provenance_llm_gateway/tpch_no_provsql"))
+CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
 MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "10"))
 MAX_TABLES = int(os.getenv("MAX_TABLES", "4"))
-OLLAMA_MODEL_BASE="llama3:8b"
-OLLAMA_MODEL_FT_NL="llama3-8b-dpo2-sft1-nl:latest"
-OLLAMA_MODEL_FT_SQL="llama3-8b-dpo1-sft2-sql:latest"
-FAISS_INDEX_FOLDER = os.getenv("FAISS_INDEX_FOLDER", os.path.expanduser("~/demo_provenance_llm_gateway/faiss_index_tpch"))
+
+OLLAMA_MODEL_BASE = os.getenv("OLLAMA_MODEL_BASE", "llama3:8b")
+OLLAMA_MODEL_FT_NL = os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest")
+OLLAMA_MODEL_FT_SQL = os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:latest")
+
+FAISS_INDEX_FOLDER = os.getenv("FAISS_INDEX_FOLDER", "/app/faiss_index_tpch")
 EMB_MODEL = os.getenv("EMB_MODEL", "sentence-transformers/all-mpnet-base-v2")
-INDEX_TABLES = os.getenv("INDEX_TABLES", "")  # es: "region,nation,customer"
+INDEX_TABLES = os.getenv("INDEX_TABLES", "")
 INDEX_SET = set(t.strip() for t in INDEX_TABLES.split(",") if t.strip())
 BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", "500"))
 
@@ -215,6 +217,7 @@ def _now() -> int:
 
 def _log_event(event: Dict[str, Any]) -> None:
     event["ts"] = _now()
+    Path(LOG_PATH).parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_PATH, "a", encoding="utf-8") as f:
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
@@ -386,16 +389,30 @@ def _get_or_build_faiss() -> FAISS:
     if _VECTOR_STORE is not None:
         return _VECTOR_STORE
 
-    embedding_model = STEmbeddings("sentence-transformers/all-mpnet-base-v2")
+    embedding_model = STEmbeddings(EMB_MODEL)
+    index_path = Path(FAISS_INDEX_FOLDER)
 
-    if os.path.exists(FAISS_INDEX_FOLDER):
-        _VECTOR_STORE = FAISS.load_local(
-            FAISS_INDEX_FOLDER,
-            embedding_model,
-            allow_dangerous_deserialization=True,
-        )
-        _log_event({"type": "faiss_loaded", "path": FAISS_INDEX_FOLDER, "emb_model": EMB_MODEL})
-        return _VECTOR_STORE
+    # Try loading an existing FAISS index only if directory exists and is not empty
+    if index_path.exists() and index_path.is_dir() and any(index_path.iterdir()):
+        try:
+            _VECTOR_STORE = FAISS.load_local(
+                FAISS_INDEX_FOLDER,
+                embedding_model,
+                allow_dangerous_deserialization=True,
+            )
+            _log_event({
+                "type": "faiss_loaded",
+                "path": FAISS_INDEX_FOLDER,
+                "emb_model": EMB_MODEL
+            })
+            return _VECTOR_STORE
+        except Exception as e:
+            _log_event({
+                "type": "faiss_load_failed",
+                "path": FAISS_INDEX_FOLDER,
+                "emb_model": EMB_MODEL,
+                "error": str(e)
+            })
 
     _load_csvs_once()
 
@@ -411,12 +428,16 @@ def _get_or_build_faiss() -> FAISS:
             rid = r.get("__rid__")
             if not rid:
                 continue
+
             text = _row_to_text(r)
             if not text:
                 continue
 
             batch_docs.append(
-                Document(page_content=text, metadata={"table": table, "rid": rid})
+                Document(
+                    page_content=text,
+                    metadata={"table": table, "rid": rid}
+                )
             )
 
             if len(batch_docs) >= BATCH_SIZE:
@@ -424,6 +445,7 @@ def _get_or_build_faiss() -> FAISS:
                     vector_store = FAISS.from_documents(batch_docs, embedding=embedding_model)
                 else:
                     vector_store.add_documents(batch_docs)
+
                 total_docs += len(batch_docs)
                 batch_docs = []
                 print(f"Indexed {total_docs} documents", flush=True)
@@ -438,9 +460,15 @@ def _get_or_build_faiss() -> FAISS:
     if vector_store is None:
         raise RuntimeError("No documents indexed. Check CSV_DIR / INDEX_TABLES / file contents.")
 
-    os.makedirs(FAISS_INDEX_FOLDER, exist_ok=True)
+    index_path.mkdir(parents=True, exist_ok=True)
     vector_store.save_local(FAISS_INDEX_FOLDER)
-    _log_event({"type": "faiss_built", "path": FAISS_INDEX_FOLDER, "n_docs": total_docs, "emb_model": EMB_MODEL})
+
+    _log_event({
+        "type": "faiss_built",
+        "path": FAISS_INDEX_FOLDER,
+        "n_docs": total_docs,
+        "emb_model": EMB_MODEL
+    })
 
     _VECTOR_STORE = vector_store
     return _VECTOR_STORE

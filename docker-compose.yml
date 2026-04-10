@@ -9,6 +9,5 @@ services:
     env_file:
       - .env
     volumes:
-      - ./tpch_no_provsql:/app/tpch_no_provsql
-      - ./faiss_index_tpch:/app/faiss_index_tpch
       - ./logs:/app/logs
+      - ./faiss_index_tpch:/app/faiss_index_tpch
