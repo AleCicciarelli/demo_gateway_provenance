@@ -1,21 +1,47 @@
 services:
+  ollama:
+    image: ollama/ollama
+    container_name: demo_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./models:/models
+
+  ollama-init:
+    image: ollama/ollama
+    depends_on:
+      - ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./models:/models
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "
+      sleep 10 &&
+      (ollama list | grep -q 'llama3-8b-dpo2-sft1-nl' || ollama create llama3-8b-dpo2-sft1-nl -f /models/ft_nl/Modelfile) &&
+      (ollama list | grep -q 'llama3-8b-dpo1-sft2-sql' || ollama create llama3-8b-dpo1-sft2-sql -f /models/ft_sql/Modelfile)
+      "
+
   gateway:
     image: ghcr.io/alecicciarelli/demo_gateway_provenance:latest
     container_name: demo_gateway
+    depends_on:
+      ollama:
+        condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
     ports:
       - "9000:9000"
-      - "11434:11434"
     env_file:
       - .env
     environment:
-      OLLAMA_MODEL_NAME_NL: llama3-8b-dpo2-sft1-nl
-      OLLAMA_MODEL_DIR_NL: /app/models/ft_nl
-      OLLAMA_MODEL_NAME_SQL: llama3-8b-dpo1-sft2-sql
-      OLLAMA_MODEL_DIR_SQL: /app/models/ft_sql
+      OLLAMA_HOST: http://ollama:11434
     volumes:
       - ./logs:/app/logs
       - ./faiss_index_tpch:/app/faiss_index_tpch
-      - ollama_data:/root/.ollama
 
 volumes:
   ollama_data:
