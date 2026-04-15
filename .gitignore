@@ -1,2 +1,6 @@
 faiss_index_tpch/
 logs/
+.venv/
+nohup.out
+.webui_secret_key
+__pycache__/

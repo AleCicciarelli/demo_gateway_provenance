@@ -1,0 +1,3 @@
+FROM llama3:8b
+
+ADAPTER ./adapter_model.safetensors

@@ -50,10 +50,10 @@ RETRIEVER_K = int(os.getenv("RETRIEVER_K", "40"))
 
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
-    "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3.1:8b"),
+    "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
     "best-ft-llama3-8b-nl": os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest"),
     "best-ft-llama3-8b-sql": os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:latest"),
-    "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3.1:8b"),
+    "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3:8b"),
 }
 
 # Exposing only the UI model ids in the /v1/models endpoint.
@@ -365,6 +365,94 @@ def _resolve_row_by_rid(rid: str) -> Optional[Dict[str, Any]]:
         "rid": rid,
         "row": row,
     }
+
+def _safe_parse_json(text: str) -> Optional[Any]:
+    try:
+        return json.loads(text)
+    except Exception:
+        return None
+
+
+def _format_result_table(items: List[Dict[str, Any]]) -> str:
+    if not items:
+        return "<p class='muted'>No result items.</p>"
+
+    # Collect all result keys
+    all_keys = []
+    seen = set()
+    for item in items:
+        for k in item.get("result", {}).keys():
+            if k not in seen:
+                seen.add(k)
+                all_keys.append(k)
+
+    if not all_keys:
+        return "<p class='muted'>No result fields.</p>"
+
+    header = "".join(f"<th>{html.escape(str(k))}</th>" for k in all_keys)
+    header += "<th>Provenance</th>"
+
+    rows_html = []
+    for item in items:
+        result = item.get("result", {})
+        prov = item.get("provenance", [])
+
+        prov_str = "<br/>".join(
+            html.escape(" OR ".join(
+                [" + ".join(ws)] if ws else ["<empty>"]
+            )[0:1000])
+            for ws in [ws for ws in prov]
+        )
+
+        if not prov:
+            prov_str = "<span class='muted'>None</span>"
+        else:
+            prov_str = "<br/>".join(
+                html.escape(" + ".join(ws)) for ws in prov
+            )
+
+        cells = "".join(
+            f"<td>{html.escape(str(result.get(k, '')))}</td>"
+            for k in all_keys
+        )
+        cells += f"<td>{prov_str}</td>"
+        rows_html.append(f"<tr>{cells}</tr>")
+
+    return f"""
+    <table>
+      <thead><tr>{header}</tr></thead>
+      <tbody>
+        {''.join(rows_html)}
+      </tbody>
+    </table>
+    """
+
+
+def _format_provenance_list(items: List[Dict[str, Any]]) -> str:
+    if not items:
+        return "<p class='muted'>No provenance available.</p>"
+
+    blocks = []
+    for i, item in enumerate(items):
+        result_html = html.escape(json.dumps(item.get("result", {}), ensure_ascii=False))
+        prov = item.get("provenance", [])
+
+        if not prov:
+            prov_html = "<li><span class='muted'>No provenance</span></li>"
+        else:
+            prov_html = "".join(
+                f"<li><code>{html.escape(' + '.join(ws))}</code></li>"
+                for ws in prov
+            )
+
+        blocks.append(f"""
+        <div class="prov-block">
+            <div><strong>Result {i+1}</strong>: <code>{result_html}</code></div>
+            <ul>{prov_html}</ul>
+        </div>
+        """)
+
+    return "".join(blocks)
 
 # =========================
 # Retrieval and indexing
@@ -785,6 +873,7 @@ def chat_completions(
             )
 
             out_text = json.dumps(planner_result, ensure_ascii=False, indent=2)
+            parsed_output = _safe_parse_json(out_text)
 
             _log_event({
                 "type": "planner_first_request",
@@ -808,6 +897,7 @@ def chat_completions(
                 context_data={},
                 prompt_full="PLANNER-FIRST MODE",
                 output_text=out_text,
+                parsed_output=parsed_output,
                 planner_result=planner_result,
             )
 
@@ -860,7 +950,7 @@ def chat_completions(
 
     # Call + retry JSON validity
     out_text = _call_model_with_retry(ollama_model, base_prompt, temperature, max_tries=2)
-
+    parsed_output = _safe_parse_json(out_text)
     _log_event({
         "type": "response",
         "ui_model": req.model,
@@ -880,6 +970,7 @@ def chat_completions(
         #schema_info=schema_info,
         prompt_full=base_prompt,
         output_text=out_text,
+        parsed_output = parsed_output,
     )
 
     _LAST_EXPLAIN_DEBUG = {}

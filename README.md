@@ -25,7 +25,7 @@ ollama create llama3-8b-dpo2-sft1-nl -f Modelfile
 
 Example fine tuned model (SQL dataset):
 ```bash
-cd ../ft_sql
+cd models/ft_sql
 ollama create llama3-8b-dpo1-sft2-sql -f Modelfile
 ```
 Verify:
