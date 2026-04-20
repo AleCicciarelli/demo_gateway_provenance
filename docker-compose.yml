@@ -46,6 +46,8 @@ services:
       - .env
     environment:
       OLLAMA_HOST: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./logs:/app/logs
       - ./faiss_index_tpch:/app/faiss_index_tpch
