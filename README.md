@@ -2,7 +2,7 @@
 
 This project provides a local demo environment for the gateway, using:
 - a FastAPI gateway running in Docker
-- Ollama running locally on the host machine
+- Ollama running in Docker
 - fine-tuned models recreated locally in Ollama
 - local CSV data and FAISS index
 
@@ -11,10 +11,17 @@ Install:
 - Docker Desktop
 - Ollama
 
+
 Verify Ollama is running:
 
 ```bash
 curl http://localhost:11434/api/tags
+```
+- Git LFS (required for model files)
+  - The adapter weights (adapter_model.safetensors) are stored using Git LFS.
+Download the files and then verify the size (should be hundreds of MB)
+```bash
+git lfs pull
 ```
 ## 2. Create the fine-tuned models in Ollama 
 Example fine tuned model (natural language dataset):
