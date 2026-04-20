@@ -21,8 +21,8 @@ services:
     command: >
       "
       sleep 10 &&
-      (ollama list | grep -q 'llama3-8b-dpo2-sft1-nl' || ollama create llama3-8b-dpo2-sft1-nl -f /models/ft_nl/Modelfile) &&
-      (ollama list | grep -q 'llama3-8b-dpo1-sft2-sql' || ollama create llama3-8b-dpo1-sft2-sql -f /models/ft_sql/Modelfile)
+      (ollama list | grep -q 'llama3-8b-dpo2-sft1-nl' || ollama create llama3-8b-dpo2-sft1-nl -f ./models/ft_nl/Modelfile) &&
+      (ollama list | grep -q 'llama3-8b-dpo1-sft2-sql' || ollama create llama3-8b-dpo1-sft2-sql -f ./models/ft_sql/Modelfile)
       "
 
   gateway:

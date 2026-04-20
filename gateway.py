@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse
 from prompt import build_leaf_prompt
 from tpch_schema_info import SCHEMA_INFO
 from planner import QueryPlan, build_query_plan
+import uuid
 
 app = FastAPI()
 
@@ -46,7 +47,7 @@ BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", "500"))
 EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
-RETRIEVER_K = int(os.getenv("RETRIEVER_K", "40"))
+RETRIEVER_K = int(os.getenv("RETRIEVER_K", "12"))
 
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
@@ -211,7 +212,14 @@ class STEmbeddings(Embeddings):
 
     def embed_query(self, text):
         return self.model.encode([text], convert_to_numpy=True)[0].tolist()
-    
+_EMBEDDINGS: Optional[STEmbeddings] = None
+
+def _get_embeddings() -> STEmbeddings:
+    global _EMBEDDINGS
+    if _EMBEDDINGS is None:
+        _EMBEDDINGS = STEmbeddings(EMB_MODEL)
+    return _EMBEDDINGS  
+
 def _now() -> int:
     return int(time.time())
 
@@ -397,13 +405,6 @@ def _format_result_table(items: List[Dict[str, Any]]) -> str:
         result = item.get("result", {})
         prov = item.get("provenance", [])
 
-        prov_str = "<br/>".join(
-            html.escape(" OR ".join(
-                [" + ".join(ws)] if ws else ["<empty>"]
-            )[0:1000])
-            for ws in [ws for ws in prov]
-        )
-
         if not prov:
             prov_str = "<span class='muted'>None</span>"
         else:
@@ -471,13 +472,21 @@ def _row_to_text(row: Dict[str, Any]) -> str:
             continue
         parts.append(f"{k}: {s}")
     return " | ".join(parts)
+def _context_to_prompt_text(ctx: Dict[str, Any]) -> str:
+    lines = []
+    for table, rows in ctx.items():
+        for rid, row in rows.items():
+            parts = [f"{k}={v}" for k, v in row.items()]
+            lines.append(f"{rid} | table={table} | " + " | ".join(parts))
+    return "\n".join(lines)
+
 
 def _get_or_build_faiss() -> FAISS:
     global _VECTOR_STORE
     if _VECTOR_STORE is not None:
         return _VECTOR_STORE
 
-    embedding_model = STEmbeddings(EMB_MODEL)
+    embedding_model = _get_embeddings()
     index_path = Path(FAISS_INDEX_FOLDER)
 
     # Try loading an existing FAISS index only if directory exists and is not empty
@@ -646,18 +655,30 @@ def _retrieve_context_data(question: str) -> Dict[str, Any]:
 # =========================
 # Planner-first helpers
 # =========================
+
+def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
+    """
+    Build a very simple retrieval query for one leaf task.
+    For now, retrieval is only table-aware.
+    """
+    table = str(task.get("table_name") or task.get("table") or "").strip()
+
+    if table:
+        return f"Retrieve rows from table {table}"
+
+    return "Retrieve relevant rows for this task"
 def _run_leaf_task(
     task: Dict[str, Any],
-    sql_query: str,
     ollama_model: str,
     temperature: float,
     ctx: Dict[str, Any],
+    retrieval_query: str,
 ) -> Dict[str, Any]:
-    table_name = task["table_name"]
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
 
 
     prompt = build_leaf_prompt(task, ctx, mode="first")
-    out_text = _call_model_with_retry(ollama_model, prompt, temperature, max_tries=3)
+    out_text = _call_model_with_retry(ollama_model, prompt, temperature, max_tries=2)
 
     parsed_output = None
     parse_error = None
@@ -669,6 +690,7 @@ def _run_leaf_task(
     return {
         "table_name": table_name,
         "task": task,
+        "retrieval_query": retrieval_query,
         "context_data": ctx,
         "prompt": prompt,
         "output_text": out_text,
@@ -679,21 +701,30 @@ def _run_planner_first(
     sql_query: str,
     ollama_model: str,
     temperature: float,
-    ctx: Dict[str, Any],
 ) -> Dict[str, Any]:
     plan = build_query_plan(sql_query)
+    if plan is None:
+        raise RuntimeError("build_query_plan returned None")
+
+    if not hasattr(plan, "to_dict") or not hasattr(plan, "leaf_tasks"):
+        raise RuntimeError("Invalid plan object returned by build_query_plan")
+
     plan_dict = plan.to_dict()
 
     leaf_outputs = []
     for task in plan.leaf_tasks:
         task_dict = asdict(task)
+        retrieval_query = _build_leaf_retrieval_query(task_dict)
+        print(f"\n--- Running leaf task for table '{task.table_name}' with retrieval query: {retrieval_query}\n", flush=True)
+        leaf_ctx = _retrieve_context_data(retrieval_query)
+
         leaf_outputs.append(
             _run_leaf_task(
                 task=task_dict,
-                sql_query=sql_query,
                 ollama_model=ollama_model,
                 temperature=temperature,
-                ctx=ctx
+                ctx=leaf_ctx,
+                retrieval_query=retrieval_query,
             )
         )
 
@@ -702,6 +733,8 @@ def _run_planner_first(
         "plan": plan_dict,
         "leaf_outputs": leaf_outputs,
     }
+
+
 # =========================
 # Provenance helpers
 # =========================
@@ -846,6 +879,7 @@ def chat_completions(
     authorization: Optional[str] = Header(default=None),
 ) -> Dict[str, Any]:
     
+    request_id = str(uuid.uuid4())[:8]
     global _LAST_EXPLAIN_DEBUG
     question = _extract_user_question(req.messages)
     if not question:
@@ -858,8 +892,7 @@ def chat_completions(
 
     # if not specified, default to 0.0 (deterministic)
     temperature = 0.0 if req.temperature is None else float(req.temperature)
-    # retrieval stub (for now)
-    ctx = _retrieve_context_data(question)
+    
 
     if req.model == "planner-first":
         #TO DO: implement planner-first using the query to generate an SQL plan and then use the LLM to extract the leaf nodes
@@ -869,15 +902,14 @@ def chat_completions(
                 sql_query=question,
                 ollama_model=ollama_model,
                 temperature=temperature,
-                ctx=ctx,
             )
 
             out_text = json.dumps(planner_result, ensure_ascii=False, indent=2)
-            parsed_output = _safe_parse_json(out_text)
 
             _log_event({
                 "type": "planner_first_request",
                 "ui_model": req.model,
+                "request_id": request_id,
                 "ollama_model": ollama_model,
                 "temperature": temperature,
                 "stream": req.stream,
@@ -897,7 +929,6 @@ def chat_completions(
                 context_data={},
                 prompt_full="PLANNER-FIRST MODE",
                 output_text=out_text,
-                parsed_output=parsed_output,
                 planner_result=planner_result,
             )
 
@@ -927,16 +958,18 @@ def chat_completions(
 
 
     #schema_info = _get_relevant_schema_info(question)
+    ctx = _retrieve_context_data(question)
 
     base_prompt = PROMPT_TEMPLATE.format(
         question=question,
         #schema_info=json.dumps(schema_info, ensure_ascii=False, indent=2),
-        context_data=json.dumps(ctx, ensure_ascii=False),
+        context_data=json.dumps(_context_to_prompt_text(ctx), ensure_ascii=False),
     )
 
     _log_event({
         "type": "request",
         "ui_model": req.model,
+        "request_id": request_id,
         "ollama_model": ollama_model,
         "temperature": temperature,
         "stream": req.stream,
@@ -950,7 +983,6 @@ def chat_completions(
 
     # Call + retry JSON validity
     out_text = _call_model_with_retry(ollama_model, base_prompt, temperature, max_tries=2)
-    parsed_output = _safe_parse_json(out_text)
     _log_event({
         "type": "response",
         "ui_model": req.model,
@@ -970,7 +1002,6 @@ def chat_completions(
         #schema_info=schema_info,
         prompt_full=base_prompt,
         output_text=out_text,
-        parsed_output = parsed_output,
     )
 
     _LAST_EXPLAIN_DEBUG = {}
