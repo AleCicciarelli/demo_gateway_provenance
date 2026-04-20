@@ -2,22 +2,20 @@ services:
   ollama:
     image: ollama/ollama
     container_name: demo_ollama
-    network_mode: host
+    ports:
+      - "11434:11434"
     volumes:
-      - /home/daisy/cicciara/ollama_data:/root/.ollama
+      - ollama_data:/root/.ollama
       - ./models:/models
 
   ollama-init:
     image: ollama/ollama
     depends_on:
       - ollama
-    network_mode: host
     environment:
-      OLLAMA_HOST: http://host.docker.internal:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      OLLAMA_HOST: http://ollama:11434
     volumes:
-      - /home/daisy/cicciara/ollama_data:/root/.ollama
+      - ollama_data:/root/.ollama
       - ./models:/models
     entrypoint: ["/bin/sh", "-c"]
     command: >
@@ -45,9 +43,10 @@ services:
     env_file:
       - .env
     environment:
-      OLLAMA_HOST: http://host.docker.internal:11434
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      OLLAMA_HOST: http://ollama:11434
     volumes:
       - ./logs:/app/logs
       - ./faiss_index_tpch:/app/faiss_index_tpch
+
+volumes:
+  ollama_data:
