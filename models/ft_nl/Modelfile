@@ -1,3 +1,2 @@
 FROM llama3:8b
-
-ADAPTER /models/ft_nl
+ADAPTER ./adapter.gguf

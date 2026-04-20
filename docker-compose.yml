@@ -2,27 +2,34 @@ services:
   ollama:
     image: ollama/ollama
     container_name: demo_ollama
-    ports:
-      - "11434:11434"
+    network_mode: host
     volumes:
-      - ollama_data:/root/.ollama
+      - /home/daisy/cicciara/ollama_data:/root/.ollama
       - ./models:/models
 
   ollama-init:
     image: ollama/ollama
     depends_on:
       - ollama
+    network_mode: host
     environment:
-      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_HOST: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ollama_data:/root/.ollama
+      - /home/daisy/cicciara/ollama_data:/root/.ollama
       - ./models:/models
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "
-      sleep 10 &&
-      (ollama list | grep -q 'llama3-8b-dpo2-sft1-nl' || ollama create llama3-8b-dpo2-sft1-nl -f ./models/ft_nl/Modelfile) &&
-      (ollama list | grep -q 'llama3-8b-dpo1-sft2-sql' || ollama create llama3-8b-dpo1-sft2-sql -f ./models/ft_sql/Modelfile)
+      echo 'Waiting for Ollama...' &&
+      until ollama list > /dev/null 2>&1; do
+        sleep 2
+      done &&
+      echo 'Ollama ready' &&
+      (ollama list | grep -q 'llama3:8b' || ollama pull llama3:8b) &&
+      (ollama list | grep -q 'llama3-8b-dpo2-sft1-nl' || ollama create llama3-8b-dpo2-sft1-nl -f /models/ft_nl/Modelfile) &&
+      (ollama list | grep -q 'llama3-8b-dpo1-sft2-sql' || ollama create llama3-8b-dpo1-sft2-sql -f /models/ft_sql/Modelfile)
       "
 
   gateway:
@@ -34,14 +41,11 @@ services:
       ollama-init:
         condition: service_completed_successfully
     ports:
-      - "9000:9000"
+      - "9005:9000"
     env_file:
       - .env
     environment:
-      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_HOST: http://localhost:11434
     volumes:
       - ./logs:/app/logs
       - ./faiss_index_tpch:/app/faiss_index_tpch
-
-volumes:
-  ollama_data:

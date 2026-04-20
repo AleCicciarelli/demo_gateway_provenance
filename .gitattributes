@@ -1,3 +1,1 @@
-*.safetensors filter=lfs diff=lfs merge=lfs -text
-models/ft_nl/adapter_model.safetensors filter=lfs diff=lfs merge=lfs -text
-models/ft_sql/adapter_model.safetensors filter=lfs diff=lfs merge=lfs -text
+*.gguf filter=lfs diff=lfs merge=lfs -text
