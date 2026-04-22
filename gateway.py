@@ -40,6 +40,7 @@ OLLAMA_MODEL_FT_SQL = os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:
 
 FAISS_INDEX_FOLDER = os.getenv("FAISS_INDEX_FOLDER", "/app/faiss_index_tpch")
 EMB_MODEL = os.getenv("EMB_MODEL", "sentence-transformers/all-mpnet-base-v2")
+EMB_DEVICE = os.getenv("EMB_DEVICE", "auto")
 INDEX_TABLES = os.getenv("INDEX_TABLES", "")
 INDEX_SET = set(t.strip() for t in INDEX_TABLES.split(",") if t.strip())
 BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", "500"))
