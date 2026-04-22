@@ -19,6 +19,7 @@ services:
       - ./models:/models
     entrypoint: ["/bin/sh", "-c"]
     command: >
+    
       "
       echo 'Waiting for Ollama...' &&
       until ollama list > /dev/null 2>&1; do
