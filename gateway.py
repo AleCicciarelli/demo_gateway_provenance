@@ -19,9 +19,9 @@ from langchain_core.embeddings import Embeddings
 from fastapi.responses import HTMLResponse
 from prompt import build_leaf_prompt
 from tpch_schema_info import SCHEMA_INFO
-from planner import QueryPlan, build_query_plan
+from planner import  build_query_plan
 import uuid
-
+import torch
 app = FastAPI()
 
 # =========================
@@ -205,13 +205,21 @@ _LAST_EXPLAIN_DEBUG: Dict[str, Any] = {}
 
 class STEmbeddings(Embeddings):
     def __init__(self, model_name: str):
-        self.model = SentenceTransformer(model_name)
+        if EMB_DEVICE == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        else:
+            device = EMB_DEVICE
+
+        self.device = device
+        self.model = SentenceTransformer(model_name, device=device)
+        print(f"[EMB] SentenceTransformer using device: {device}", flush=True)
 
     def embed_documents(self, texts):
         return self.model.encode(texts, convert_to_numpy=True).tolist()
 
     def embed_query(self, text):
         return self.model.encode([text], convert_to_numpy=True)[0].tolist()
+    
 _EMBEDDINGS: Optional[STEmbeddings] = None
 
 def _get_embeddings() -> STEmbeddings:
