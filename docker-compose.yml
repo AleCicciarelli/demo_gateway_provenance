@@ -9,10 +9,11 @@ services:
       - ./models:/models
     deploy:
       resources:
-        devices:
-          - driver: nvidia
-            count: all
-            capabilities: [gpu]
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
   ollama-init:
     image: ollama/ollama
     depends_on:
@@ -56,10 +57,11 @@ services:
       - ./tpch_no_provsql:/app/tpch_no_provsql
     deploy:
       resources:
-        devices:
-          - driver: nvidia
-            count: all
-            capabilities: [gpu]
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
 volumes:
   ollama_data:
