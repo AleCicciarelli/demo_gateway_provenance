@@ -31,8 +31,8 @@ LOG_PATH = os.getenv("GATEWAY_LOG_PATH", "/app/logs/provsql_gateway_logs.jsonl")
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
-MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "10"))
-MAX_TABLES = int(os.getenv("MAX_TABLES", "4"))
+MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "40"))
+MAX_TABLES = int(os.getenv("MAX_TABLES", "5"))
 
 OLLAMA_MODEL_BASE = os.getenv("OLLAMA_MODEL_BASE", "llama3:8b")
 OLLAMA_MODEL_FT_NL = os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest")
@@ -49,7 +49,7 @@ EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
 RETRIEVER_K = int(os.getenv("RETRIEVER_K", "12"))
-
+MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "3"))
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
@@ -383,94 +383,18 @@ def _resolve_row_by_rid(rid: str) -> Optional[Dict[str, Any]]:
         "row": row,
     }
 
-def _safe_parse_json(text: str) -> Optional[Any]:
-    try:
-        return json.loads(text)
-    except Exception:
-        return None
-
-
-def _format_result_table(items: List[Dict[str, Any]]) -> str:
-    if not items:
-        return "<p class='muted'>No result items.</p>"
-
-    # Collect all result keys
-    all_keys = []
-    seen = set()
-    for item in items:
-        for k in item.get("result", {}).keys():
-            if k not in seen:
-                seen.add(k)
-                all_keys.append(k)
-
-    if not all_keys:
-        return "<p class='muted'>No result fields.</p>"
-
-    header = "".join(f"<th>{html.escape(str(k))}</th>" for k in all_keys)
-    header += "<th>Provenance</th>"
-
-    rows_html = []
-    for item in items:
-        result = item.get("result", {})
-        prov = item.get("provenance", [])
-
-        if not prov:
-            prov_str = "<span class='muted'>None</span>"
-        else:
-            prov_str = "<br/>".join(
-                html.escape(" + ".join(ws)) for ws in prov
-            )
-
-        cells = "".join(
-            f"<td>{html.escape(str(result.get(k, '')))}</td>"
-            for k in all_keys
-        )
-        cells += f"<td>{prov_str}</td>"
-        rows_html.append(f"<tr>{cells}</tr>")
-
-    return f"""
-    <table>
-      <thead><tr>{header}</tr></thead>
-      <tbody>
-        {''.join(rows_html)}
-      </tbody>
-    </table>
-    """
-
-
-def _format_provenance_list(items: List[Dict[str, Any]]) -> str:
-    if not items:
-        return "<p class='muted'>No provenance available.</p>"
-
-    blocks = []
-    for i, item in enumerate(items):
-        result_html = html.escape(json.dumps(item.get("result", {}), ensure_ascii=False))
-        prov = item.get("provenance", [])
-
-        if not prov:
-            prov_html = "<li><span class='muted'>No provenance</span></li>"
-        else:
-            prov_html = "".join(
-                f"<li><code>{html.escape(' + '.join(ws))}</code></li>"
-                for ws in prov
-            )
-
-        blocks.append(f"""
-        <div class="prov-block">
-            <div><strong>Result {i+1}</strong>: <code>{result_html}</code></div>
-            <ul>{prov_html}</ul>
-        </div>
-        """)
-
-    return "".join(blocks)
 
 # =========================
 # Retrieval and indexing
 # ========================
 _VECTOR_STORE: Optional[FAISS] = None
 
-def _row_to_text(row: Dict[str, Any]) -> str:
+def _row_to_text(row: Dict[str, Any], table: Optional[str] = None) -> str:
     parts = []
+
+    if table:
+        parts.append(f"table: {table}")
+
     for k, v in row.items():
         if k == "__rid__" or k.endswith("_rownum"):
             continue
@@ -480,6 +404,7 @@ def _row_to_text(row: Dict[str, Any]) -> str:
         if not s:
             continue
         parts.append(f"{k}: {s}")
+
     return " | ".join(parts)
 def _context_to_prompt_text(ctx: Dict[str, Any]) -> str:
     lines = []
@@ -535,7 +460,7 @@ def _get_or_build_faiss() -> FAISS:
             if not rid:
                 continue
 
-            text = _row_to_text(r)
+            text = _row_to_text(r, table)
             if not text:
                 continue
 
@@ -578,45 +503,75 @@ def _get_or_build_faiss() -> FAISS:
 
     _VECTOR_STORE = vector_store
     return _VECTOR_STORE
-
-def _get_relevant_schema_info(question: str) -> Dict[str, Any]:
+def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
     """
-    Return only schema entries explicitly relevant to the question.
-    Do NOT use retrieved context tables, because retrieval may be noisy.
+    Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K in each iteration, until no new rows are retrieved or MAX_ITERATIVE_RETRIEVALS is reached.
     """
-    q = question.lower()
+    _load_csvs_once()
+    print("\n[ITERATIVE RETRIEVAL] START", flush=True)
+    print(f"[ITERATIVE RETRIEVAL] question={question}", flush=True)  
+    vs = _get_or_build_faiss()
 
-    alias_map = {
-        "region": ["region", "regions"],
-        "nation": ["nation", "nations"],
-        "customer": ["customer", "customers"],
-        "orders": ["order", "orders"],
-        "lineitem": ["lineitem", "line item", "line items"],
-        "supplier": ["supplier", "suppliers"],
-        "part": ["part", "parts"],
-        "partsupp": ["partsupp", "part supplier", "part suppliers"],
-    }
+ 
+    ctx: Dict[str, Any] = defaultdict(dict)
+    seen_docs = set()
+    k = RETRIEVER_K
 
-    matched_tables = []
-    for table, aliases in alias_map.items():
-        if any(alias in q for alias in aliases):
-            matched_tables.append(table)
+    for iteration in range(1, MAX_ITERATIVE_RETRIEVALS + 1):
+        docs = vs.similarity_search(question, k=k)
+        new_count = 0
 
-    # If nothing is explicitly matched, return empty schema
-    if not matched_tables:
-        return {}
+        for d in docs:
+            meta = d.metadata or {}
+            table = meta.get("table")
+            rid = meta.get("rid")
 
-    # Add one-hop FK expansion only when multiple tables are mentioned
-    expanded_tables = set(matched_tables)
-    if len(matched_tables) >= 2:
-        for table in matched_tables:
-            info = SCHEMA_INFO.get(table, {})
-            for ref in info.get("foreign_keys", {}).values():
-                ref_table = ref.split(".", 1)[0]
-                if ref_table in SCHEMA_INFO:
-                    expanded_tables.add(ref_table)
+            if not table or not rid:
+                continue
 
-    return {t: SCHEMA_INFO[t] for t in expanded_tables if t in SCHEMA_INFO}
+            if rid in seen_docs:
+                continue
+
+            idx0 = _CSV_RID_INDEX.get(table, {}).get(rid)
+            if idx0 is None:
+                continue
+
+            if table not in ctx and len(ctx) >= MAX_TABLES:
+                continue
+
+            row = _CSV_CACHE[table][idx0]
+            ctx[table][rid] = row
+            seen_docs.add(rid)
+            new_count += 1
+
+        print(
+            f"[ITERATION {iteration}] new_rows_added={new_count} | ",
+            flush=True
+        )
+        _log_event({
+            "type": "iterative_retrieval",
+            "iteration": iteration,
+            "retriever_k": k,
+            "new_rows_added": new_count,
+            "tables": list(ctx.keys()),
+            "question": question,
+        })
+
+        if new_count == 0:
+            print(f"[ITERATION {iteration}] stopping: no new rows added", flush=True)
+            break
+
+        k += RETRIEVER_K
+
+    preview = {table: list(rows.keys())[:3] for table, rows in ctx.items()}
+
+    _log_event({
+        "type": "iterative_retrieval_preview",
+        "tables": list(ctx.keys()),
+        "rows_preview": preview,
+    })
+
+    return dict(ctx)
 
 def _retrieve_context_data(question: str) -> Dict[str, Any]:
     _load_csvs_once()
@@ -673,7 +628,7 @@ def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
     table = str(task.get("table_name") or task.get("table") or "").strip()
 
     if table:
-        return f"Retrieve rows from table {table}"
+        return f"Retrieve relevant rows from table {table}"
 
     return "Retrieve relevant rows for this task"
 def _run_leaf_task(
@@ -712,6 +667,7 @@ def _run_planner_first(
     temperature: float,
 ) -> Dict[str, Any]:
     plan = build_query_plan(sql_query)
+
     if plan is None:
         raise RuntimeError("build_query_plan returned None")
 
@@ -725,7 +681,10 @@ def _run_planner_first(
         task_dict = asdict(task)
         retrieval_query = _build_leaf_retrieval_query(task_dict)
         print(f"\n--- Running leaf task for table '{task.table_name}' with retrieval query: {retrieval_query}\n", flush=True)
-        leaf_ctx = _retrieve_context_data(retrieval_query)
+
+        print("[PLANNER-FIRST] calling retrieve_context_data_iterative()", flush=True)
+        leaf_ctx = retrieve_context_data_iterative(retrieval_query)
+        print("[PLANNER-FIRST] retrieve_context_data_iterative() returned", flush=True)
 
         leaf_outputs.append(
             _run_leaf_task(
@@ -904,8 +863,7 @@ def chat_completions(
     
 
     if req.model == "planner-first":
-        #TO DO: implement planner-first using the query to generate an SQL plan and then use the LLM to extract the leaf nodes
-        # check on SQL: for now assume that is always SQL
+
         try:
             planner_result = _run_planner_first(
                 sql_query=question,
