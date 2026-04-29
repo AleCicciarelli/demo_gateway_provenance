@@ -49,7 +49,7 @@ EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
 RETRIEVER_K = int(os.getenv("RETRIEVER_K", "12"))
-MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "3"))
+MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "5"))
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
@@ -505,14 +505,15 @@ def _get_or_build_faiss() -> FAISS:
     return _VECTOR_STORE
 def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
     """
-    Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K in each iteration, until no new rows are retrieved or MAX_ITERATIVE_RETRIEVALS is reached.
+    Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K
+    in each iteration, until no new rows are retrieved or MAX_ITERATIVE_RETRIEVALS is reached.
     """
     _load_csvs_once()
     print("\n[ITERATIVE RETRIEVAL] START", flush=True)
-    print(f"[ITERATIVE RETRIEVAL] question={question}", flush=True)  
+    print(f"[ITERATIVE RETRIEVAL] question={question}", flush=True)
+
     vs = _get_or_build_faiss()
 
- 
     ctx: Dict[str, Any] = defaultdict(dict)
     seen_docs = set()
     k = RETRIEVER_K
@@ -520,8 +521,11 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
     for iteration in range(1, MAX_ITERATIVE_RETRIEVALS + 1):
         docs = vs.similarity_search(question, k=k)
         new_count = 0
+        new_rids = []
 
-        for d in docs:
+        print(f"\n[ITERATION {iteration}] k={k} | docs_returned={len(docs)}", flush=True)
+
+        for rank, d in enumerate(docs, start=1):
             meta = d.metadata or {}
             table = meta.get("table")
             rid = meta.get("rid")
@@ -543,16 +547,28 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
             ctx[table][rid] = row
             seen_docs.add(rid)
             new_count += 1
+            new_rids.append((rank, table, rid))
+
+        print(f"[ITERATION {iteration}] new_rows_added={new_count}", flush=True)
+
+        for rank, table, rid in new_rids:
+            print(f"  + rank={rank:>3} | table={table:<12} | rid={rid}", flush=True)
 
         print(
-            f"[ITERATION {iteration}] new_rows_added={new_count} | ",
+            f"[ITERATION {iteration}] tables={list(ctx.keys())} | "
+            f"total_rows={sum(len(rows) for rows in ctx.values())}",
             flush=True
         )
+
         _log_event({
             "type": "iterative_retrieval",
             "iteration": iteration,
             "retriever_k": k,
             "new_rows_added": new_count,
+            "new_rids": [
+                {"rank": rank, "table": table, "rid": rid}
+                for rank, table, rid in new_rids
+            ],
             "tables": list(ctx.keys()),
             "question": question,
         })
@@ -564,15 +580,22 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
         k += RETRIEVER_K
 
     preview = {table: list(rows.keys())[:3] for table, rows in ctx.items()}
+    final_rids = {table: list(rows.keys()) for table, rows in ctx.items()}
+
+    print("\n[ITERATIVE RETRIEVAL] FINAL SUMMARY", flush=True)
+    for table, rids in final_rids.items():
+        print(f"  table={table} | rows={len(rids)}", flush=True)
+        for rid in rids:
+            print(f"    - {rid}", flush=True)
 
     _log_event({
         "type": "iterative_retrieval_preview",
         "tables": list(ctx.keys()),
         "rows_preview": preview,
+        "final_rids": final_rids,
     })
 
     return dict(ctx)
-
 def _retrieve_context_data(question: str) -> Dict[str, Any]:
     _load_csvs_once()
     vs = _get_or_build_faiss()
