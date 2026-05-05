@@ -56,7 +56,7 @@ MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
     "best-ft-llama3-8b-nl": os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest"),
     "best-ft-llama3-8b-sql": os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:latest"),
-    "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3.3:70b"),
+    "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3:8b"),
 }
 
 # Exposing only the UI model ids in the /v1/models endpoint.
@@ -300,7 +300,7 @@ def _call_model_with_retry(
     """
     prompt = base_prompt
     print("\n========== PROMPT START ==========\n", flush=True)
-    print(prompt[:5000], flush=True)
+    print(prompt, flush=True)
     print("\n========== PROMPT END ==========\n", flush=True)
     last = ""
     validate = validator or _is_valid_json_array
@@ -314,7 +314,10 @@ def _call_model_with_retry(
             "attempt": attempt,
             "ok_json_array": ok,
             "error": err,
-            "out_preview": out[:200],
+            "prompt": prompt,
+            "prompt_chars": len(prompt),
+            "output": out,
+            "output_chars": len(out),
         })
         if ok:
             return out
@@ -612,12 +615,26 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
 
         for rank, table, rid in new_rids:
             print(f"  + rank={rank:>3} | table={table:<12} | rid={rid}", flush=True)
+            print(
+                json.dumps(_CSV_CACHE[table][_CSV_RID_INDEX[table][rid]], ensure_ascii=False),
+                flush=True,
+            )
 
         print(
             f"[ITERATION {iteration}] tables={list(ctx.keys())} | "
             f"total_rows={sum(len(rows) for rows in ctx.values())}",
             flush=True
         )
+
+        ctx_snapshot = {table: dict(rows) for table, rows in ctx.items()}
+        new_rows = {
+            rid: {
+                "rank": rank,
+                "table": table,
+                "row": _CSV_CACHE[table][_CSV_RID_INDEX[table][rid]],
+            }
+            for rank, table, rid in new_rids
+        }
 
         _log_event({
             "type": "iterative_retrieval",
@@ -629,6 +646,9 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
                 for rank, table, rid in new_rids
             ],
             "tables": list(ctx.keys()),
+            "new_rows": new_rows,
+            "context_data": ctx_snapshot,
+            "context_rows_total": sum(len(rows) for rows in ctx_snapshot.values()),
             "question": question,
         })
 
@@ -646,12 +666,17 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
         print(f"  table={table} | rows={len(rids)}", flush=True)
         for rid in rids:
             print(f"    - {rid}", flush=True)
+            print(json.dumps(ctx[table][rid], ensure_ascii=False), flush=True)
 
+    final_context_data = {table: dict(rows) for table, rows in ctx.items()}
     _log_event({
-        "type": "iterative_retrieval_preview",
+        "type": "iterative_retrieval_final",
         "tables": list(ctx.keys()),
         "rows_preview": preview,
         "final_rids": final_rids,
+        "context_data": final_context_data,
+        "context_rows_total": sum(len(rows) for rows in final_context_data.values()),
+        "question": question,
     })
 
     return dict(ctx)
@@ -691,10 +716,12 @@ def _retrieve_context_data(question: str) -> Dict[str, Any]:
     preview = {table: list(rows.keys())[:3] for table, rows in ctx.items()}
 
     _log_event({
-        "type": "retrieval_preview",
+        "type": "retrieval",
         "tables": list(ctx.keys()),
         "rows_preview": preview,
+        "context_data": ctx,
         "n_rows_used": used,
+        "question": question,
     })
 
     return ctx
@@ -921,8 +948,21 @@ def _explain_provenance_with_model(
 
     last = ""
     for attempt in range(1, EXPLAIN_MAX_TRIES + 1):
+        print("\n========== EXPLAIN PROMPT START ==========\n", flush=True)
+        print(prompt, flush=True)
+        print("\n========== EXPLAIN PROMPT END ==========\n", flush=True)
         out = _ollama_generate(model_name, prompt, temperature)
         last = out.strip()
+        _log_event({
+            "type": "explain_attempt",
+            "model": model_name,
+            "attempt": attempt,
+            "prompt": prompt,
+            "prompt_chars": len(prompt),
+            "output": last,
+            "output_chars": len(last),
+            "empty": not bool(last),
+        })
         if last:
             return last
 
@@ -985,7 +1025,9 @@ def chat_completions(
                 "stream": req.stream,
                 "sql_query": question,
                 "messages_count": len(req.messages),
+                "raw_messages": [m.model_dump() for m in req.messages],
                 "has_auth": bool(authorization),
+                "planner_result": planner_result,
             })
 
             _set_last_debug(
@@ -1044,9 +1086,11 @@ def chat_completions(
         "temperature": temperature,
         "stream": req.stream,
         "question": question,
-        "prompt": base_prompt[:500], 
+        "prompt": base_prompt,
         "context_tables": list(ctx.keys()),
+        "context_data": ctx,
         "messages_count": len(req.messages),
+        "raw_messages": [m.model_dump() for m in req.messages],
         "has_auth": bool(authorization),
         "prompt_chars": len(base_prompt),
     })
@@ -1057,6 +1101,8 @@ def chat_completions(
         "type": "response",
         "ui_model": req.model,
         "ollama_model": ollama_model,
+        "request_id": request_id,
+        "output": out_text,
         "response_chars": len(out_text),
     })
 
