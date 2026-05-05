@@ -5,7 +5,7 @@ import html
 import json
 import os
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 import csv
 from pathlib import Path
 from collections import defaultdict
@@ -30,6 +30,7 @@ app = FastAPI()
 LOG_PATH = os.getenv("GATEWAY_LOG_PATH", "/app/logs/provsql_gateway_logs.jsonl")
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
 MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "40"))
 MAX_TABLES = int(os.getenv("MAX_TABLES", "5"))
@@ -263,6 +264,7 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
         "stream": False,
         "options": {
             "temperature": temperature,
+            "num_ctx": OLLAMA_NUM_CTX,
         },
     }
     try:
@@ -286,7 +288,13 @@ def _is_valid_json_array(text: str) -> Tuple[bool, Optional[str]]:
     except Exception as e:
         return False, str(e)
 
-def _call_model_with_retry(ollama_model: str, base_prompt: str, temperature: float, max_tries: int = 2) -> str:
+def _call_model_with_retry(
+    ollama_model: str,
+    base_prompt: str,
+    temperature: float,
+    max_tries: int = 2,
+    validator: Optional[Callable[[str], Tuple[bool, Optional[str]]]] = None,
+) -> str:
     """
     Call to the model with the given prompt. If the output is not a valid JSON array, retry up to max_tries times by appending the RETRY_SUFFIX to the prompt.
     """
@@ -295,10 +303,11 @@ def _call_model_with_retry(ollama_model: str, base_prompt: str, temperature: flo
     print(prompt[:5000], flush=True)
     print("\n========== PROMPT END ==========\n", flush=True)
     last = ""
+    validate = validator or _is_valid_json_array
     for attempt in range(1, max_tries + 1):
         out = _ollama_generate(ollama_model, prompt, temperature)
         last = out
-        ok, err = _is_valid_json_array(out)
+        ok, err = validate(out)
         _log_event({
             "type": "attempt",
             "ollama_model": ollama_model,
@@ -309,10 +318,60 @@ def _call_model_with_retry(ollama_model: str, base_prompt: str, temperature: flo
         })
         if ok:
             return out
-        prompt = base_prompt + "\n\n" + RETRY_SUFFIX
+        prompt = (
+            base_prompt
+            + "\n\n"
+            + f"Previous output failed validation: {err}\n"
+            + RETRY_SUFFIX
+        )
 
     # If fails after max_tries, return the last output anyway (even if invalid).
     return last
+
+def _validate_leaf_json_array(
+    text: str,
+    expected_rows_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Tuple[bool, Optional[str]]:
+    try:
+        obj = json.loads(text)
+    except Exception as e:
+        return False, str(e)
+
+    if not isinstance(obj, list):
+        return False, "Root JSON is not an array"
+
+    seen_row_ids = set()
+    for i, item in enumerate(obj):
+        if not isinstance(item, dict):
+            return False, f"Item {i} is not an object"
+
+        if set(item.keys()) != {"row_id", "values"}:
+            return False, f"Item {i} must have exactly row_id and values"
+
+        row_id = item["row_id"]
+        values = item["values"]
+
+        if not isinstance(row_id, str):
+            return False, f"Item {i}.row_id must be a string"
+
+        if row_id in seen_row_ids:
+            return False, f"Item {i}.row_id duplicates an earlier output row"
+        seen_row_ids.add(row_id)
+
+        if expected_rows_by_id is not None and row_id not in expected_rows_by_id:
+            return False, f"Item {i}.row_id is not present in CONTEXT_DATA"
+
+        if not isinstance(values, dict):
+            return False, f"Item {i}.values must be an object"
+
+        if expected_rows_by_id is not None and values != expected_rows_by_id[row_id]:
+            return False, f"Item {i}.values does not exactly match CONTEXT_DATA row '{row_id}'"
+
+        value_rid = values.get("__rid__")
+        if value_rid is not None and value_rid != row_id:
+            return False, f"Item {i}.values.__rid__ does not match row_id"
+
+    return True, None
 
 # Cache in memoria: table -> list[dict]
 _CSV_CACHE: Dict[str, List[Dict[str, Any]]] = {}
@@ -645,15 +704,27 @@ def _retrieve_context_data(question: str) -> Dict[str, Any]:
 
 def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
     """
-    Build a very simple retrieval query for one leaf task.
-    For now, retrieval is only table-aware.
+    Build a retrieval query for one leaf task.
+    The model remains leaf-only: predicates and joins are not pushed into extraction.
     """
     table = str(task.get("table_name") or task.get("table") or "").strip()
+    columns = []
+    for key in ("select_columns", "join_keys", "group_by_columns", "aggregate_columns", "columns"):
+        for col in task.get(key) or []:
+            if col not in columns:
+                columns.append(col)
 
     if table:
-        return f"Retrieve relevant rows from table {table}"
+        query = f"table: {table}"
+        if columns:
+            query += " | columns: " + ", ".join(columns)
+        return query
 
     return "Retrieve relevant rows for this task"
+
+def _leaf_rows_by_id(ctx: Dict[str, Any], table_name: str) -> Dict[str, Dict[str, Any]]:
+    return dict(ctx.get(table_name) or {})
+
 def _run_leaf_task(
     task: Dict[str, Any],
     ollama_model: str,
@@ -663,16 +734,24 @@ def _run_leaf_task(
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
 
+    expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
 
     prompt = build_leaf_prompt(task, ctx, mode="first")
-    out_text = _call_model_with_retry(ollama_model, prompt, temperature, max_tries=2)
+    out_text = _call_model_with_retry(
+        ollama_model,
+        prompt,
+        temperature,
+        max_tries=2,
+        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
+    )
 
     parsed_output = None
     parse_error = None
-    try:
+    valid_leaf_output, validation_error = _validate_leaf_json_array(out_text, expected_rows_by_id)
+    if valid_leaf_output:
         parsed_output = json.loads(out_text)
-    except Exception as e:
-        parse_error = str(e)
+    else:
+        parse_error = validation_error
 
     return {
         "table_name": table_name,
@@ -683,6 +762,7 @@ def _run_leaf_task(
         "output_text": out_text,
         "parsed_output": parsed_output,
         "parse_error": parse_error,
+        "valid_leaf_output": valid_leaf_output,
     }
 def _run_planner_first(
     sql_query: str,
