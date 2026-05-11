@@ -1,0 +1,232 @@
+[
+  {
+    "query_id": "query01",
+    "question_nl": "Which suppliers (s_name) belong to the region with r_name EUROPE and have a balance lower than 0?",
+    "question_sql": "SELECT  s.s_name FROM supplier s JOIN nation n ON s.s_nationkey = n.n_nationkey JOIN region r ON n.n_regionkey = r.r_regionkey WHERE r.r_name = 'EUROPE' AND s.s_acctbal < 0;"
+  },
+  {
+    "query_id": "query02",
+    "question_nl": "Which orders (o_orderkey) done by a customer with nationkey = 2 have a total price between 20500 and 20550?",
+    "question_sql": "SELECT  o.o_orderkey FROM orders o JOIN customer c ON o.o_custkey = c.c_custkey WHERE c.c_nationkey = 2 AND o.o_totalprice BETWEEN 20500 AND 20550;"
+  },
+  {
+    "query_id": "query03",
+    "question_nl": "Which customers (c_name) have placed orders with a total price between 91123 and 91130?",
+    "question_sql": "SELECT  c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_totalprice BETWEEN 91123 AND 91130;"
+  },
+  {
+    "query_id": "query04",
+    "question_nl": "Which parts (p_type) have a size equal to 36 and are supplied by suppliers with a supply cost between 100 and 102?",
+    "question_sql": "SELECT  p.p_type FROM part p JOIN partsupp ps ON p.p_partkey = ps.ps_partkey WHERE p.p_size = 36 AND ps.ps_supplycost BETWEEN 100 AND 102;"
+  },
+  {
+    "query_id": "query05",
+    "question_nl": "Which customers (c_name) have placed orders with a total price between 13156 and 13160?",
+    "question_sql": "SELECT  c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_totalprice BETWEEN 13156 AND 13160;"
+  },
+  {
+    "query_id": "query06",
+    "question_nl": "Which customers (c_name) have placed orders with a total price between 91123 and 91600, and belong to the nation with nationkey = 1?",
+    "question_sql": "SELECT  c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_totalprice BETWEEN 91123 AND 91600 AND c.c_nationkey = 1;"
+  },
+  {
+    "query_id": "query07",
+    "question_nl": "Which customers (c_custkey) have placed orders with a total price lower than 1000, belong to the nation with nationkey = 24, and have an order status of either 'P' or 'F'?",
+    "question_sql": "SELECT  c.c_custkey FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_totalprice < 1000 AND c.c_nationkey = 24 AND o.o_orderstatus IN ('P', 'F');"
+  },
+  {
+    "query_id": "query08",
+    "question_nl": "Which region (r_regionkey) does the nation 'GERMANY' belong to?",
+    "question_sql": "SELECT r.r_regionkey FROM nation n JOIN region r ON n.n_regionkey = r.r_regionkey WHERE n.n_name = 'GERMANY';"
+  },
+  {
+    "query_id": "query09",
+    "question_nl": "What is the name (r_name) of the region with region key 1?",
+    "question_sql": "SELECT r.r_name FROM region r WHERE r.r_regionkey = 1;"
+  },
+  {
+    "query_id": "query10",
+    "question_nl": "What is the phone number of the supplier with name 'Supplier#000000010'?",
+    "question_sql": "SELECT s.s_phone FROM supplier s WHERE s.s_name = 'Supplier#000000010';"
+  },
+  {
+    "query_id": "query11",
+    "question_nl": "What is the retail price of the part named 'forest brown coral puff cream'?",
+    "question_sql": "SELECT p.p_retailprice FROM part p WHERE p.p_name = 'forest brown coral puff cream';"
+  },
+  {
+    "query_id": "query12",
+    "question_nl": "Which customer (c_name) placed the order with order key 130?",
+    "question_sql": "SELECT c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_orderkey = 130;"
+  },
+  {
+    "query_id": "query13",
+    "question_nl": "What is the account balance (c_acctbal) of the customer with custkey 456?",
+    "question_sql": "SELECT c.c_acctbal FROM customer c WHERE c.c_custkey = 456;"
+  },
+  {
+    "query_id": "query14",
+    "question_nl": "What is the nation name of the customer Customer#000000004?",
+    "question_sql": "SELECT n.n_name FROM customer c JOIN nation n ON c.c_nationkey = n.n_nationkey WHERE c.c_name = 'Customer#000000004';"
+  },
+  {
+    "query_id": "query15",
+    "question_nl": "Which parts (p_name) were supplied in the order with lineitem l_orderkey = 230?",
+    "question_sql": "SELECT  p.p_name FROM lineitem l JOIN part p ON l.l_partkey = p.p_partkey WHERE l.l_orderkey = 230;"
+  },
+  {
+    "query_id": "query16",
+    "question_nl": "Which regions (r_regionKey) have a region key greater than 2?",
+    "question_sql": "SELECT r.r_regionkey FROM region r WHERE r.r_regionkey > 2;"
+  },
+  {
+    "query_id": "query17",
+    "question_nl": "Which customers (c_name) are from the market segment 'AUTOMOBILE' and have an account balance between 0 and 100?",
+    "question_sql": "SELECT c.c_name FROM customer c WHERE c.c_mktsegment = 'AUTOMOBILE' AND c.c_acctbal BETWEEN 0 AND 100;"
+  },
+  {
+    "query_id": "query18",
+    "question_nl": "Which suppliers (s_name) have a nation key of 2 and a balance between 1000 and 2000?",
+    "question_sql": "SELECT s.s_name FROM supplier s WHERE s.s_nationkey = 2 AND s.s_acctbal BETWEEN 1000 AND 2000;"
+  },
+  {
+    "query_id": "query19",
+    "question_nl": "Which customers (c_name) have placed orders with a total price between 1000 and 1500 and belong to the nation with nationkey = 2?",
+    "question_sql": "SELECT  c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_totalprice BETWEEN 1000 AND 1500 AND c.c_nationkey = 2;"
+  },
+  {
+    "query_id": "query20",
+    "question_nl": "What is the ship date of the lineitem with order key 324 and line number 1?",
+    "question_sql": "SELECT l.l_shipdate FROM lineitem l WHERE l.l_orderkey = 324 AND l.l_linenumber = 1;"
+  },
+  {
+    "query_id": "query21",
+    "question_nl": "What are the order dates of the order placed by customer 'Customer#000000023'?",
+    "question_sql": "SELECT o.o_orderdate FROM orders o JOIN customer c ON o.o_custkey = c.c_custkey WHERE c.c_name = 'Customer#000000023';"
+  },
+  {
+    "query_id": "query22",
+    "question_nl": "What is the nation (n_name) of the supplier 'Supplier#000000007'?",
+    "question_sql": "SELECT n.n_name FROM supplier s JOIN nation n ON s.s_nationkey = n.n_nationkey WHERE s.s_name = 'Supplier#000000007';"
+  },
+  {
+    "query_id": "query23",
+    "question_nl": "Which region (r_name) does the supplier 'Supplier#000000005' belong to?",
+    "question_sql": "SELECT r.r_name FROM supplier s JOIN nation n ON s.s_nationkey = n.n_nationkey JOIN region r ON n.n_regionkey = r.r_regionkey WHERE s.s_name = 'Supplier#000000005';"
+  },
+  {
+    "query_id": "query24",
+    "question_nl": "Which suppliers (s_name) provide the part with partkey 200?",
+    "question_sql": "SELECT  s.s_name FROM supplier s JOIN partsupp ps ON s.s_suppkey = ps.ps_suppkey WHERE ps.ps_partkey = 200;"
+  },
+  {
+    "query_id": "query25",
+    "question_nl": "What is the available quantity for partkey 500 supplied by supplierkey 123?",
+    "question_sql": "SELECT ps.ps_availqty FROM partsupp ps WHERE ps.ps_partkey = 500 AND ps.ps_suppkey = 123;"
+  },
+  {
+    "query_id": "query26",
+    "question_nl": "What is the total price of the order with orderkey 100?",
+    "question_sql": "SELECT o.o_totalprice FROM orders o WHERE o.o_orderkey = 100;"
+  },
+  {
+    "query_id": "query27",
+    "question_nl": "What is the phone number of the supplier named \"Supplier#000000005\"?",
+    "question_sql": "SELECT s.s_phone FROM supplier s WHERE s.s_name = 'Supplier#000000005';"
+  },
+  {
+    "query_id": "query28",
+    "question_nl": "What is the order date of the order with order key 323?",
+    "question_sql": "SELECT o.o_orderdate FROM orders o WHERE o.o_orderkey = 323;"
+  },
+  {
+    "query_id": "query29",
+    "question_nl": "Which customer (c_name) placed the order with order key 323?",
+    "question_sql": "SELECT c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_orderkey = 323;"
+  },
+  {
+    "query_id": "query30",
+    "question_nl": "What is the name of the nation where the supplier with suppkey 456 is located?",
+    "question_sql": "SELECT n.n_name FROM supplier s JOIN nation n ON s.s_nationkey = n.n_nationkey WHERE s.s_suppkey = 456;"
+  },
+  {
+    "query_id": "query31",
+    "question_nl": "What is the name of the region where the nation FRANCE is located?",
+    "question_sql": "SELECT r.r_name FROM nation n JOIN region r ON n.n_regionkey = r.r_regionkey WHERE n.n_name = 'FRANCE';"
+  },
+  {
+    "query_id": "query32",
+    "question_nl": "What is the name of the nation of the customer who placed order 352?",
+    "question_sql": "SELECT n.n_name FROM orders o JOIN customer c ON o.o_custkey = c.c_custkey JOIN nation n ON c.c_nationkey = n.n_nationkey WHERE o.o_orderkey = 352;"
+  },
+  {
+    "query_id": "query33",
+    "question_nl": "What is the nation name of the supplier that provided partkey 430 in order 3?",
+    "question_sql": "SELECT  n.n_name FROM lineitem l JOIN supplier s ON l.l_suppkey = s.s_suppkey JOIN nation n ON s.s_nationkey = n.n_nationkey WHERE l.l_orderkey = 3 AND l.l_partkey = 430;"
+  },
+  {
+    "query_id": "query34",
+    "question_nl": "What is the phone number of the supplier that delivered a lineitem for partkey 275 in order 32?",
+    "question_sql": "SELECT  s.s_phone FROM lineitem l JOIN supplier s ON l.l_suppkey = s.s_suppkey WHERE l.l_orderkey = 32 AND l.l_partkey = 275;"
+  },
+  {
+    "query_id": "query35",
+    "question_nl": "What is the available quantity of the part blush thistle blue yellow saddle supplied by Supplier#000000003?",
+    "question_sql": "SELECT ps.ps_availqty FROM partsupp ps JOIN part p ON ps.ps_partkey = p.p_partkey JOIN supplier s ON ps.ps_suppkey = s.s_suppkey WHERE p.p_name = 'blush thistle blue yellow saddle' AND s.s_name = 'Supplier#000000003';"
+  },
+  {
+    "query_id": "query36",
+    "question_nl": "What is the supply cost of the part goldenrod lavender spring chocolate lace supplied by Supplier#000000002?",
+    "question_sql": "SELECT ps.ps_supplycost FROM partsupp ps JOIN part p ON ps.ps_partkey = p.p_partkey JOIN supplier s ON ps.ps_suppkey = s.s_suppkey WHERE p.p_name = 'goldenrod lavender spring chocolate lace' AND s.s_name = 'Supplier#000000002';"
+  },
+  {
+    "query_id": "query37",
+    "question_nl": "Which customers (c_name) from the nation 'GERMANY' in the market segment 'HOUSEHOLD' have an account balance greater than 9000?",
+    "question_sql": "SELECT c.c_name FROM customer c JOIN nation n ON c.c_nationkey = n.n_nationkey WHERE n.n_name = 'GERMANY' AND c.c_mktsegment = 'HOUSEHOLD' AND c.c_acctbal > 9000;"
+  },
+  {
+    "query_id": "query38",
+    "question_nl": "Which suppliers (s_name) have supplied parts for the order with order key 1?",
+    "question_sql": "SELECT  s.s_name FROM lineitem l JOIN supplier s ON l.l_suppkey = s.s_suppkey WHERE l.l_orderkey = 1;"
+  },
+  {
+    "query_id": "query39",
+    "question_nl": "Which customers (c_name) have placed orders on 1995-12-24 with an order priority of '3-MEDIUM'?",
+    "question_sql": "SELECT  c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_orderdate = DATE '1995-12-24' AND o.o_orderpriority = '3-MEDIUM';"
+  },
+  {
+    "query_id": "query40",
+    "question_nl": "Which customers (c_name) have placed orders on 1997-12-31 with an order priority of '4-NOT SPECIFIED'?",
+    "question_sql": "SELECT  c.c_name FROM customer c JOIN orders o ON c.c_custkey = o.o_custkey WHERE o.o_orderdate = DATE '1997-12-31' AND o.o_orderpriority = '4-NOT SPECIFIED';"
+  },
+  {
+    "query_id": "query41",
+    "question_nl": "Which parts (p_name) have a retail price lower than 902?",
+    "question_sql": "SELECT p.p_name FROM part p WHERE p.p_retailprice < 902;"
+  },
+  {
+    "query_id": "query42",
+    "question_nl": "Which nations (n_name) have a region key of 1?",
+    "question_sql": "SELECT n.n_name FROM nation n WHERE n.n_regionkey = 1;"
+  },
+  {
+    "query_id": "query43",
+    "question_nl": "Which nations (n_name) have a region key of 2?",
+    "question_sql": "SELECT n.n_name FROM nation n WHERE n.n_regionkey = 2;"
+  },
+  {
+    "query_id": "query44",
+    "question_nl": "Which nations (n_name) have a region key of 0?",
+    "question_sql": "SELECT n.n_name FROM nation n WHERE n.n_regionkey = 0;"
+  },
+  {
+    "query_id": "query45",
+    "question_nl": "Which nations (n_name) have a region key of 3?",
+    "question_sql": "SELECT n.n_name FROM nation n WHERE n.n_regionkey = 3;"
+  },
+  {
+    "query_id": "query46",
+    "question_nl": "Which suppliers (s_name) belong to the nation with nationkey = 2 and have a balance lower than 0?",
+    "question_sql": "SELECT s.s_name FROM supplier s WHERE s.s_nationkey = 2 AND s.s_acctbal < 0;"
+  }
+]
