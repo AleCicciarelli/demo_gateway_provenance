@@ -31,8 +31,9 @@ LOG_PATH = os.getenv("GATEWAY_LOG_PATH", "/app/logs/provsql_gateway_logs.jsonl")
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
+OLLAMA_REQUEST_TIMEOUT = float(os.getenv("OLLAMA_REQUEST_TIMEOUT", "300"))
 CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
-MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "40"))
+MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "37"))
 MAX_TABLES = int(os.getenv("MAX_TABLES", "5"))
 
 OLLAMA_MODEL_BASE = os.getenv("OLLAMA_MODEL_BASE", "llama3:8b")
@@ -50,7 +51,7 @@ EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
 RETRIEVER_K = int(os.getenv("RETRIEVER_K", "12"))
-MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "2"))
+MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "3"))
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
@@ -174,6 +175,8 @@ RETRY_SUFFIX = """
 REMINDER:
 Return ONLY valid JSON and nothing else.
 The entire output MUST be a JSON array.
+Return the COMPLETE array for the target table again.
+Do not return only the corrected row.
 No code fences. No commentary. No extra keys.
 """
 
@@ -268,7 +271,7 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
         },
     }
     try:
-        r = requests.post(url, json=payload, timeout=300)
+        r = requests.post(url, json=payload, timeout=OLLAMA_REQUEST_TIMEOUT)
         if not r.ok:
             raise RuntimeError(f"Ollama error {r.status_code}: {r.text}")
         data = r.json()
@@ -288,12 +291,35 @@ def _is_valid_json_array(text: str) -> Tuple[bool, Optional[str]]:
     except Exception as e:
         return False, str(e)
 
+def _extract_json_array_text(text: str) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Return the first JSON array embedded in text.
+    Models sometimes prepend a short sentence before the requested JSON; the
+    evaluator should still parse the array when it is otherwise valid.
+    """
+    decoder = json.JSONDecoder()
+    first_error: Optional[str] = None
+    for start, char in enumerate(text):
+        if char != "[":
+            continue
+        try:
+            obj, end = decoder.raw_decode(text[start:])
+        except json.JSONDecodeError as exc:
+            if first_error is None:
+                first_error = str(exc)
+            continue
+        if isinstance(obj, list):
+            return text[start : start + end], None
+
+    return None, first_error or "No JSON array found in model output"
+
 def _call_model_with_retry(
     ollama_model: str,
     base_prompt: str,
     temperature: float,
     max_tries: int = 2,
     validator: Optional[Callable[[str], Tuple[bool, Optional[str]]]] = None,
+    scorer: Optional[Callable[[str], int]] = None,
 ) -> str:
     """
     Call to the model with the given prompt. If the output is not a valid JSON array, retry up to max_tries times by appending the RETRY_SUFFIX to the prompt.
@@ -303,17 +329,24 @@ def _call_model_with_retry(
     print(prompt, flush=True)
     print("\n========== PROMPT END ==========\n", flush=True)
     last = ""
+    best = ""
+    best_score = -1
     validate = validator or _is_valid_json_array
     for attempt in range(1, max_tries + 1):
         out = _ollama_generate(ollama_model, prompt, temperature)
         last = out
         ok, err = validate(out)
+        score = scorer(out) if scorer is not None else (1 if ok else 0)
+        if score > best_score:
+            best = out
+            best_score = score
         _log_event({
             "type": "attempt",
             "ollama_model": ollama_model,
             "attempt": attempt,
             "ok_json_array": ok,
             "error": err,
+            "score": score,
             "prompt": prompt,
             "prompt_chars": len(prompt),
             "output": out,
@@ -328,53 +361,88 @@ def _call_model_with_retry(
             + RETRY_SUFFIX
         )
 
-    # If fails after max_tries, return the last output anyway (even if invalid).
-    return last
+    # If every attempt fails, keep the attempt with the most individually valid
+    # rows instead of blindly returning a shorter correction-only retry.
+    return best or last
 
 def _validate_leaf_json_array(
     text: str,
     expected_rows_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Tuple[bool, Optional[str]]:
-    try:
-        obj = json.loads(text)
-    except Exception as e:
-        return False, str(e)
+    valid, error, _ = _parse_leaf_json_array_partial(text, expected_rows_by_id)
+    return valid, error
+
+def _parse_leaf_json_array_partial(
+    text: str,
+    expected_rows_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Tuple[bool, Optional[str], Optional[List[Dict[str, Any]]]]:
+    """
+    Validate a leaf JSON array, but keep row items that are individually valid.
+
+    The boolean/error pair is still strict: any malformed or mismatched item
+    makes the whole leaf invalid. The parsed output is partial so downstream
+    scoring can count rows that the model did copy correctly.
+    """
+    json_text, extract_error = _extract_json_array_text(text)
+    if json_text is None:
+        return False, extract_error, None
+
+    obj = json.loads(json_text)
 
     if not isinstance(obj, list):
-        return False, "Root JSON is not an array"
+        return False, "Root JSON is not an array", None
 
-    seen_row_ids = set()
+    valid_items: List[Dict[str, Any]] = []
+    accepted_row_ids = set()
+    errors: List[str] = []
     for i, item in enumerate(obj):
         if not isinstance(item, dict):
-            return False, f"Item {i} is not an object"
+            errors.append(f"Item {i} is not an object")
+            continue
 
         if set(item.keys()) != {"row_id", "values"}:
-            return False, f"Item {i} must have exactly row_id and values"
+            errors.append(f"Item {i} must have exactly row_id and values")
+            continue
 
         row_id = item["row_id"]
         values = item["values"]
 
         if not isinstance(row_id, str):
-            return False, f"Item {i}.row_id must be a string"
+            errors.append(f"Item {i}.row_id must be a string")
+            continue
 
-        if row_id in seen_row_ids:
-            return False, f"Item {i}.row_id duplicates an earlier output row"
-        seen_row_ids.add(row_id)
+        if row_id in accepted_row_ids:
+            errors.append(f"Item {i}.row_id duplicates an earlier valid output row")
+            continue
 
         if expected_rows_by_id is not None and row_id not in expected_rows_by_id:
-            return False, f"Item {i}.row_id is not present in CONTEXT_DATA"
+            errors.append(f"Item {i}.row_id is not present in CONTEXT_DATA")
+            continue
 
         if not isinstance(values, dict):
-            return False, f"Item {i}.values must be an object"
+            errors.append(f"Item {i}.values must be an object")
+            continue
 
         if expected_rows_by_id is not None and values != expected_rows_by_id[row_id]:
-            return False, f"Item {i}.values does not exactly match CONTEXT_DATA row '{row_id}'"
+            errors.append(f"Item {i}.values does not exactly match CONTEXT_DATA row '{row_id}'")
+            continue
 
         value_rid = values.get("__rid__")
         if value_rid is not None and value_rid != row_id:
-            return False, f"Item {i}.values.__rid__ does not match row_id"
+            errors.append(f"Item {i}.values.__rid__ does not match row_id")
+            continue
 
-    return True, None
+        accepted_row_ids.add(row_id)
+        valid_items.append(item)
+
+    if errors:
+        shown_errors = errors[:10]
+        error_text = "; ".join(shown_errors)
+        if len(errors) > len(shown_errors):
+            error_text += f"; ... and {len(errors) - len(shown_errors)} more"
+        return False, error_text, valid_items
+
+    return True, None, valid_items
 
 # Cache in memoria: table -> list[dict]
 _CSV_CACHE: Dict[str, List[Dict[str, Any]]] = {}
@@ -770,15 +838,14 @@ def _run_leaf_task(
         temperature,
         max_tries=2,
         validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
+        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id)[2] or []),
     )
 
-    parsed_output = None
-    parse_error = None
-    valid_leaf_output, validation_error = _validate_leaf_json_array(out_text, expected_rows_by_id)
-    if valid_leaf_output:
-        parsed_output = json.loads(out_text)
-    else:
-        parse_error = validation_error
+    valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
+        out_text,
+        expected_rows_by_id,
+    )
+    parse_error = None if valid_leaf_output else validation_error
 
     return {
         "table_name": table_name,
