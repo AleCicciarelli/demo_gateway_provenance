@@ -82,7 +82,7 @@ echo "[oar-eval] running planner-first evaluation"
 python3 run_planner_first_eval.py \
   --resume \
   --mode "${EVAL_MODE:-leaf}" \
-  --output "${EVAL_OUTPUT:-evaluation/planner_first_outputs_8b_3.jsonl}" \
+  --output "${EVAL_OUTPUT:-evaluation/planner_first_outputs_70b_3.jsonl}" \
   "$@"
 
 echo "[oar-eval] done"

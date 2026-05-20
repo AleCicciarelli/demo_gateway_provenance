@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parent
 
 # gateway.py defaults to Docker paths. For local evaluation, prefer the repo data.
 os.environ.setdefault("CSV_DIR", str(REPO_ROOT / "tpch_no_provsql"))
@@ -33,7 +33,7 @@ except ModuleNotFoundError as exc:
 
 
 DEFAULT_INPUT = REPO_ROOT / "evaluation" / "leaf_node_questions.json"
-DEFAULT_OUTPUT = REPO_ROOT / "evaluation" / "planner_first_outputs_8b_3.jsonl"
+DEFAULT_OUTPUT = REPO_ROOT / "evaluation" / "planner_first_outputs_70b_3.jsonl"
 
 
 def utc_now() -> str:
