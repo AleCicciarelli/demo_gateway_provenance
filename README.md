@@ -28,6 +28,16 @@ Both services are started using **Docker Compose**.
 
 ---
 
+## Planner-First Documentation
+
+The detailed documentation for the planner-first pipeline and evaluation workflow is here:
+
+- [Planner-first logic and evaluation](docs/planner_first.md)
+
+It covers SQL planning, leaf extraction, iterative retrieval, output validation, ProvSQL ground-truth generation, local/OAR evaluation runs, metrics, logs, and current limitations.
+
+---
+
 ## 1. Prerequisites
 
 Install the following tools:
