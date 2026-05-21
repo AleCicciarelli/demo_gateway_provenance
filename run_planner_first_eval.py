@@ -33,7 +33,7 @@ except ModuleNotFoundError as exc:
 
 
 DEFAULT_INPUT = REPO_ROOT / "evaluation" / "leaf_node_questions.json"
-DEFAULT_OUTPUT = REPO_ROOT / "evaluation" / "planner_first_outputs_70b_3.jsonl"
+DEFAULT_OUTPUT = REPO_ROOT / "evaluation" / "planner_first_outputs_70b_4.jsonl"
 
 
 def utc_now() -> str:

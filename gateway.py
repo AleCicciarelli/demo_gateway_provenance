@@ -18,6 +18,7 @@ from sentence_transformers import SentenceTransformer
 from langchain_core.embeddings import Embeddings
 from fastapi.responses import HTMLResponse
 from prompt import build_leaf_prompt
+from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE
 from tpch_schema_info import SCHEMA_INFO
 from planner import  build_query_plan
 import uuid
@@ -51,13 +52,14 @@ EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
 RETRIEVER_K = int(os.getenv("RETRIEVER_K", "12"))
-MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "3"))
+MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "4"))
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
     "best-ft-llama3-8b-nl": os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest"),
     "best-ft-llama3-8b-sql": os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:latest"),
     "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3:70b"),
+    "internal-knowledge": os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", "llama3:8b"),
 }
 
 # Exposing only the UI model ids in the /v1/models endpoint.
@@ -1133,7 +1135,39 @@ def chat_completions(
             import traceback
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Planner-first failed: {e}")
-
+    if req.model == "internal-knowledge":
+        base_prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)
+        out_text = _call_model_with_retry(ollama_model, base_prompt, temperature, max_tries=2)
+        _log_event({
+            "type": "internal_knowledge_request",
+            "ui_model": req.model,
+            "request_id": request_id,
+            "ollama_model": ollama_model,
+            "temperature": temperature,
+            "stream": req.stream,
+            "question": question,
+            "prompt": base_prompt,
+            "output": out_text,
+            "prompt_chars": len(base_prompt),
+            "response_chars": len(out_text),
+            "messages_count": len(req.messages),
+            "raw_messages": [m.model_dump() for m in req.messages],
+            "has_auth": bool(authorization),
+        })
+        return {
+            "id": f"chatcmpl-{_now()}",
+            "object": "chat.completion",
+            "created": _now(),
+            "model": req.model,
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": out_text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        }
 
 
     #schema_info = _get_relevant_schema_info(question)
