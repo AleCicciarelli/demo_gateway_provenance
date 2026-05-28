@@ -48,7 +48,7 @@ def load_questions(path: Path) -> List[Dict[str, Any]]:
     return data
 
 
-def load_completed_record_ids(path: Path) -> Set[str]:
+def load_completed_record_ids(path: Path, *, include_failed: bool = True) -> Set[str]:
     completed: Set[str] = set()
     if not path.exists():
         return completed
@@ -64,7 +64,7 @@ def load_completed_record_ids(path: Path) -> Set[str]:
                 print(f"[resume] ignoring invalid JSONL line {line_no} in {path}", file=sys.stderr)
                 continue
             record_id = record.get("record_id")
-            if record_id and record.get("ok") is True:
+            if record_id and (include_failed or record.get("ok") is True):
                 completed.add(str(record_id))
     return completed
 
@@ -214,7 +214,12 @@ def parse_args() -> argparse.Namespace:
         "--resume",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help="Skip successful record_ids already present in the output JSONL.",
+        help="Skip record_ids already present in the output JSONL.",
+    )
+    parser.add_argument(
+        "--retry-failed",
+        action="store_true",
+        help="With --resume, retry existing records whose previous row has ok=false.",
     )
     parser.add_argument(
         "--overwrite",
@@ -248,7 +253,11 @@ def main() -> int:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("", encoding="utf-8")
 
-    completed = load_completed_record_ids(output_path) if args.resume else set()
+    completed = (
+        load_completed_record_ids(output_path, include_failed=not args.retry_failed)
+        if args.resume
+        else set()
+    )
     query_ids = set(args.query_id) if args.query_id else None
     questions = load_questions(args.input)
     items = list(iter_eval_items(questions, args.mode, query_ids))
@@ -260,6 +269,8 @@ def main() -> int:
     print(f"[eval] input={args.input}")
     print(f"[eval] output={output_path}")
     print(f"[eval] mode={args.mode} records={len(items)} resume={args.resume}")
+    if args.resume:
+        print(f"[eval] resume_skip_existing={not args.retry_failed} completed={len(completed)}")
     print(f"[eval] ollama_model={ollama_model} temperature={args.temperature}")
     if not args.verbose_gateway:
         print(f"[eval] gateway stdout={gateway_stdout_path}")
@@ -286,6 +297,7 @@ def main() -> int:
                     record = run_one(item, ollama_model=ollama_model, temperature=args.temperature)
 
         append_jsonl(output_path, record)
+        completed.add(record_id)
         ran += 1
         if not record["ok"]:
             failed += 1

@@ -69,18 +69,43 @@ def load_completed_record_ids(path: Path) -> Set[str]:
 
 def iter_eval_items(
     questions: Iterable[Dict[str, Any]],
+    mode: str,
     query_ids: Optional[Set[str]],
 ) -> Iterable[Dict[str, Any]]:
     for query in questions:
         query_id = str(query.get("query_id", "")).strip()
         if query_ids and query_id not in query_ids:
             continue
-        yield {
-            "record_id": f"{query_id}:internal-knowledge",
-            "query_id": query_id,
-            "question_nl": query.get("question_nl"),
-            "question_sql": query.get("question_sql"),
-        }
+
+        if mode in {"root", "both"}:
+            yield {
+                "record_id": f"{query_id}:internal-knowledge",
+                "run_mode": "internal-knowledge",
+                "query_id": query_id,
+                "question_nl": query.get("question_nl"),
+                "question_sql": query.get("question_sql"),
+                "leaf_index": None,
+                "leaf_table_name": None,
+                "leaf_question_nl": None,
+                "leaf_question_sql": None,
+                "prompt_question_nl": query.get("question_nl"),
+            }
+
+        if mode in {"leaf", "both"}:
+            for leaf_index, leaf in enumerate(query.get("leaf_tasks") or []):
+                table_name = str(leaf.get("table_name", "")).strip()
+                yield {
+                    "record_id": f"{query_id}:internal-knowledge-leaf:{leaf_index}:{table_name}",
+                    "run_mode": "internal-knowledge-leaf",
+                    "query_id": query_id,
+                    "question_nl": query.get("question_nl"),
+                    "question_sql": query.get("question_sql"),
+                    "leaf_index": leaf_index,
+                    "leaf_table_name": table_name,
+                    "leaf_question_nl": leaf.get("question_nl"),
+                    "leaf_question_sql": leaf.get("question_sql"),
+                    "prompt_question_nl": leaf.get("question_nl"),
+                }
 
 
 def extract_json_array_text(text: str) -> Tuple[Optional[str], Optional[str]]:
@@ -171,7 +196,7 @@ def run_one(item: Dict[str, Any], ollama_model: str, temperature: float) -> Dict
     error = None
 
     try:
-        question = str(item.get("question_nl") or "").strip()
+        question = str(item.get("prompt_question_nl") or "").strip()
         if not question:
             raise ValueError("Missing natural-language question")
         prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)
@@ -195,9 +220,13 @@ def run_one(item: Dict[str, Any], ollama_model: str, temperature: float) -> Dict
     return {
         "record_id": item["record_id"],
         "query_id": item["query_id"],
-        "run_mode": "internal-knowledge",
+        "run_mode": item["run_mode"],
         "question_nl": item["question_nl"],
         "question_sql": item["question_sql"],
+        "leaf_index": item["leaf_index"],
+        "leaf_table_name": item["leaf_table_name"],
+        "leaf_question_nl": item["leaf_question_nl"],
+        "leaf_question_sql": item["leaf_question_sql"],
         "ollama_model": ollama_model,
         "temperature": temperature,
         "started_at": started_at,
@@ -218,6 +247,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--mode",
+        choices=("root", "leaf", "both"),
+        default="root",
+        help="root runs each full question; leaf runs each leaf_tasks[*].question_nl.",
+    )
     parser.add_argument("--query-id", action="append", help="Run only this query_id. May be repeated.")
     parser.add_argument("--limit", type=int, default=None, help="Maximum number of records to run.")
     parser.add_argument("--temperature", type=float, default=0.0)
@@ -259,13 +294,13 @@ def main() -> int:
     completed = load_completed_record_ids(output_path) if args.resume else set()
     query_ids = set(args.query_id) if args.query_id else None
     questions = load_questions(args.input)
-    items = list(iter_eval_items(questions, query_ids))
+    items = list(iter_eval_items(questions, args.mode, query_ids))
     if args.limit is not None:
         items = items[: args.limit]
 
     print(f"[internal-eval] input={args.input}")
     print(f"[internal-eval] output={output_path}")
-    print(f"[internal-eval] records={len(items)} resume={args.resume}")
+    print(f"[internal-eval] mode={args.mode} records={len(items)} resume={args.resume}")
     print(f"[internal-eval] ollama_model={args.ollama_model} temperature={args.temperature}")
     if not args.verbose_gateway:
         print(f"[internal-eval] gateway stdout={gateway_stdout_path}")

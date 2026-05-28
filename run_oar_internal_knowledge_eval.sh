@@ -104,12 +104,15 @@ METRICS_OUTPUT="${METRICS_OUTPUT:-evaluation/internal_knowledge_metrics_${JOB_ID
 METRICS_CSV_OUTPUT="${METRICS_CSV_OUTPUT:-evaluation/internal_knowledge_metrics_${JOB_ID}.csv}"
 METRICS_PLOTS_DIR="${METRICS_PLOTS_DIR:-evaluation/internal_knowledge_plots_${JOB_ID}}"
 RUN_METRICS="${RUN_METRICS:-1}"
+EVAL_MODE="${EVAL_MODE:-root}"
+METRICS_MODE="${METRICS_MODE:-auto}"
 
 echo "[oar-internal-eval] running internal-knowledge evaluation"
 python3 run_internal_knowledge_eval.py \
   --resume \
   --input "${EVAL_INPUT:-evaluation/questions.json}" \
   --output "$EVAL_OUTPUT" \
+  --mode "$EVAL_MODE" \
   --ollama-model "${OLLAMA_MODEL_INTERNAL_KNOWLEDGE:-${OLLAMA_MODEL_BASE:-llama3:8b}}" \
   "$@"
 
@@ -121,6 +124,7 @@ if [[ "$RUN_METRICS" == "1" ]]; then
     --csv-dir "${CSV_DIR:-tpch_no_provsql}" \
     --output "$METRICS_OUTPUT" \
     --csv-output "$METRICS_CSV_OUTPUT" \
+    --mode "$METRICS_MODE" \
     --plots-dir "$METRICS_PLOTS_DIR"
 fi
 

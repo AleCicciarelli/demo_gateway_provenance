@@ -16,6 +16,11 @@ At the current stage, planner-first is an extraction pipeline. The gateway build
 - `run_oar_planner_eval.sh`: convenience wrapper for running the evaluation on an OAR cluster with a local Ollama server.
 - `evaluation/generate_ground_truth_provsql.sh`: generates query and leaf ground truth from a ProvSQL-enabled PostgreSQL container.
 
+Related notes:
+
+- `docs/planner_first_results.md`: current planner-first result discussion.
+- `docs/internal_knowledge_logic_and_results.md`: internal-knowledge baseline logic and result discussion.
+
 ## Runtime Flow
 
 ### 1. User Calls `planner-first`
@@ -281,6 +286,42 @@ Useful options:
 - `--verbose-gateway`: print gateway retrieval and prompt logs to the console.
 - `--gateway-log-output PATH`: store gateway stdout somewhere specific.
 - `--ollama-model MODEL`: use an actual Ollama model name instead of `gateway.MODEL_ROUTING["planner-first"]`.
+
+## Running Internal-Knowledge On The Same Leaf Tasks
+
+The internal-knowledge runner can use the same `root|leaf|both` split as planner-first. To compare against planner-first leaf extraction, run it with `--mode leaf` on `evaluation/leaf_node_questions.json`:
+
+```bash
+python3 run_internal_knowledge_eval.py \
+  --input evaluation/leaf_node_questions.json \
+  --output evaluation/internal_knowledge_leaf_outputs.jsonl \
+  --mode leaf \
+  --ollama-model llama3:70b \
+  --temperature 0.0
+```
+
+Then score those leaf records against the leaf-task ground truth:
+
+```bash
+python3 evaluate_internal_knowledge_outputs.py \
+  --predictions evaluation/internal_knowledge_leaf_outputs.jsonl \
+  --ground-truth evaluation/ground_truth_leaf_tasks.json \
+  --mode leaf \
+  --output evaluation/internal_knowledge_leaf_metrics.json \
+  --csv-output evaluation/internal_knowledge_leaf_metrics.csv \
+  --plots-dir evaluation/internal_knowledge_leaf_plots
+```
+
+For OAR, set the same mode and matching ground truth:
+
+```bash
+EVAL_INPUT=evaluation/leaf_node_questions.json \
+EVAL_MODE=leaf \
+GROUND_TRUTH=evaluation/ground_truth_leaf_tasks.json \
+METRICS_MODE=leaf \
+EVAL_OUTPUT=evaluation/internal_knowledge_leaf_outputs_${OAR_JOB_ID}.jsonl \
+oarsub -l /gpu=1,walltime=4:0:0 './run_oar_internal_knowledge_eval.sh --ollama-model llama3:70b'
+```
 
 By default, local evaluation sets:
 

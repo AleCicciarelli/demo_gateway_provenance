@@ -11,10 +11,10 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-DEFAULT_PREDICTIONS = REPO_ROOT / "evaluation" / "planner_first_outputs_70b_3.jsonl"
+DEFAULT_PREDICTIONS = REPO_ROOT / "evaluation" / "planner_first_outputs_70b_4.jsonl"
 DEFAULT_GROUND_TRUTH = REPO_ROOT / "evaluation" / "ground_truth_leaf_tasks.json"
-DEFAULT_REPORT = REPO_ROOT / "evaluation" / "planner_first_metrics_70b_3.json"
-DEFAULT_PLOTS_DIR = REPO_ROOT / "evaluation" / "planner_first_plots_70b_3"
+DEFAULT_REPORT = REPO_ROOT / "evaluation" / "planner_first_metrics_70b_4.json"
+DEFAULT_PLOTS_DIR = REPO_ROOT / "evaluation" / "planner_first_plots_70b_4"
 
 
 def load_json_or_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -329,12 +329,36 @@ def leaf_validity(record: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
 
 
 def evaluate(predictions: List[Dict[str, Any]], ground_truth: List[Dict[str, Any]]) -> Dict[str, Any]:
+    duplicate_prediction_records = 0
+    latest_by_record_id: Dict[str, Dict[str, Any]] = {}
+    deduped_predictions: List[Dict[str, Any]] = []
+    for record in predictions:
+        record_id = record.get("record_id")
+        if not record_id:
+            deduped_predictions.append(record)
+            continue
+        record_id = str(record_id)
+        if record_id in latest_by_record_id:
+            duplicate_prediction_records += 1
+        latest_by_record_id[record_id] = record
+
+    seen_record_ids: Set[str] = set()
+    for record in predictions:
+        record_id = record.get("record_id")
+        if not record_id:
+            continue
+        record_id = str(record_id)
+        if record_id in seen_record_ids:
+            continue
+        seen_record_ids.add(record_id)
+        deduped_predictions.append(latest_by_record_id[record_id])
+
     gt_index = build_ground_truth_index(ground_truth)
     details: List[Dict[str, Any]] = []
     aggregate = defaultdict(float)
     unmatched_predictions = 0
 
-    for record in predictions:
+    for record in deduped_predictions:
         if record.get("run_mode") != "leaf":
             continue
         gt = find_ground_truth(record, gt_index)
@@ -391,6 +415,8 @@ def evaluate(predictions: List[Dict[str, Any]], ground_truth: List[Dict[str, Any
 
     summary = {
         "prediction_records": len(predictions),
+        "unique_prediction_records": len(deduped_predictions),
+        "duplicate_prediction_records": duplicate_prediction_records,
         "leaf_records_evaluated": n,
         "ground_truth_leaf_tasks": len(ground_truth),
         "unmatched_predictions": unmatched_predictions,
@@ -587,6 +613,8 @@ def print_report(report: Dict[str, Any]) -> None:
     macro = summary["macro"]
     print("Planner-first leaf evaluation")
     print(f"  prediction records:       {summary['prediction_records']}")
+    print(f"  unique prediction records: {summary['unique_prediction_records']}")
+    print(f"  duplicate records ignored: {summary['duplicate_prediction_records']}")
     print(f"  evaluated leaf records:   {summary['leaf_records_evaluated']}")
     print(f"  ground-truth leaf tasks:  {summary['ground_truth_leaf_tasks']}")
     print(f"  unmatched predictions:    {summary['unmatched_predictions']}")
