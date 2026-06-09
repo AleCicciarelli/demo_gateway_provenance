@@ -1231,6 +1231,7 @@ def chat_completions(
             raise HTTPException(status_code=500, detail=f"Planner-first failed: {e}")
         
     if req.model == "planner-first-explanation":
+        
         try:
             with _EXPLANATION_PIPELINE_LOCK:
                 planner_result = _run_planner_first(

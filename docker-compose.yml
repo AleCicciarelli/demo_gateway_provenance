@@ -51,15 +51,14 @@ services:
       - .env
     environment:
       OLLAMA_HOST: http://ollama:11434
-    
-
-    # Explanation service config
-    EXPLANATION_URL: http://explanation_app:5000
-    EXPLANATION_ENDPOINT: /api/v1/aps/explanation/why
-    EXPLANATION_BUCKET_DIR: /shared_bucket
-    EXPLANATION_CSV_DELIMITER: ","
-    EXPLANATION_KEEP_ROWNUM: "true"
-    EXPLANATION_REQUEST_TIMEOUT: "500"
+  
+      # Explanation service 
+      EXPLANATION_URL: http://explanation_app:5000
+      EXPLANATION_ENDPOINT: /api/v1/aps/explanation/why
+      EXPLANATION_BUCKET_DIR: /shared_bucket
+      EXPLANATION_CSV_DELIMITER: ","
+      EXPLANATION_KEEP_ROWNUM: "true"
+      EXPLANATION_REQUEST_TIMEOUT: "500"
 
     volumes:
       - ./logs:/app/logs
