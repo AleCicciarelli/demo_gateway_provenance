@@ -77,6 +77,11 @@ services:
   explanation_app:
     image: ghcr.io/datagems-eosc/datagems-eosc/ap-explanation:v0.11.0
     container_name: explanation_app
+    depends_on:
+      postgres-provsql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "5002:5000"
     volumes:
@@ -96,11 +101,6 @@ services:
     - LLM_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZjNWM2NmZhLTA1ZTYtNGQyMS1iMjc2LWUxNWFjMzRiODUzOSIsImp0aSI6ImZkM2NmYWRmLTRmOTEtNDA1NS1iZTk1LTEzZjg2NTllZDc3MSJ9.Df6Esb9c1FrwIrHfBoQqb6LwMxBweVQ6myCAyjDWVeU
     - LLM_API_MODEL=openai/kimi-k2.6
     - LLM_SSL_VERIFY=false   
-    depends_on:
-      postgres-provsql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
 
   postgres-provsql:
     image: sotrx/postgres-provsql:v0.10.0
