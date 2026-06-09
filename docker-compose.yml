@@ -46,7 +46,7 @@ services:
       ollama-init:
         condition: service_completed_successfully
     ports:
-      - "9005:9000"
+      - "9006:9000"
     env_file:
       - .env
     environment:

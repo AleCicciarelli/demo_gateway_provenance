@@ -12,6 +12,14 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+RUN python - <<'PY'
+from transformers import TrainingArguments
+print("TrainingArguments OK")
+
+from FlagEmbedding import BGEM3FlagModel, FlagModel
+print("FlagEmbedding OK")
+PY
+
 COPY . .
 
 RUN chmod +x /app/start.sh
