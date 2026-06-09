@@ -13,3 +13,6 @@ fsspec==2026.2.0
 torch==2.6.0
 torchvision==0.21.0
 torchaudio==2.6.0
+accelerate
+datasets
+peft
