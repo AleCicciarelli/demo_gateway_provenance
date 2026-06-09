@@ -1,0 +1,2006 @@
+{
+  "tables": {
+    "customer": {
+      "num_rows": 15000,
+      "num_columns": 9,
+      "columns": {
+        "customer_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 15000,
+          "unique": 15000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "customer_14",
+            "customer_155",
+            "customer_318",
+            "customer_643",
+            "customer_784"
+          ]
+        },
+        "c_custkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 15000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "14",
+            "154",
+            "317",
+            "642",
+            "782"
+          ]
+        },
+        "c_name": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 15000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "Customer#000000014",
+            "Customer#000000154",
+            "Customer#000000317",
+            "Customer#000000642",
+            "Customer#000000782"
+          ]
+        },
+        "c_address": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 15000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "KXkletMlL2JQEA ",
+            "2LAlU fDHkOqbXjHHDqw1mJQNC",
+            "uOeuL8DG1j",
+            "6Y1gEH0gMLh0yzlipNR",
+            "HFuyemzqz0g QhkL"
+          ]
+        },
+        "c_nationkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 25,
+          "unique_ratio": 0.0017,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "19",
+            "22",
+            "23",
+            "17"
+          ]
+        },
+        "c_phone": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 15000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "11-845-129-3851",
+            "29-522-835-6914",
+            "29-615-537-8871",
+            "32-925-597-9911",
+            "29-850-576-7450"
+          ]
+        },
+        "c_acctbal": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 14887,
+          "unique_ratio": 0.9925,
+          "null_ratio": 0.0,
+          "examples": [
+            "5266.3",
+            "4695.12",
+            "956.88",
+            "5684.01",
+            "-326.32"
+          ]
+        },
+        "c_mktsegment": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 5,
+          "unique_ratio": 0.0003,
+          "null_ratio": 0.0,
+          "examples": [
+            "FURNITURE ",
+            "HOUSEHOLD ",
+            "AUTOMOBILE",
+            "MACHINERY ",
+            "BUILDING  "
+          ]
+        },
+        "c_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 15000,
+          "unique": 15000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            ", ironic packages across the unus",
+            "nic packages haggle blithely across the",
+            "ages. hockey players are. dependencie",
+            " requests cajole blithely quick",
+            "usly bold deposits-- furiously ironic accoun"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "c_custkey"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "c_custkey",
+            "c_nationkey"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_custkey",
+            "c_name"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_custkey",
+            "c_address"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_custkey",
+            "c_phone"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_custkey",
+            "c_acctbal"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_custkey",
+            "c_mktsegment"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_name",
+            "c_nationkey"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_address",
+            "c_nationkey"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "c_nationkey",
+            "c_phone"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "lineitem": {
+      "num_rows": 600572,
+      "num_columns": 17,
+      "columns": {
+        "lineitem_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 600572,
+          "unique": 600572,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "lineitem_2499",
+            "lineitem_4900",
+            "lineitem_4911",
+            "lineitem_5590",
+            "lineitem_7653"
+          ]
+        },
+        "l_orderkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 150000,
+          "unique_ratio": 0.2498,
+          "null_ratio": 0.0,
+          "examples": [
+            "2470",
+            "4866",
+            "4869",
+            "5569",
+            "7655"
+          ]
+        },
+        "l_partkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 20000,
+          "unique_ratio": 0.0333,
+          "null_ratio": 0.0,
+          "examples": [
+            "9993",
+            "10126",
+            "15603",
+            "5472",
+            "13152"
+          ]
+        },
+        "l_suppkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 1000,
+          "unique_ratio": 0.0017,
+          "null_ratio": 0.0,
+          "examples": [
+            "771",
+            "127",
+            "604",
+            "728",
+            "153"
+          ]
+        },
+        "l_linenumber": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 7,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "2",
+            "3",
+            "6",
+            "1",
+            "4"
+          ]
+        },
+        "l_quantity": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 50,
+          "unique_ratio": 0.0001,
+          "null_ratio": 0.0,
+          "examples": [
+            "50.0",
+            "1.0",
+            "25.0",
+            "48.0",
+            "41.0"
+          ]
+        },
+        "l_extendedprice": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 130792,
+          "unique_ratio": 0.2178,
+          "null_ratio": 0.0,
+          "examples": [
+            "95149.5",
+            "1036.12",
+            "37965.0",
+            "66118.56",
+            "43671.15"
+          ]
+        },
+        "l_discount": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 11,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "0.03",
+            "0.06",
+            "0.0",
+            "0.02",
+            "0.05"
+          ]
+        },
+        "l_tax": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 9,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "0.03",
+            "0.0",
+            "0.05",
+            "0.02",
+            "0.06"
+          ]
+        },
+        "l_returnflag": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 3,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "N",
+            "R",
+            "A"
+          ]
+        },
+        "l_linestatus": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 2,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "O",
+            "F"
+          ]
+        },
+        "l_shipdate": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 2525,
+          "unique_ratio": 0.0042,
+          "null_ratio": 0.0,
+          "examples": [
+            "1997-06-02",
+            "1997-10-15",
+            "1994-11-25",
+            "1993-06-16",
+            "1993-02-15"
+          ]
+        },
+        "l_commitdate": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 2466,
+          "unique_ratio": 0.0041,
+          "null_ratio": 0.0,
+          "examples": [
+            "1997-06-01",
+            "1997-10-01",
+            "1994-11-14",
+            "1993-06-15",
+            "1993-04-14"
+          ]
+        },
+        "l_receiptdate": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 2547,
+          "unique_ratio": 0.0042,
+          "null_ratio": 0.0,
+          "examples": [
+            "1997-06-09",
+            "1997-11-14",
+            "1994-12-19",
+            "1993-07-09",
+            "1993-03-04"
+          ]
+        },
+        "l_shipinstruct": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 4,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "COLLECT COD              ",
+            "TAKE BACK RETURN         ",
+            "DELIVER IN PERSON        ",
+            "NONE                     "
+          ]
+        },
+        "l_shipmode": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 7,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "AIR       ",
+            "SHIP      ",
+            "RAIL      ",
+            "TRUCK     ",
+            "MAIL      "
+          ]
+        },
+        "l_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 600572,
+          "unique": 538684,
+          "unique_ratio": 0.897,
+          "null_ratio": 0.0,
+          "examples": [
+            " packages ",
+            "latelets nag. q",
+            "e according t",
+            "the fluffily",
+            "ial pinto beans. regula"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "l_orderkey",
+            "l_linenumber"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "nation": {
+      "num_rows": 25,
+      "num_columns": 5,
+      "columns": {
+        "nation_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 25,
+          "unique": 25,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "nation_1",
+            "nation_2",
+            "nation_3",
+            "nation_4",
+            "nation_5"
+          ]
+        },
+        "n_nationkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 25,
+          "unique": 25,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        "n_name": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 25,
+          "unique": 25,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "ALGERIA                  ",
+            "ARGENTINA                ",
+            "BRAZIL                   ",
+            "CANADA                   ",
+            "EGYPT                    "
+          ]
+        },
+        "n_regionkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 25,
+          "unique": 5,
+          "unique_ratio": 0.2,
+          "null_ratio": 0.0,
+          "examples": [
+            "0",
+            "1",
+            "4",
+            "3",
+            "2"
+          ]
+        },
+        "n_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 25,
+          "unique": 25,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            " haggle. carefully final deposits detect slyly agai",
+            "al foxes promise slyly according to the regular accounts. bold requests alon",
+            "y alongside of the pending deposits. carefully special packages are about the ironic forges. slyly special ",
+            "eas hang ironic, silent packages. slyly regular packages are furiously over the tithes. fluffily bold",
+            "y above the carefully unusual theodolites. final dugouts are quickly across the furiously regular d"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "n_nationkey"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "n_nationkey",
+            "n_regionkey"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "n_nationkey",
+            "n_name"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "n_name",
+            "n_regionkey"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "n_name"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "n_comment"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        }
+      ]
+    },
+    "orders": {
+      "num_rows": 150000,
+      "num_columns": 10,
+      "columns": {
+        "orders_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 150000,
+          "unique": 150000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "orders_5832",
+            "orders_6546",
+            "orders_6855",
+            "orders_7185",
+            "orders_7280"
+          ]
+        },
+        "o_orderkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 150000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "23270",
+            "26144",
+            "27364",
+            "28677",
+            "29060"
+          ]
+        },
+        "o_custkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 10000,
+          "unique_ratio": 0.0667,
+          "null_ratio": 0.0,
+          "examples": [
+            "6338",
+            "541",
+            "2245",
+            "11813",
+            "6097"
+          ]
+        },
+        "o_orderstatus": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 3,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "F",
+            "O",
+            "P"
+          ]
+        },
+        "o_totalprice": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 149565,
+          "unique_ratio": 0.9971,
+          "null_ratio": 0.0,
+          "examples": [
+            "254625.27",
+            "149927.52",
+            "281916.71",
+            "35659.95",
+            "40723.47"
+          ]
+        },
+        "o_orderdate": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 2406,
+          "unique_ratio": 0.016,
+          "null_ratio": 0.0,
+          "examples": [
+            "1995-03-14",
+            "1995-10-27",
+            "1995-05-21",
+            "1997-08-12",
+            "1997-04-29"
+          ]
+        },
+        "o_orderpriority": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 5,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "5-LOW          ",
+            "2-HIGH         ",
+            "3-MEDIUM       ",
+            "1-URGENT       ",
+            "4-NOT SPECIFIED"
+          ]
+        },
+        "o_clerk": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 1000,
+          "unique_ratio": 0.0067,
+          "null_ratio": 0.0,
+          "examples": [
+            "Clerk#000000199",
+            "Clerk#000000408",
+            "Clerk#000000951",
+            "Clerk#000000682",
+            "Clerk#000000877"
+          ]
+        },
+        "o_shippriority": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 1,
+          "unique_ratio": 0.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "0"
+          ]
+        },
+        "o_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 150000,
+          "unique": 149770,
+          "unique_ratio": 0.9985,
+          "null_ratio": 0.0,
+          "examples": [
+            "ously unusual ideas x-",
+            "fluffily regular accoun",
+            "s sleep above the regularly",
+            "luffily pending excuse",
+            "es. foxes sleep quickly alongsi"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "o_orderkey"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "o_orderkey",
+            "o_custkey"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_orderkey",
+            "o_orderstatus"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_orderkey",
+            "o_totalprice"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_orderkey",
+            "o_orderdate"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_orderkey",
+            "o_orderpriority"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_orderkey",
+            "o_clerk"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_custkey",
+            "o_totalprice"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_totalprice",
+            "o_orderdate"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "o_totalprice",
+            "o_clerk"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "part": {
+      "num_rows": 20000,
+      "num_columns": 10,
+      "columns": {
+        "part_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 20000,
+          "unique": 20000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "part_629",
+            "part_3166",
+            "part_4182",
+            "part_4941",
+            "part_7239"
+          ]
+        },
+        "p_partkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 20000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "628",
+            "3164",
+            "4180",
+            "4939",
+            "7237"
+          ]
+        },
+        "p_name": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 20000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "black mint olive drab medium",
+            "hot cyan spring smoke blanched",
+            "almond light azure magenta black",
+            "yellow red wheat brown lime",
+            "mint pink saddle smoke orange"
+          ]
+        },
+        "p_mfgr": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 5,
+          "unique_ratio": 0.0003,
+          "null_ratio": 0.0,
+          "examples": [
+            "Manufacturer#3           ",
+            "Manufacturer#2           ",
+            "Manufacturer#5           ",
+            "Manufacturer#4           ",
+            "Manufacturer#1           "
+          ]
+        },
+        "p_brand": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 25,
+          "unique_ratio": 0.0013,
+          "null_ratio": 0.0,
+          "examples": [
+            "Brand#33  ",
+            "Brand#21  ",
+            "Brand#51  ",
+            "Brand#43  ",
+            "Brand#55  "
+          ]
+        },
+        "p_type": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 150,
+          "unique_ratio": 0.0075,
+          "null_ratio": 0.0,
+          "examples": [
+            "ECONOMY BRUSHED BRASS",
+            "LARGE PLATED COPPER",
+            "MEDIUM PLATED NICKEL",
+            "PROMO PLATED TIN",
+            "SMALL PLATED TIN"
+          ]
+        },
+        "p_size": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 50,
+          "unique_ratio": 0.0025,
+          "null_ratio": 0.0,
+          "examples": [
+            "40",
+            "7",
+            "6",
+            "43",
+            "14"
+          ]
+        },
+        "p_container": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 40,
+          "unique_ratio": 0.002,
+          "null_ratio": 0.0,
+          "examples": [
+            "LG BOX    ",
+            "WRAP PKG  ",
+            "LG CAN    ",
+            "MED DRUM  ",
+            "WRAP CASE "
+          ]
+        },
+        "p_retailprice": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 2899,
+          "unique_ratio": 0.1449,
+          "null_ratio": 0.0,
+          "examples": [
+            "1528.62",
+            "1067.16",
+            "1084.18",
+            "1843.93",
+            "1144.23"
+          ]
+        },
+        "p_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 20000,
+          "unique": 17482,
+          "unique_ratio": 0.8741,
+          "null_ratio": 0.0,
+          "examples": [
+            "sits. ",
+            "s. regular",
+            "endin",
+            " packages; ",
+            "ake caref"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "p_partkey"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "p_partkey",
+            "p_mfgr"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "p_partkey",
+            "p_brand"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "p_partkey",
+            "p_type"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "p_partkey",
+            "p_size"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "p_partkey",
+            "p_container"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "p_partkey",
+            "p_retailprice"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "p_partkey",
+            "p_comment"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "p_name"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        }
+      ]
+    },
+    "partsupp": {
+      "num_rows": 80000,
+      "num_columns": 6,
+      "columns": {
+        "partsupp_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 80000,
+          "unique": 80000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "partsupp_17",
+            "partsupp_172",
+            "partsupp_585",
+            "partsupp_751",
+            "partsupp_837"
+          ]
+        },
+        "ps_partkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 80000,
+          "unique": 20000,
+          "unique_ratio": 0.25,
+          "null_ratio": 0.0,
+          "examples": [
+            "5",
+            "43",
+            "147",
+            "188",
+            "209"
+          ]
+        },
+        "ps_suppkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 80000,
+          "unique": 1000,
+          "unique_ratio": 0.0125,
+          "null_ratio": 0.0,
+          "examples": [
+            "6",
+            "294",
+            "148",
+            "439",
+            "960"
+          ]
+        },
+        "ps_availqty": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 80000,
+          "unique": 9996,
+          "unique_ratio": 0.125,
+          "null_ratio": 0.0,
+          "examples": [
+            "3735",
+            "6770",
+            "7442",
+            "2620",
+            "1513"
+          ]
+        },
+        "ps_supplycost": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 80000,
+          "unique": 54983,
+          "unique_ratio": 0.6873,
+          "null_ratio": 0.0,
+          "examples": [
+            "255.88",
+            "493.19",
+            "939.14",
+            "331.7",
+            "507.38"
+          ]
+        },
+        "ps_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 80000,
+          "unique": 79991,
+          "unique_ratio": 0.9999,
+          "null_ratio": 0.0,
+          "examples": [
+            "arefully even requests. ironic requests cajole carefully even dolphin",
+            "ing to the quickly even theodolites. quickly bold excuses haggle. sometimes unusua",
+            "sts against the furiously unusual instructions integrate ironic accounts. slyly final pinto beans sleep blithely carefully final asymptotes. slyly ironic warhorses befor",
+            "elets nag slyly regular pinto beans. slyly even dugouts above the blithely unusual theodolites su",
+            "fily regular pinto beans? blithely regular dependencies cajole ca"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "ps_partkey",
+            "ps_suppkey"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "region": {
+      "num_rows": 5,
+      "num_columns": 4,
+      "columns": {
+        "region_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 5,
+          "unique": 5,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "region_1",
+            "region_2",
+            "region_3",
+            "region_4",
+            "region_5"
+          ]
+        },
+        "r_regionkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 5,
+          "unique": 5,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "0",
+            "1",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        "r_name": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 5,
+          "unique": 5,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "AFRICA                   ",
+            "AMERICA                  ",
+            "ASIA                     ",
+            "EUROPE                   ",
+            "MIDDLE EAST              "
+          ]
+        },
+        "r_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 5,
+          "unique": 5,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to ",
+            "hs use ironic, even requests. s",
+            "ges. thinly even pinto beans ca",
+            "ly final courts cajole furiously final excuse",
+            "uickly special accounts cajole carefully blithely close requests. carefully final asymptotes haggle furiousl"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "r_regionkey"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "r_regionkey",
+            "r_name"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "r_name"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "r_comment"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        }
+      ]
+    },
+    "supplier": {
+      "num_rows": 1000,
+      "num_columns": 8,
+      "columns": {
+        "supplier_rownum": {
+          "type": "text",
+          "is_provenance": true,
+          "non_null": 1000,
+          "unique": 1000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "supplier_212",
+            "supplier_299",
+            "supplier_581",
+            "supplier_694",
+            "supplier_715"
+          ]
+        },
+        "s_suppkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 1000,
+          "unique": 1000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "211",
+            "298",
+            "581",
+            "694",
+            "715"
+          ]
+        },
+        "s_name": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 1000,
+          "unique": 1000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "Supplier#000000211       ",
+            "Supplier#000000298       ",
+            "Supplier#000000581       ",
+            "Supplier#000000694       ",
+            "Supplier#000000715       "
+          ]
+        },
+        "s_address": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 1000,
+          "unique": 1000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "acmexYmhAZhFyM",
+            "oIB13yXjsqGSW",
+            "X pNyEcNqxYwiP0gJ7FzkJ,haGkn",
+            "20i8TNU3K6H0SEL20",
+            "feMb9HkfGM8e,4i"
+          ]
+        },
+        "s_nationkey": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 1000,
+          "unique": 25,
+          "unique_ratio": 0.025,
+          "null_ratio": 0.0,
+          "examples": [
+            "2",
+            "5",
+            "18",
+            "10",
+            "14"
+          ]
+        },
+        "s_phone": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 1000,
+          "unique": 1000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "12-150-553-5979",
+            "15-790-635-6692",
+            "28-320-345-9799",
+            "20-902-352-7633",
+            "24-382-559-6937"
+          ]
+        },
+        "s_acctbal": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 1000,
+          "unique": 999,
+          "unique_ratio": 0.999,
+          "null_ratio": 0.0,
+          "examples": [
+            "2080.07",
+            "-530.05",
+            "8998.4",
+            "5776.6",
+            "149.86"
+          ]
+        },
+        "s_comment": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 1000,
+          "unique": 1000,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "quests sleep final pinto beans. blithely bold theodoli",
+            "egularly unusual accounts ",
+            "cross the quick packages wake carefully except the accounts?",
+            "ounts. regular requests are ca",
+            "lithely quietly express atta"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "s_suppkey"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "s_suppkey",
+            "s_nationkey"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_suppkey",
+            "s_name"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_suppkey",
+            "s_address"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_suppkey",
+            "s_phone"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_suppkey",
+            "s_acctbal"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_name",
+            "s_nationkey"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_address",
+            "s_nationkey"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_nationkey",
+            "s_phone"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "s_nationkey",
+            "s_acctbal"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    }
+  },
+  "foreign_key_candidates": [
+    {
+      "from_table": "partsupp",
+      "from_columns": [
+        "ps_suppkey"
+      ],
+      "to_table": "supplier",
+      "to_columns": [
+        "s_suppkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.6,
+      "score": 0.9
+    },
+    {
+      "from_table": "customer",
+      "from_columns": [
+        "c_nationkey"
+      ],
+      "to_table": "nation",
+      "to_columns": [
+        "n_nationkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "lineitem",
+      "from_columns": [
+        "l_orderkey"
+      ],
+      "to_table": "orders",
+      "to_columns": [
+        "o_orderkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "lineitem",
+      "from_columns": [
+        "l_partkey"
+      ],
+      "to_table": "part",
+      "to_columns": [
+        "p_partkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "lineitem",
+      "from_columns": [
+        "l_suppkey"
+      ],
+      "to_table": "supplier",
+      "to_columns": [
+        "s_suppkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "nation",
+      "from_columns": [
+        "n_regionkey"
+      ],
+      "to_table": "region",
+      "to_columns": [
+        "r_regionkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "orders",
+      "from_columns": [
+        "o_custkey"
+      ],
+      "to_table": "customer",
+      "to_columns": [
+        "c_custkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "partsupp",
+      "from_columns": [
+        "ps_partkey"
+      ],
+      "to_table": "part",
+      "to_columns": [
+        "p_partkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "supplier",
+      "from_columns": [
+        "s_nationkey"
+      ],
+      "to_table": "nation",
+      "to_columns": [
+        "n_nationkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    },
+    {
+      "from_table": "lineitem",
+      "from_columns": [
+        "l_partkey",
+        "l_suppkey"
+      ],
+      "to_table": "partsupp",
+      "to_columns": [
+        "ps_partkey",
+        "ps_suppkey"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 0.4,
+      "score": 0.85
+    }
+  ],
+  "tpch_comparison": {
+    "primary_keys": {
+      "region": {
+        "expected": [
+          [
+            "r_regionkey"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "r_regionkey"
+          ],
+          [
+            "r_regionkey",
+            "r_name"
+          ],
+          [
+            "r_name"
+          ],
+          [
+            "r_comment"
+          ]
+        ],
+        "matched": true
+      },
+      "nation": {
+        "expected": [
+          [
+            "n_nationkey"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "n_nationkey"
+          ],
+          [
+            "n_regionkey",
+            "n_nationkey"
+          ],
+          [
+            "n_name",
+            "n_nationkey"
+          ],
+          [
+            "n_name",
+            "n_regionkey"
+          ],
+          [
+            "n_name"
+          ],
+          [
+            "n_comment"
+          ]
+        ],
+        "matched": true
+      },
+      "supplier": {
+        "expected": [
+          [
+            "s_suppkey"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "s_suppkey"
+          ],
+          [
+            "s_nationkey",
+            "s_suppkey"
+          ],
+          [
+            "s_name",
+            "s_suppkey"
+          ],
+          [
+            "s_address",
+            "s_suppkey"
+          ],
+          [
+            "s_phone",
+            "s_suppkey"
+          ],
+          [
+            "s_acctbal",
+            "s_suppkey"
+          ],
+          [
+            "s_nationkey",
+            "s_name"
+          ],
+          [
+            "s_nationkey",
+            "s_address"
+          ],
+          [
+            "s_nationkey",
+            "s_phone"
+          ],
+          [
+            "s_acctbal",
+            "s_nationkey"
+          ]
+        ],
+        "matched": true
+      },
+      "customer": {
+        "expected": [
+          [
+            "c_custkey"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "c_custkey"
+          ],
+          [
+            "c_custkey",
+            "c_nationkey"
+          ],
+          [
+            "c_custkey",
+            "c_name"
+          ],
+          [
+            "c_custkey",
+            "c_address"
+          ],
+          [
+            "c_custkey",
+            "c_phone"
+          ],
+          [
+            "c_custkey",
+            "c_acctbal"
+          ],
+          [
+            "c_custkey",
+            "c_mktsegment"
+          ],
+          [
+            "c_nationkey",
+            "c_name"
+          ],
+          [
+            "c_nationkey",
+            "c_address"
+          ],
+          [
+            "c_nationkey",
+            "c_phone"
+          ]
+        ],
+        "matched": true
+      },
+      "part": {
+        "expected": [
+          [
+            "p_partkey"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "p_partkey"
+          ],
+          [
+            "p_partkey",
+            "p_mfgr"
+          ],
+          [
+            "p_brand",
+            "p_partkey"
+          ],
+          [
+            "p_type",
+            "p_partkey"
+          ],
+          [
+            "p_partkey",
+            "p_size"
+          ],
+          [
+            "p_partkey",
+            "p_container"
+          ],
+          [
+            "p_partkey",
+            "p_retailprice"
+          ],
+          [
+            "p_partkey",
+            "p_comment"
+          ],
+          [
+            "p_name"
+          ]
+        ],
+        "matched": true
+      },
+      "partsupp": {
+        "expected": [
+          [
+            "ps_partkey",
+            "ps_suppkey"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "ps_partkey",
+            "ps_suppkey"
+          ]
+        ],
+        "matched": true
+      },
+      "orders": {
+        "expected": [
+          [
+            "o_orderkey"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "o_orderkey"
+          ],
+          [
+            "o_orderkey",
+            "o_custkey"
+          ],
+          [
+            "o_orderkey",
+            "o_orderstatus"
+          ],
+          [
+            "o_orderkey",
+            "o_totalprice"
+          ],
+          [
+            "o_orderkey",
+            "o_orderdate"
+          ],
+          [
+            "o_orderkey",
+            "o_orderpriority"
+          ],
+          [
+            "o_orderkey",
+            "o_clerk"
+          ],
+          [
+            "o_custkey",
+            "o_totalprice"
+          ],
+          [
+            "o_totalprice",
+            "o_orderdate"
+          ],
+          [
+            "o_totalprice",
+            "o_clerk"
+          ]
+        ],
+        "matched": true
+      },
+      "lineitem": {
+        "expected": [
+          [
+            "l_orderkey",
+            "l_linenumber"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "l_orderkey",
+            "l_linenumber"
+          ]
+        ],
+        "matched": true
+      }
+    },
+    "foreign_keys": {
+      "expected": [
+        {
+          "from": "nation.n_regionkey",
+          "to": "region.r_regionkey",
+          "matched": true
+        },
+        {
+          "from": "supplier.s_nationkey",
+          "to": "nation.n_nationkey",
+          "matched": true
+        },
+        {
+          "from": "customer.c_nationkey",
+          "to": "nation.n_nationkey",
+          "matched": true
+        },
+        {
+          "from": "orders.o_custkey",
+          "to": "customer.c_custkey",
+          "matched": true
+        },
+        {
+          "from": "partsupp.ps_partkey",
+          "to": "part.p_partkey",
+          "matched": true
+        },
+        {
+          "from": "partsupp.ps_suppkey",
+          "to": "supplier.s_suppkey",
+          "matched": true
+        },
+        {
+          "from": "lineitem.l_orderkey",
+          "to": "orders.o_orderkey",
+          "matched": true
+        },
+        {
+          "from": "lineitem.l_partkey.l_suppkey",
+          "to": "partsupp.ps_partkey.ps_suppkey",
+          "matched": true
+        }
+      ],
+      "extra_inferred": [
+        {
+          "from": "lineitem.l_partkey",
+          "to": "part.p_partkey"
+        },
+        {
+          "from": "lineitem.l_suppkey",
+          "to": "supplier.s_suppkey"
+        }
+      ]
+    }
+  }
+}

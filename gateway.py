@@ -4,6 +4,7 @@ from dataclasses import asdict
 import html
 import json
 import os
+import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import csv
@@ -12,17 +13,17 @@ from collections import defaultdict
 import requests
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict
-from langchain_core.documents import Document
-from langchain_community.vectorstores import FAISS
-from sentence_transformers import SentenceTransformer
-from langchain_core.embeddings import Embeddings
 from fastapi.responses import HTMLResponse
+from embedding_strategies import EmbeddingStrategies
+from explanation_client import ExplanationClient
+from explanation_pipeline import run_planner_first_explanation_pipeline
+from faiss_index_manager import FaissIndexManager
 from prompt import build_leaf_prompt
 from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE
 from tpch_schema_info import SCHEMA_INFO
 from planner import  build_query_plan
 import uuid
-import torch
+
 app = FastAPI()
 
 # =========================
@@ -36,6 +37,15 @@ OLLAMA_REQUEST_TIMEOUT = float(os.getenv("OLLAMA_REQUEST_TIMEOUT", "300"))
 CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
 MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "37"))
 MAX_TABLES = int(os.getenv("MAX_TABLES", "5"))
+GATEWAY_RESPONSE_FORMAT = os.getenv("GATEWAY_RESPONSE_FORMAT", "json").strip().lower()
+GATEWAY_MARKDOWN_INCLUDE_RAW = os.getenv("GATEWAY_MARKDOWN_INCLUDE_RAW", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+GATEWAY_MARKDOWN_MAX_ROWS = int(os.getenv("GATEWAY_MARKDOWN_MAX_ROWS", "50"))
+GATEWAY_MARKDOWN_MAX_CELL_CHARS = int(os.getenv("GATEWAY_MARKDOWN_MAX_CELL_CHARS", "120"))
 
 OLLAMA_MODEL_BASE = os.getenv("OLLAMA_MODEL_BASE", "llama3:8b")
 OLLAMA_MODEL_FT_NL = os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest")
@@ -43,6 +53,7 @@ OLLAMA_MODEL_FT_SQL = os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:
 
 FAISS_INDEX_FOLDER = os.getenv("FAISS_INDEX_FOLDER", "/app/faiss_index_tpch")
 EMB_MODEL = os.getenv("EMB_MODEL", "sentence-transformers/all-mpnet-base-v2")
+EMB_STRATEGY = os.getenv("EMB_STRATEGY", "auto")
 EMB_DEVICE = os.getenv("EMB_DEVICE", "auto")
 INDEX_TABLES = os.getenv("INDEX_TABLES", "")
 INDEX_SET = set(t.strip() for t in INDEX_TABLES.split(",") if t.strip())
@@ -52,13 +63,27 @@ EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
 RETRIEVER_K = int(os.getenv("RETRIEVER_K", "12"))
-MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "4"))
+MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "2"))
+
+# For ap-explanation service:
+EXPLANATION_URL = os.getenv("EXPLANATION_URL", "http://explanation_app:5000")
+EXPLANATION_ENDPOINT = os.getenv("EXPLANATION_ENDPOINT", "/api/v1/aps/explanation/why",)
+
+EXPLANATION_BUCKET_DIR = Path(os.getenv("EXPLANATION_BUCKET_DIR", "/shared_bucket"))
+EXPLANATION_REQUEST_TIMEOUT = float(os.getenv("EXPLANATION_REQUEST_TIMEOUT", "300"))
+
+EXPLANATION_CSV_DELIMITER = os.getenv("EXPLANATION_CSV_DELIMITER", ",")
+EXPLANATION_KEEP_ROWNUM = os.getenv("EXPLANATION_KEEP_ROWNUM", "true")
+
+# una pipeline explanation alla volta per evitare che due pipeline concorrenti scrivano i csv nella stessa cartella del bucket
+_EXPLANATION_PIPELINE_LOCK = threading.Lock()
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
     "best-ft-llama3-8b-nl": os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest"),
     "best-ft-llama3-8b-sql": os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:latest"),
-    "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3:70b"),
+    "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3:8b"),
+    "planner-first-explanation": os.getenv("OLLAMA_MODEL_PLANNER_FIRST_EXPLANATION", "llama3:8b"),
     "internal-knowledge": os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", "llama3:8b"),
 }
 
@@ -210,30 +235,18 @@ _LAST_EXPLAIN_DEBUG: Dict[str, Any] = {}
 # Helpers
 # =========================
 
-class STEmbeddings(Embeddings):
-    def __init__(self, model_name: str):
-        if EMB_DEVICE == "auto":
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-        else:
-            device = EMB_DEVICE
+_EMBEDDINGS: Optional[EmbeddingStrategies] = None
 
-        self.device = device
-        self.model = SentenceTransformer(model_name, device=device)
-        print(f"[EMB] SentenceTransformer using device: {device}", flush=True)
-
-    def embed_documents(self, texts):
-        return self.model.encode(texts, convert_to_numpy=True).tolist()
-
-    def embed_query(self, text):
-        return self.model.encode([text], convert_to_numpy=True)[0].tolist()
-    
-_EMBEDDINGS: Optional[STEmbeddings] = None
-
-def _get_embeddings() -> STEmbeddings:
+def _get_embeddings() -> EmbeddingStrategies:
     global _EMBEDDINGS
     if _EMBEDDINGS is None:
-        _EMBEDDINGS = STEmbeddings(EMB_MODEL)
-    return _EMBEDDINGS  
+        _EMBEDDINGS = EmbeddingStrategies(
+            model_name=EMB_MODEL,
+            strategy=EMB_STRATEGY,
+            device=EMB_DEVICE,
+            batch_size=BATCH_SIZE,
+        )
+    return _EMBEDDINGS
 
 def _now() -> int:
     return int(time.time())
@@ -363,8 +376,7 @@ def _call_model_with_retry(
             + RETRY_SUFFIX
         )
 
-    # If every attempt fails, keep the attempt with the most individually valid
-    # rows instead of blindly returning a shorter correction-only retry.
+    # If every attempt fails, keep the attempt with the most individually valid rows instead of returning a shorter retry.
     return best or last
 
 def _validate_leaf_json_array(
@@ -519,25 +531,8 @@ def _resolve_row_by_rid(rid: str) -> Optional[Dict[str, Any]]:
 # =========================
 # Retrieval and indexing
 # ========================
-_VECTOR_STORE: Optional[FAISS] = None
+_FAISS_MANAGER: Optional[FaissIndexManager] = None
 
-def _row_to_text(row: Dict[str, Any], table: Optional[str] = None) -> str:
-    parts = []
-
-    if table:
-        parts.append(f"table: {table}")
-
-    for k, v in row.items():
-        if k == "__rid__" or k.endswith("_rownum"):
-            continue
-        if v is None:
-            continue
-        s = str(v).strip()
-        if not s:
-            continue
-        parts.append(f"{k}: {s}")
-
-    return " | ".join(parts)
 def _context_to_prompt_text(ctx: Dict[str, Any]) -> str:
     lines = []
     for table, rows in ctx.items():
@@ -547,94 +542,23 @@ def _context_to_prompt_text(ctx: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _get_or_build_faiss() -> FAISS:
-    global _VECTOR_STORE
-    if _VECTOR_STORE is not None:
-        return _VECTOR_STORE
+def _get_or_build_faiss():
+    global _FAISS_MANAGER
+    if _FAISS_MANAGER is None:
+        _FAISS_MANAGER = FaissIndexManager(
+            index_folder=FAISS_INDEX_FOLDER,
+            embeddings_factory=_get_embeddings,
+            csv_cache=_CSV_CACHE,
+            load_csvs=_load_csvs_once,
+            index_set=INDEX_SET,
+            batch_size=BATCH_SIZE,
+            emb_model=EMB_MODEL,
+            emb_strategy=EMB_STRATEGY,
+            log_event=_log_event,
+        )
 
-    embedding_model = _get_embeddings()
-    index_path = Path(FAISS_INDEX_FOLDER)
+    return _FAISS_MANAGER.get_or_build()
 
-    # Try loading an existing FAISS index only if directory exists and is not empty
-    if index_path.exists() and index_path.is_dir() and any(index_path.iterdir()):
-        try:
-            _VECTOR_STORE = FAISS.load_local(
-                FAISS_INDEX_FOLDER,
-                embedding_model,
-                allow_dangerous_deserialization=True,
-            )
-            _log_event({
-                "type": "faiss_loaded",
-                "path": FAISS_INDEX_FOLDER,
-                "emb_model": EMB_MODEL
-            })
-            return _VECTOR_STORE
-        except Exception as e:
-            _log_event({
-                "type": "faiss_load_failed",
-                "path": FAISS_INDEX_FOLDER,
-                "emb_model": EMB_MODEL,
-                "error": str(e)
-            })
-
-    _load_csvs_once()
-
-    vector_store: Optional[FAISS] = None
-    batch_docs: List[Document] = []
-    total_docs = 0
-
-    for table, rows in _CSV_CACHE.items():
-        if INDEX_SET and table not in INDEX_SET:
-            continue
-
-        for r in rows:
-            rid = r.get("__rid__")
-            if not rid:
-                continue
-
-            text = _row_to_text(r, table)
-            if not text:
-                continue
-
-            batch_docs.append(
-                Document(
-                    page_content=text,
-                    metadata={"table": table, "rid": rid}
-                )
-            )
-
-            if len(batch_docs) >= BATCH_SIZE:
-                if vector_store is None:
-                    vector_store = FAISS.from_documents(batch_docs, embedding=embedding_model)
-                else:
-                    vector_store.add_documents(batch_docs)
-
-                total_docs += len(batch_docs)
-                batch_docs = []
-                print(f"Indexed {total_docs} documents", flush=True)
-
-    if batch_docs:
-        if vector_store is None:
-            vector_store = FAISS.from_documents(batch_docs, embedding=embedding_model)
-        else:
-            vector_store.add_documents(batch_docs)
-        total_docs += len(batch_docs)
-
-    if vector_store is None:
-        raise RuntimeError("No documents indexed. Check CSV_DIR / INDEX_TABLES / file contents.")
-
-    index_path.mkdir(parents=True, exist_ok=True)
-    vector_store.save_local(FAISS_INDEX_FOLDER)
-
-    _log_event({
-        "type": "faiss_built",
-        "path": FAISS_INDEX_FOLDER,
-        "n_docs": total_docs,
-        "emb_model": EMB_MODEL
-    })
-
-    _VECTOR_STORE = vector_store
-    return _VECTOR_STORE
 def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
     """
     Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K
@@ -937,6 +861,173 @@ def _parse_answer_json(text: str) -> List[Dict[str, Any]]:
 
     return obj
 
+def _display_value(value: Any) -> str:
+    if value is None:
+        text = ""
+    elif isinstance(value, str):
+        text = value.strip()
+    elif isinstance(value, (dict, list)):
+        text = json.dumps(value, ensure_ascii=False, sort_keys=True)
+    else:
+        text = str(value)
+
+    text = text.replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
+    if len(text) > GATEWAY_MARKDOWN_MAX_CELL_CHARS:
+        text = text[: GATEWAY_MARKDOWN_MAX_CELL_CHARS - 3].rstrip() + "..."
+    return text
+
+def _markdown_cell(value: Any) -> str:
+    return _display_value(value).replace("|", "\\|")
+
+def _markdown_code(value: str) -> str:
+    return "`" + value.replace("`", "\\`") + "`"
+
+def _render_markdown_table(rows: List[Dict[str, Any]]) -> str:
+    if not rows:
+        return "No rows."
+
+    columns: List[str] = []
+    for row in rows:
+        for key in row.keys():
+            if key not in columns:
+                columns.append(key)
+
+    visible_rows = rows[:GATEWAY_MARKDOWN_MAX_ROWS]
+    header = "| " + " | ".join(_markdown_cell(col) for col in columns) + " |"
+    separator = "| " + " | ".join("---" for _ in columns) + " |"
+    body = [
+        "| " + " | ".join(_markdown_cell(row.get(col, "")) for col in columns) + " |"
+        for row in visible_rows
+    ]
+
+    table = "\n".join([header, separator, *body])
+    omitted = len(rows) - len(visible_rows)
+    if omitted > 0:
+        table += f"\n\nShowing {len(visible_rows)} of {len(rows)} rows."
+    return table
+
+def _result_label(result: Dict[str, Any]) -> str:
+    if not result:
+        return "{}"
+    parts = [f"{key}={_display_value(value)}" for key, value in result.items()]
+    return ", ".join(parts)
+
+def _provenance_label(provenance: Any) -> str:
+    if not isinstance(provenance, list) or not provenance:
+        return ""
+
+    witness_labels: List[str] = []
+    for witness_set in provenance:
+        if isinstance(witness_set, list):
+            witness_labels.append(" + ".join(_markdown_code(str(rid)) for rid in witness_set))
+        else:
+            witness_labels.append(_markdown_code(str(witness_set)))
+    return "<br>".join(witness_labels)
+
+def _raw_json_details(raw_payload: Any, summary: str = "Raw JSON") -> str:
+    if not GATEWAY_MARKDOWN_INCLUDE_RAW:
+        return ""
+    raw_text = json.dumps(raw_payload, ensure_ascii=False, indent=2)
+    return f"\n\n<details>\n<summary>{summary}</summary>\n\n```json\n{raw_text}\n```\n\n</details>"
+
+def _render_answer_items_markdown(answer_items: List[Dict[str, Any]]) -> str:
+    if not answer_items:
+        return "### Answer\n\nNo results found.\n\n### Provenance\n\nNo provenance rows."
+
+    result_rows = [
+        item.get("result", {})
+        for item in answer_items
+        if isinstance(item, dict) and isinstance(item.get("result"), dict)
+    ]
+    provenance_rows = [
+        {
+            "result": _result_label(item.get("result", {})),
+            "supporting_rows": _provenance_label(item.get("provenance")),
+        }
+        for item in answer_items
+        if isinstance(item, dict)
+    ]
+
+    markdown = (
+        "### Answer\n\n"
+        + _render_markdown_table(result_rows)
+        + "\n\n### Provenance\n\n"
+        + _render_markdown_table(provenance_rows)
+    )
+    return markdown + _raw_json_details(answer_items)
+
+def _render_planner_first_markdown(planner_result: Dict[str, Any]) -> str:
+    plan = planner_result.get("plan") or {}
+    leaf_outputs = planner_result.get("leaf_outputs") or []
+    leaf_rows: List[Dict[str, Any]] = []
+
+    for index, leaf in enumerate(leaf_outputs):
+        parsed = leaf.get("parsed_output")
+        if isinstance(parsed, list):
+            output_rows = len(parsed)
+        else:
+            output_rows = 0
+
+        context_data = leaf.get("context_data") or {}
+        context_rows = sum(len(rows) for rows in context_data.values() if isinstance(rows, dict))
+        leaf_rows.append({
+            "leaf": index + 1,
+            "table": leaf.get("table_name", ""),
+            "retrieval_query": leaf.get("retrieval_query", ""),
+            "context_rows": context_rows,
+            "output_rows": output_rows,
+            "valid": leaf.get("valid_leaf_output", False),
+            "parse_error": leaf.get("parse_error") or "",
+        })
+
+    joins = plan.get("joins") or []
+    post_ops = plan.get("post_ops") or []
+    summary_rows = [{
+        "query_type": plan.get("query_type", ""),
+        "leaf_tasks": len(leaf_outputs),
+        "joins": len(joins),
+        "post_ops": len(post_ops),
+    }]
+
+    markdown = (
+        "### Planner-first Result\n\n"
+        + _render_markdown_table(summary_rows)
+        + "\n\n### Leaf Tasks\n\n"
+        + _render_markdown_table(leaf_rows)
+    )
+
+    return markdown + _raw_json_details(planner_result, summary="Raw planner output")
+
+def _render_chat_response(raw_text: str, parsed_payload: Optional[Any] = None) -> str:
+    if GATEWAY_RESPONSE_FORMAT not in {"markdown", "md", "ui"}:
+        return raw_text
+
+    payload = parsed_payload
+    if payload is None:
+        try:
+            payload = json.loads(raw_text)
+        except Exception:
+            array_text, _ = _extract_json_array_text(raw_text)
+            if array_text is not None:
+                try:
+                    payload = json.loads(array_text)
+                except Exception:
+                    payload = None
+
+    try:
+        if isinstance(payload, list):
+            return _render_answer_items_markdown(payload)
+        if isinstance(payload, dict) and "leaf_outputs" in payload:
+            return _render_planner_first_markdown(payload)
+    except Exception as e:
+        _log_event({
+            "type": "markdown_render_error",
+            "error": str(e),
+            "raw_text": raw_text,
+        })
+
+    return raw_text
+
 def _collect_provenance_rows(answer_items: List[Dict[str, Any]]) -> Dict[str, Any]:
     rows_by_id: Dict[str, Any] = {}
     missing_ids: List[str] = []
@@ -1084,6 +1175,7 @@ def chat_completions(
             )
 
             out_text = json.dumps(planner_result, ensure_ascii=False, indent=2)
+            response_text = _render_chat_response(out_text, planner_result)
 
             _log_event({
                 "type": "planner_first_request",
@@ -1096,6 +1188,7 @@ def chat_completions(
                 "messages_count": len(req.messages),
                 "raw_messages": [m.model_dump() for m in req.messages],
                 "has_auth": bool(authorization),
+                "response_format": GATEWAY_RESPONSE_FORMAT,
                 "planner_result": planner_result,
             })
 
@@ -1110,6 +1203,7 @@ def chat_completions(
                 context_data={},
                 prompt_full="PLANNER-FIRST MODE",
                 output_text=out_text,
+                response_text=response_text,
                 planner_result=planner_result,
             )
 
@@ -1124,7 +1218,7 @@ def chat_completions(
                 "choices": [
                     {
                         "index": 0,
-                        "message": {"role": "assistant", "content": out_text},
+                        "message": {"role": "assistant", "content": response_text},
                         "finish_reason": "stop",
                     }
                 ],
@@ -1135,9 +1229,80 @@ def chat_completions(
             import traceback
             traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Planner-first failed: {e}")
+        
+    if req.model == "planner-first-explanation":
+        try:
+            with _EXPLANATION_PIPELINE_LOCK:
+                planner_result = _run_planner_first(
+                    sql_query=question,
+                    ollama_model=ollama_model,
+                    temperature=temperature,
+                )
+
+                explanation_client = ExplanationClient(
+                    base_url=EXPLANATION_URL,
+                    post_endpoint=EXPLANATION_ENDPOINT,
+                    timeout=EXPLANATION_REQUEST_TIMEOUT,
+                )
+
+                pipeline_result = run_planner_first_explanation_pipeline(
+                    sql_query=question,
+                    planner_result=planner_result,
+                    bucket_dir=EXPLANATION_BUCKET_DIR,
+                    explanation_client=explanation_client,
+                    delimiter=EXPLANATION_CSV_DELIMITER,
+                    keep_rownum=EXPLANATION_KEEP_ROWNUM,
+                )
+
+                response_text = pipeline_result["response_text"]
+
+                _log_event({
+                    "type": "planner_first_explanation_request",
+                    "ui_model": req.model,
+                    "request_id": request_id,
+                    "ollama_model": ollama_model,
+                    "temperature": temperature,
+                    "sql_query": question,
+                    "generated_csv_files": pipeline_result["generated_csv_files"],
+                    "explanation_output": pipeline_result["explanation_output"],
+                    "planner_result": planner_result,
+                })
+
+                created = _now()
+
+                return {
+                    "id": f"chatcmpl-{created}",
+                    "object": "chat.completion",
+                    "created": created,
+                    "model": req.model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": response_text,
+                            },
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                    },
+                }
+
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Planner-first explanation pipeline failed: {e}",
+            )
     if req.model == "internal-knowledge":
         base_prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)
         out_text = _call_model_with_retry(ollama_model, base_prompt, temperature, max_tries=2)
+        response_text = _render_chat_response(out_text)
         _log_event({
             "type": "internal_knowledge_request",
             "ui_model": req.model,
@@ -1153,6 +1318,7 @@ def chat_completions(
             "messages_count": len(req.messages),
             "raw_messages": [m.model_dump() for m in req.messages],
             "has_auth": bool(authorization),
+            "response_format": GATEWAY_RESPONSE_FORMAT,
         })
         return {
             "id": f"chatcmpl-{_now()}",
@@ -1162,7 +1328,7 @@ def chat_completions(
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": out_text},
+                    "message": {"role": "assistant", "content": response_text},
                     "finish_reason": "stop",
                 }
             ],
@@ -1204,8 +1370,10 @@ def chat_completions(
         "ollama_model": ollama_model,
         "request_id": request_id,
         "output": out_text,
+        "response_format": GATEWAY_RESPONSE_FORMAT,
         "response_chars": len(out_text),
     })
+    response_text = _render_chat_response(out_text)
 
     _set_last_debug(
         question=question,
@@ -1219,6 +1387,7 @@ def chat_completions(
         #schema_info=schema_info,
         prompt_full=base_prompt,
         output_text=out_text,
+        response_text=response_text,
     )
 
     _LAST_EXPLAIN_DEBUG = {}
@@ -1231,7 +1400,7 @@ def chat_completions(
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": out_text},
+                "message": {"role": "assistant", "content": response_text},
                 "finish_reason": "stop",
             }
         ],

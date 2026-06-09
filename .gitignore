@@ -1,4 +1,4 @@
-faiss_index_tpch/
+faiss_index_tpch_mpnet/
 logs/
 .venv/
 nohup.out
@@ -8,3 +8,4 @@ models/ft_nl/adapter_model.safetensors
 models/ft_sql/adapter_model.safetensors
 evaluation/
 OAR.*
+faiss_*
