@@ -1,0 +1,13 @@
+.git
+.agents
+.codex
+__pycache__
+*.pyc
+
+bucket
+logs
+
+# Mounted by docker-compose at runtime.
+faiss_index_tpch
+models
+tpch_no_provsql
