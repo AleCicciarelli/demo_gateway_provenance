@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 from contextlib import redirect_stderr
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import torch
 from FlagEmbedding import BGEM3FlagModel, FlagModel
@@ -11,6 +11,10 @@ from langchain_core.embeddings import Embeddings
 from sentence_transformers import SentenceTransformer
 
 EmbeddingStrategy = Literal["sentence-transformer", "bge-v1.5", "bge-m3"]
+
+
+def _truthy_env(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 class EmbeddingStrategies(Embeddings):
@@ -35,7 +39,16 @@ class EmbeddingStrategies(Embeddings):
         self.batch_size = batch_size
 
         if self.strategy == "sentence-transformer":
-            self.model = SentenceTransformer(model_name, device=self.device)
+            kwargs: dict[str, Any] = {}
+            if _truthy_env("EMB_LOCAL_FILES_ONLY") or _truthy_env("HF_HUB_OFFLINE"):
+                kwargs["local_files_only"] = True
+
+            try:
+                self.model = SentenceTransformer(model_name, device=self.device, **kwargs)
+            except TypeError:
+                # Older sentence-transformers versions do not expose local_files_only,
+                # but they still honor HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE.
+                self.model = SentenceTransformer(model_name, device=self.device)
             print(f"[EMB] SentenceTransformer using device: {self.device}", flush=True)
             return
 

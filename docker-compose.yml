@@ -7,13 +7,13 @@ services:
     volumes:
       - ollama_data:/root/.ollama
       - ./models:/models
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: all
+#              capabilities: [gpu]
   ollama-init:
     image: ollama/ollama
     depends_on:
@@ -39,6 +39,10 @@ services:
 
   gateway:
     image: ghcr.io/alecicciarelli/demo_gateway_provenance:latest
+    build:
+      context: .
+      args:
+        EMB_MODEL: ${EMB_MODEL:-sentence-transformers/all-mpnet-base-v2}
     container_name: demo_gateway
     depends_on:
       ollama:
@@ -46,11 +50,14 @@ services:
       ollama-init:
         condition: service_completed_successfully
     ports:
-      - "9006:9000"
+      - "127.0.0.1:9006:9000"
     env_file:
       - .env
     environment:
       OLLAMA_HOST: http://ollama:11434
+      EMB_LOCAL_FILES_ONLY: "true"
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
   
       # Explanation service 
       EXPLANATION_URL: http://explanation_app:5000
@@ -67,13 +74,13 @@ services:
 
       # Shared bucket for explanation service
       - ./bucket:/shared_bucket:rw
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: all
+#              capabilities: [gpu]
   explanation_app:
     image: ghcr.io/datagems-eosc/datagems-eosc/ap-explanation:v0.11.0
     container_name: explanation_app
