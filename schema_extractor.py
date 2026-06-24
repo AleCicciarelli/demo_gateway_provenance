@@ -71,28 +71,83 @@ EXPECTED_TPCH_FK = [
     ("lineitem", ["l_partkey", "l_suppkey"], "partsupp", ["ps_partkey", "ps_suppkey"]),
 ]
 
+RELF1_COLUMNS = {
+    "races": [
+        "raceId", "year", "round", "circuitId", "name", "date", "time"
+    ],
+    "circuits": [
+        "circuitId", "circuitRef", "name", "location", "country", "lat", "lng", "alt"
+    ],
+    "drivers": [
+        "driverId", "driverRef", "code", "forename", "surname", "dob", "nationality"
+    ],
+    "constructors": [
+        "constructorId", "constructorRef", "name", "nationality"
+    ],
+    "constructor_results": [
+        "constructorResultsId", "raceId", "constructorId", "points", "date"
+    ],
+    "constructor_standings": [
+        "constructorStandingsId", "raceId", "constructorId", "points", "position", "wins", "date"
+    ],
+    "standings": [
+        "driverStandingsId", "raceId", "driverId", "points", "position", "wins", "date"
+    ],
+    "results": [
+        "resultId", "raceId", "driverId", "constructorId", "statusId", "number", "grid", "position", "positionOrder", "points", "laps", "milliseconds", "fastestLap", "rank", "date"
+    ],
+    "qualifying": [
+        "qualifyId", "raceId", "driverId", "constructorId", "number", "position", "date"
+    ]
+}
 
+EXPECTED_RELF1_PK = {
+    "races": [["raceId"]],
+    "circuits": [["circuitId"]],
+    "drivers": [["driverId"]],
+    "constructors": [["constructorId"]],
+    "constructor_results": [["constructorResultsId"]],
+    "constructor_standings": [["constructorStandingsId"]],
+    "standings": [["driverStandingsId"]],
+    "results": [["resultId"]],
+    "qualifying": [["qualifyId"]]
+}
+EXPECTED_RELF1_FK = [
+    ("constructor_results", ["raceId"], "races", ["raceId"]),
+    ("constructor_results", ["constructorId"], "constructors", ["constructorId"]),
+    ("constructor_standings", ["raceId"], "races", ["raceId"]),
+    ("constructor_standings", ["constructorId"], "constructors", ["constructorId"]),
+    ("standings", ["raceId"], "races", ["raceId"]),
+    ("standings", ["driverId"], "drivers", ["driverId"]),
+    ("results", ["raceId"], "races", ["raceId"]),
+    ("results", ["driverId"], "drivers", ["driverId"]),
+    ("results", ["constructorId"], "constructors", ["constructorId"]),
+    ("qualifying", ["raceId"], "races", ["raceId"]),
+    ("qualifying", ["driverId"], "drivers", ["driverId"]),
+    ("qualifying", ["constructorId"], "constructors", ["constructorId"]),
+    ("races", ["circuitId"], "circuits", ["circuitId"])
+]
 def normalize_name(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", name.lower())
 
 
 def table_name_from_file(path: Path) -> str:
     name = path.stem.lower()
-    for table in TPCH_COLUMNS:
+    for table in RELF1_COLUMNS:
         if name == table or name.startswith(table + "_"):
             return table
     return name
 
 
-def read_csv_table(path: Path, sep: str, tpch_no_header: bool) -> tuple[str, pd.DataFrame]:
+def read_csv_table(path: Path, sep: str, relf1_no_header: bool) -> tuple[str, pd.DataFrame]:
     table = table_name_from_file(path)
 
-    if tpch_no_header and table in TPCH_COLUMNS:
+    if relf1_no_header and table in RELF1_COLUMNS:
         df = pd.read_csv(
             path,
             sep=sep,
             header=None,
-            names=TPCH_COLUMNS[table],
+            names=RELF1_COLUMNS[table],
             engine="python",
         )
     else:
@@ -173,7 +228,7 @@ def key_like_score(col: str) -> float:
     if n.endswith("key") or n.endswith("id"):
         score += 1.0
 
-    if "key" in n or "id" in n:
+    if "key" in n or "id" in n or "Id" in n:
         score += 0.5
 
     return score
@@ -399,7 +454,7 @@ def infer_composite_foreign_keys(
     return fks
 
 
-def compare_with_tpch(profile: dict[str, Any]) -> dict[str, Any]:
+def compare_with_relf1(profile: dict[str, Any]) -> dict[str, Any]:
     inferred_pk = {
         table: [frozenset(cand["columns"]) for cand in data["primary_key_candidates"]]
         for table, data in profile["tables"].items()
@@ -416,12 +471,12 @@ def compare_with_tpch(profile: dict[str, Any]) -> dict[str, Any]:
 
     expected_pk = {
         table: [frozenset(cols) for cols in keys]
-        for table, keys in EXPECTED_TPCH_PK.items()
+        for table, keys in EXPECTED_RELF1_PK.items()
     }
 
     expected_fk = set(
         (src_t, tuple(src_c), tgt_t, tuple(tgt_c))
-        for src_t, src_c, tgt_t, tgt_c in EXPECTED_TPCH_FK
+        for src_t, src_c, tgt_t, tgt_c in EXPECTED_RELF1_FK
     )
 
     pk_report = {}
@@ -441,7 +496,7 @@ def compare_with_tpch(profile: dict[str, Any]) -> dict[str, Any]:
                 "to": f"{tgt_t}.{'.'.join(tgt_c)}",
                 "matched": (src_t, tuple(src_c), tgt_t, tuple(tgt_c)) in inferred_fk,
             }
-            for src_t, src_c, tgt_t, tgt_c in EXPECTED_TPCH_FK
+            for src_t, src_c, tgt_t, tgt_c in EXPECTED_RELF1_FK
         ],
         "extra_inferred": [
             {
@@ -462,13 +517,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--csv_dir", required=True)
     parser.add_argument("--sep", default=",")
-    parser.add_argument("--tpch-no-header", action="store_true")
+    parser.add_argument("--relf1-no-header", action="store_true")
     parser.add_argument("--out", default="schema_profile.json")
-    parser.add_argument("--compare-tpch", action="store_true")
+    parser.add_argument("--compare-relf1", action="store_true")
     parser.add_argument("--min-fk-coverage", type=float, default=0.95)
     parser.add_argument("--min-fk-name-similarity", type=float, default=0.0)
     args = parser.parse_args()
-
+    '''how to run:
+    python3 schema_extractor.py --csv_dir ./rel-f1-csv/ --sep "," --out ./rel-f1-csv/schema_profile_relf1.json --compare-relf1
+    '''
     csv_dir = Path(args.csv_dir)
 
     paths = sorted(
@@ -482,7 +539,7 @@ def main() -> None:
     tables: dict[str, pd.DataFrame] = {}
 
     for path in paths:
-        table, df = read_csv_table(path, sep=args.sep, tpch_no_header=args.tpch_no_header)
+        table, df = read_csv_table(path, sep=args.sep, relf1_no_header=args.relf1_no_header)
         tables[table] = df
         print(f"Loaded {table}: {df.shape[0]} rows, {df.shape[1]} columns")
 
@@ -521,24 +578,24 @@ def main() -> None:
         "foreign_key_candidates": single_fks + composite_fks,
     }
 
-    if args.compare_tpch:
-        profile["tpch_comparison"] = compare_with_tpch(profile)
+    if args.compare_relf1:
+        profile["relf1_comparison"] = compare_with_relf1(profile)
 
     out_path = Path(args.out)
     out_path.write_text(json.dumps(profile, indent=2), encoding="utf-8")
 
     print(f"\nSaved schema profile to: {out_path}")
 
-    if args.compare_tpch:
-        print("\nTPC-H comparison summary")
+    if args.compare_relf1:
+        print("\nRELF1 comparison summary")
 
-        pk_report = profile["tpch_comparison"]["primary_keys"]
+        pk_report = profile["relf1_comparison"]["primary_keys"]
         for table, item in pk_report.items():
             status = "OK" if item["matched"] else "MISSING"
             print(f"PK {table}: {status}")
 
         print("\nForeign keys:")
-        for item in profile["tpch_comparison"]["foreign_keys"]["expected"]:
+        for item in profile["relf1_comparison"]["foreign_keys"]["expected"]:
             status = "OK" if item["matched"] else "MISSING"
             print(f"FK {item['from']} -> {item['to']}: {status}")
 

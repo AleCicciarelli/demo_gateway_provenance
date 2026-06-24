@@ -14,14 +14,14 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 REPO_ROOT = Path(__file__).resolve().parent
 
-os.environ.setdefault("GATEWAY_LOG_PATH", str(REPO_ROOT / "logs" / "provsql_gateway_logs.jsonl"))
+os.environ.setdefault("GATEWAY_LOG_PATH", str(REPO_ROOT / "logs_internal_knowledge" / "provsql_gateway_logs.jsonl"))
 
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 try:
-    import gateway  # noqa: E402
-    from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE  # noqa: E402
+    import gateway  
+    from prompt_internal_knowledge import get_internal_knowledge_prompt_template
 except ModuleNotFoundError as exc:
     missing = exc.name or "a required package"
     raise SystemExit(
@@ -30,8 +30,8 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 
-DEFAULT_INPUT = REPO_ROOT / "evaluation" / "questions.json"
-DEFAULT_OUTPUT = REPO_ROOT / "evaluation" / "internal_knowledge_outputs.jsonl"
+DEFAULT_INPUT = REPO_ROOT / "evaluation_relf1" / "questions.json"
+DEFAULT_OUTPUT = REPO_ROOT / "evaluation_relf1" / "internal_knowledge_outputs.jsonl"
 
 
 def utc_now() -> str:
@@ -44,6 +44,15 @@ def load_questions(path: Path) -> List[Dict[str, Any]]:
     if not isinstance(data, list):
         raise ValueError(f"Expected a JSON list in {path}")
     return data
+
+
+def infer_prompt_domain(path: Path) -> str:
+    normalized = str(path).lower()
+    if "relf" in normalized or "rel-f1" in normalized:
+        return "relf"
+    if "tpch" in normalized or "tpc-h" in normalized:
+        return "tpch"
+    return "tpch"
 
 
 def load_completed_record_ids(path: Path) -> Set[str]:
@@ -186,7 +195,7 @@ def append_jsonl(path: Path, record: Dict[str, Any]) -> None:
         f.flush()
 
 
-def run_one(item: Dict[str, Any], ollama_model: str, temperature: float) -> Dict[str, Any]:
+def run_one(item: Dict[str, Any], ollama_model: str, temperature: float, prompt_domain: str) -> Dict[str, Any]:
     started_at = utc_now()
     start = time.monotonic()
     prompt = ""
@@ -199,7 +208,8 @@ def run_one(item: Dict[str, Any], ollama_model: str, temperature: float) -> Dict
         question = str(item.get("prompt_question_nl") or "").strip()
         if not question:
             raise ValueError("Missing natural-language question")
-        prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)
+        prompt_template = get_internal_knowledge_prompt_template(prompt_domain)
+        prompt = prompt_template.format(question=question)
         out_text = gateway._call_model_with_retry(
             ollama_model,
             prompt,
@@ -229,6 +239,7 @@ def run_one(item: Dict[str, Any], ollama_model: str, temperature: float) -> Dict
         "leaf_question_sql": item["leaf_question_sql"],
         "ollama_model": ollama_model,
         "temperature": temperature,
+        "prompt_domain": prompt_domain,
         "started_at": started_at,
         "finished_at": utc_now(),
         "elapsed_seconds": round(elapsed, 3),
@@ -243,7 +254,7 @@ def run_one(item: Dict[str, Any], ollama_model: str, temperature: float) -> Dict
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run natural-language questions through the internal-knowledge TPC-H prompt."
+        description="Run natural-language questions through an internal-knowledge prompt."
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -256,6 +267,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--query-id", action="append", help="Run only this query_id. May be repeated.")
     parser.add_argument("--limit", type=int, default=None, help="Maximum number of records to run.")
     parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument(
+        "--prompt-domain",
+        choices=("auto", "tpch", "relf"),
+        default=os.getenv("INTERNAL_KNOWLEDGE_PROMPT_DOMAIN", "auto"),
+        help="Prompt/schema domain. auto infers from the input path.",
+    )
     parser.add_argument(
         "--ollama-model",
         default=os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", os.getenv("OLLAMA_MODEL_BASE", "llama3:8b")),
@@ -294,6 +311,7 @@ def main() -> int:
     completed = load_completed_record_ids(output_path) if args.resume else set()
     query_ids = set(args.query_id) if args.query_id else None
     questions = load_questions(args.input)
+    prompt_domain = infer_prompt_domain(args.input) if args.prompt_domain == "auto" else args.prompt_domain
     items = list(iter_eval_items(questions, args.mode, query_ids))
     if args.limit is not None:
         items = items[: args.limit]
@@ -301,6 +319,7 @@ def main() -> int:
     print(f"[internal-eval] input={args.input}")
     print(f"[internal-eval] output={output_path}")
     print(f"[internal-eval] mode={args.mode} records={len(items)} resume={args.resume}")
+    print(f"[internal-eval] prompt_domain={prompt_domain}")
     print(f"[internal-eval] ollama_model={args.ollama_model} temperature={args.temperature}")
     if not args.verbose_gateway:
         print(f"[internal-eval] gateway stdout={gateway_stdout_path}")
@@ -319,11 +338,21 @@ def main() -> int:
 
         print(f"[internal-eval] run  {idx}/{len(items)} {record_id}")
         if args.verbose_gateway:
-            record = run_one(item, ollama_model=args.ollama_model, temperature=args.temperature)
+            record = run_one(
+                item,
+                ollama_model=args.ollama_model,
+                temperature=args.temperature,
+                prompt_domain=prompt_domain,
+            )
         else:
             with gateway_stdout_path.open("a", encoding="utf-8") as stdout_file:
                 with contextlib.redirect_stdout(stdout_file):
-                    record = run_one(item, ollama_model=args.ollama_model, temperature=args.temperature)
+                    record = run_one(
+                        item,
+                        ollama_model=args.ollama_model,
+                        temperature=args.temperature,
+                        prompt_domain=prompt_domain,
+                    )
 
         append_jsonl(output_path, record)
         ran += 1

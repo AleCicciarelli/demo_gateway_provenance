@@ -4,17 +4,19 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
-mkdir -p evaluation/logs logs
+mkdir -p evaluation_relf1/logs logs
 
 JOB_ID="${OAR_JOB_ID:-local}"
 OLLAMA_PORT="${OLLAMA_PORT:-11434}"
 OLLAMA_BIND_HOST="${OLLAMA_BIND_HOST:-127.0.0.1:${OLLAMA_PORT}}"
 OLLAMA_API_URL="http://127.0.0.1:${OLLAMA_PORT}"
-OLLAMA_LOG="evaluation/logs/ollama_planner_matrix_${JOB_ID}.log"
+OLLAMA_LOG="evaluation_relf1/logs/ollama_planner_matrix_${JOB_ID}.log"
 OLLAMA_BIN="${OLLAMA_BIN:-}"
 
-export CSV_DIR="${CSV_DIR:-$REPO_ROOT/tpch_no_provsql}"
-export FAISS_INDEX_FOLDER="${FAISS_INDEX_FOLDER:-$REPO_ROOT/faiss_index_tpch}"
+export CSV_DIR="${CSV_DIR:-$REPO_ROOT/rel-f1-csv}"
+export FAISS_INDEX_FOLDER="${FAISS_INDEX_FOLDER:-$REPO_ROOT/faiss_index_relf1_rows_bge_m3}"
+export EMB_MODEL="${EMB_MODEL:-BAAI/bge-m3}"
+export EMB_STRATEGY="${EMB_STRATEGY:-bge-m3}"
 export EMB_DEVICE="${EMB_DEVICE:-cuda}"
 export OLLAMA_REQUEST_TIMEOUT="${OLLAMA_REQUEST_TIMEOUT:-1800}"
 export OLLAMA_HOST="$OLLAMA_API_URL"
@@ -33,8 +35,8 @@ for candidate_dir in "$HOME/cicciara/ollama/bin" "$HOME/ollama/bin"; do
 done
 
 EVAL_MODE="${EVAL_MODE:-leaf}"
-EVAL_OUTPUT_ROOT="${EVAL_OUTPUT_ROOT:-evaluation/planner_first_runs}"
-EVAL_MODELS="${EVAL_MODELS:-8b 70b}"
+EVAL_OUTPUT_ROOT="${EVAL_OUTPUT_ROOT:-evaluation_relf1/planner_first_runs}"
+EVAL_MODELS="${EVAL_MODELS:-70b}"
 EVAL_ITERATIONS="${EVAL_ITERATIONS:-1 2 3 4}"
 EVAL_TEMPERATURE="${EVAL_TEMPERATURE:-0.0}"
 

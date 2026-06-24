@@ -11,10 +11,10 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-DEFAULT_PREDICTIONS = REPO_ROOT / "evaluation" / "planner_first_outputs_70b_4.jsonl"
-DEFAULT_GROUND_TRUTH = REPO_ROOT / "evaluation" / "ground_truth_leaf_tasks.json"
-DEFAULT_REPORT = REPO_ROOT / "evaluation" / "planner_first_metrics_70b_4.json"
-DEFAULT_PLOTS_DIR = REPO_ROOT / "evaluation" / "planner_first_plots_70b_4"
+DEFAULT_PREDICTIONS = REPO_ROOT / "evaluation_relf1" / "planner_first_outputs_70b_4.jsonl"
+DEFAULT_GROUND_TRUTH = REPO_ROOT / "evaluation_relf1" / "ground_truth_leaf_tasks.json"
+DEFAULT_REPORT = REPO_ROOT / "evaluation_relf1" / "planner_first_metrics_70b_4.json"
+DEFAULT_PLOTS_DIR = REPO_ROOT / "evaluation_relf1" / "planner_first_plots_70b_4"
 
 
 def load_json_or_jsonl(path: Path) -> List[Dict[str, Any]]:

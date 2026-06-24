@@ -10,6 +10,15 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
+def detect_csv_delimiter(path: Path) -> str:
+    sample = path.read_text(encoding="utf-8", errors="ignore")[:4096]
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",|").delimiter
+    except csv.Error:
+        header = sample.splitlines()[0] if sample else ""
+        return "," if header.count(",") > header.count("|") else "|"
+
+
 def load_csvs(csv_dir: str) -> Dict[str, List[Dict[str, Any]]]:
     csv_cache: Dict[str, List[Dict[str, Any]]] = {}
     base = Path(csv_dir)
@@ -21,8 +30,9 @@ def load_csvs(csv_dir: str) -> Dict[str, List[Dict[str, Any]]]:
         id_col = f"{table}_rownum"
         rows: List[Dict[str, Any]] = []
 
+        delimiter = detect_csv_delimiter(path)
         with path.open("r", encoding="utf-8", errors="ignore", newline="") as handle:
-            reader = csv.DictReader(handle, delimiter="|")
+            reader = csv.DictReader(handle, delimiter=delimiter)
             if reader.fieldnames is None or id_col not in reader.fieldnames:
                 raise RuntimeError(f"Missing required id column '{id_col}' in {path}")
 

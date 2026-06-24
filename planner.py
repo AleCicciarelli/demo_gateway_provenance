@@ -580,11 +580,7 @@ def build_query_plan(sql: str) -> QueryPlan:
 if __name__ == "__main__":
 
     sql = """
-    SELECT n.n_name, COUNT(*) as num_customers
-    FROM nation n  
-    JOIN customer c ON n.n_nationkey = c.c_nationkey
-    WHERE n.n_regionkey = 1 AND c.c_acctbal > 1000
-    GROUP BY n.n_name
+    SELECT d.surname FROM races r JOIN results res ON r.raceId = res.raceId JOIN drivers d ON res.driverId = d.driverId WHERE r.year = 2021 AND r.name = 'Monaco Grand Prix' AND res.positionOrder = 1;
     """
 
     plan = build_query_plan(sql)

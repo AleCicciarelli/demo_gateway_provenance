@@ -463,6 +463,17 @@ _CSV_CACHE: Dict[str, List[Dict[str, Any]]] = {}
 _CSV_LOADED = False
 _CSV_RID_INDEX: Dict[str, Dict[str, int]] = {}
 _GLOBAL_RID_INDEX: Dict[str, Tuple[str, int]] = {}
+
+
+def _detect_csv_delimiter(path: Path) -> str:
+    sample = path.read_text(encoding="utf-8", errors="ignore")[:4096]
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",|").delimiter
+    except csv.Error:
+        header = sample.splitlines()[0] if sample else ""
+        return "," if header.count(",") > header.count("|") else "|"
+
+
 def _load_csvs_once() -> None:
     global _CSV_LOADED
     if _CSV_LOADED:
@@ -479,8 +490,9 @@ def _load_csvs_once() -> None:
         id_col = f"{table}_rownum"
         rows: List[Dict[str, Any]] = []
         rid_to_idx: Dict[str, int] = {}
+        delimiter = _detect_csv_delimiter(p)
         with p.open("r", encoding="utf-8", errors="ignore", newline="") as f:
-            reader = csv.DictReader(f, delimiter="|")
+            reader = csv.DictReader(f, delimiter=delimiter)
             if reader.fieldnames is None or id_col not in reader.fieldnames:
                 raise RuntimeError(f"Missing required id column '{id_col}' in {p}")
             for i, r in enumerate(reader):
@@ -726,8 +738,9 @@ def _retrieve_context_data(question: str) -> Dict[str, Any]:
 def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
     """
     Build a retrieval query for one leaf task.
-    The model remains leaf-only: predicates and joins are not pushed into extraction.
     """
+    """
+    # if the embedding used is sentence-transformers/all-mpnet-base-v2:
     table = str(task.get("table_name") or task.get("table") or "").strip()
     columns = []
     for key in ("select_columns", "join_keys", "group_by_columns", "aggregate_columns", "columns"):
@@ -740,7 +753,11 @@ def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
         if columns:
             query += " | columns: " + ", ".join(columns)
         return query
-
+    """
+    # if the embedding is bge m3, we build a natural language query instead of a table/columns query:
+    table = str(task.get("table_name") or task.get("table") or "").strip()
+    if table:
+        return f"Retrieve relevant rows for table '{table}'"
     return "Retrieve relevant rows for this task"
 
 def _leaf_rows_by_id(ctx: Dict[str, Any], table_name: str) -> Dict[str, Dict[str, Any]]:

@@ -15,8 +15,10 @@ from typing import Any, Dict, Iterable, List, Optional, Set
 REPO_ROOT = Path(__file__).resolve().parent
 
 # gateway.py defaults to Docker paths. For local evaluation, prefer the repo data.
-os.environ.setdefault("CSV_DIR", str(REPO_ROOT / "tpch_no_provsql"))
-os.environ.setdefault("FAISS_INDEX_FOLDER", str(REPO_ROOT / "faiss_index_tpch"))
+os.environ.setdefault("CSV_DIR", str(REPO_ROOT / "rel-f1-csv"))
+os.environ.setdefault("FAISS_INDEX_FOLDER", str(REPO_ROOT / "faiss_index_relf1_rows_bge_m3"))
+os.environ.setdefault("EMB_MODEL", "BAAI/bge-m3")
+os.environ.setdefault("EMB_STRATEGY", "bge-m3")
 os.environ.setdefault("GATEWAY_LOG_PATH", str(REPO_ROOT / "logs" / "provsql_gateway_logs.jsonl"))
 
 if str(REPO_ROOT) not in sys.path:
@@ -32,8 +34,8 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 
-DEFAULT_INPUT = REPO_ROOT / "evaluation" / "leaf_node_questions.json"
-DEFAULT_OUTPUT = REPO_ROOT / "evaluation" / "planner_first_outputs_70b_4.jsonl"
+DEFAULT_INPUT = REPO_ROOT / "evaluation_relf1" / "leaf_node_questions.json"
+DEFAULT_OUTPUT = REPO_ROOT / "evaluation_relf1" / "planner_first_outputs_70b_4.jsonl"
 
 
 def utc_now() -> str:

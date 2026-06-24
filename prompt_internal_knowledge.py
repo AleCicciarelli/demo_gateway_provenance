@@ -1,4 +1,4 @@
-PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE = """
+PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE = """
 Answer the QUESTION using only your internal knowledge of the standard TPC-H
 benchmark. You are NOT given rows from the database instance.
 
@@ -83,3 +83,99 @@ JSON SCHEMA:
 QUESTION:
 {question}
 """
+
+
+PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE = """
+Answer the QUESTION using only your internal knowledge of the public Formula 1
+relational dataset. You are NOT given rows from this project's database
+instance.
+
+This mode is intentionally different from a context-grounded or retrieval-based
+mode. Accuracy is more important than coverage. Returning [] is better than
+guessing.
+
+REL-F1 LOGICAL SCHEMA:
+- circuits(circuitId, circuitRef, name, location, country, lat, lng, alt)
+- constructors(constructorId, constructorRef, name, nationality)
+- drivers(driverId, driverRef, code, forename, surname, dob, nationality)
+- races(raceId, year, round, circuitId, name, date, time)
+- results(resultId, raceId, driverId, constructorId, number, grid, position, positionOrder, points, laps, milliseconds, fastestLap, rank, statusId, date)
+- qualifying(qualifyId, raceId, driverId, constructorId, number, position, date)
+- standings(driverStandingsId, raceId, driverId, points, position, wins, date)
+- constructor_results(constructorResultsId, raceId, constructorId, points, date)
+- constructor_standings(constructorStandingsId, raceId, constructorId, points, position, wins, date)
+
+PRIMARY KEYS:
+- circuits: circuitId
+- constructors: constructorId
+- drivers: driverId
+- races: raceId
+- results: resultId
+- qualifying: qualifyId
+- standings: driverStandingsId
+- constructor_results: constructorResultsId
+- constructor_standings: constructorStandingsId
+
+INTERNAL-KNOWLEDGE LIMITS:
+- You may use stable public Formula 1 facts only when you know them exactly.
+- You may use standard public identifiers from the Ergast-style Formula 1
+  dataset only when you know them exactly.
+- Do NOT invent rows, dates, positions, lap counts, times, points, or local row
+  numbers.
+- Do NOT assume access to this project's CSV files.
+- If the exact answer or exact provenance cannot be known from internal
+  knowledge, return [].
+
+PROVENANCE IDENTIFIERS:
+- Provenance identifiers in this benchmark mode are semantic identifiers based
+  on primary-key values.
+- Format each identifier as "<table_name>_<primary_key_value>".
+- Examples:
+  - The driver tuple with driverId = 1 is "drivers_1".
+  - The constructor tuple with constructorId = 6 is "constructors_6".
+  - The race tuple with raceId = 1042 is "races_1042".
+  - The result tuple with resultId = 1 is "results_1".
+
+PROVENANCE RULES:
+- The provenance field MUST be a list of lists of provenance identifiers.
+- Each inner list is one sufficient set of source tuples that produces the
+  result tuple.
+- For a single-table result, use one inner list containing the source tuple.
+- For a join result, use one inner list containing all joined source tuples.
+- For alternative derivations of the same result, use multiple inner lists.
+- For aggregation results, include the complete set of contributing source
+  tuples only if you know it exactly. Otherwise return [].
+
+OUTPUT RULES:
+- Return ONLY valid JSON and no introductory text.
+- The entire output MUST be a JSON array.
+- Each array element MUST be an object with EXACTLY these keys:
+  - result: an object representing one output tuple
+  - provenance: a Why[X] provenance expression for that tuple
+- Use logical REL-F1 column names in result objects, such as "driverId",
+  "surname", "constructorId", "raceId", "year", and "points".
+- For computed values, use clear result keys such as "count", "total",
+  "sum_points", "avg_points", "min_date", or "max_date".
+- Do NOT output SQL.
+- Do NOT output explanations, comments, markdown, or code fences.
+- Do NOT add extra keys.
+- If there are no results, return [].
+
+JSON SCHEMA:
+[{{"result": {{...}}, "provenance": [["t1", "t2"], ["t3"]]}}]
+
+QUESTION:
+{question}
+"""
+
+
+PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE = PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
+
+
+def get_internal_knowledge_prompt_template(domain: str) -> str:
+    normalized = domain.strip().lower()
+    if normalized in {"relf", "rel-f1", "f1", "formula1", "formula-1"}:
+        return PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE
+    if normalized in {"tpch", "tpc-h"}:
+        return PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
+    raise ValueError(f"Unsupported internal-knowledge prompt domain: {domain}")

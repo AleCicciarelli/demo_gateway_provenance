@@ -11,12 +11,12 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-DEFAULT_PREDICTIONS = REPO_ROOT / "evaluation" / "internal_knowledge_outputs.jsonl"
-DEFAULT_GROUND_TRUTH = REPO_ROOT / "evaluation" / "ground_truth_queries.json"
-DEFAULT_REPORT = REPO_ROOT / "evaluation" / "internal_knowledge_metrics.json"
-DEFAULT_CSV = REPO_ROOT / "evaluation" / "internal_knowledge_metrics.csv"
-DEFAULT_CSV_DIR = REPO_ROOT / "tpch_no_provsql"
-DEFAULT_PLOTS_DIR = REPO_ROOT / "evaluation" / "internal_knowledge_plots"
+DEFAULT_PREDICTIONS = REPO_ROOT / "evaluation_relf1" / "internal_knowledge_outputs.jsonl"
+DEFAULT_GROUND_TRUTH = REPO_ROOT / "evaluation_relf1" / "ground_truth_queries.json"
+DEFAULT_REPORT = REPO_ROOT / "evaluation_relf1" / "internal_knowledge_metrics.json"
+DEFAULT_CSV = REPO_ROOT / "evaluation_relf1" / "internal_knowledge_metrics.csv"
+DEFAULT_CSV_DIR = REPO_ROOT / "rel-f1-csv"
+DEFAULT_PLOTS_DIR = REPO_ROOT / "evaluation_relf1" / "internal_knowledge_plots"
 
 
 PRIMARY_KEY_COLUMNS: Dict[str, Tuple[str, ...]] = {
@@ -28,6 +28,15 @@ PRIMARY_KEY_COLUMNS: Dict[str, Tuple[str, ...]] = {
     "lineitem": ("l_orderkey", "l_linenumber"),
     "part": ("p_partkey",),
     "partsupp": ("ps_partkey", "ps_suppkey"),
+    "circuits": ("circuitId",),
+    "constructor_results": ("constructorResultsId",),
+    "constructor_standings": ("constructorStandingsId",),
+    "constructors": ("constructorId",),
+    "drivers": ("driverId",),
+    "qualifying": ("qualifyId",),
+    "races": ("raceId",),
+    "results": ("resultId",),
+    "standings": ("driverStandingsId",),
 }
 
 
@@ -85,8 +94,8 @@ def load_rownum_to_semantic_id(csv_dir: Path) -> Dict[str, str]:
     """Map local CSV row-number ids to semantic primary-key ids.
 
     Internal-knowledge prompts forbid local row ids because those ids are
-    instance metadata. Evaluation therefore converts ground-truth ids such as
-    customer_123 to comparable ids such as customer_4567 using primary keys.
+    instance metadata. Evaluation therefore converts ground-truth ids, when
+    possible, to comparable ids based on primary keys.
     """
     mapping: Dict[str, str] = {}
     for table, pk_columns in PRIMARY_KEY_COLUMNS.items():
@@ -95,7 +104,10 @@ def load_rownum_to_semantic_id(csv_dir: Path) -> Dict[str, str]:
             continue
         rownum_col = f"{table}_rownum"
         with path.open("r", encoding="utf-8", errors="ignore", newline="") as f:
-            reader = csv.DictReader(f, delimiter="|")
+            sample = f.readline()
+            f.seek(0)
+            delimiter = "|" if "|" in sample and "," not in sample else ","
+            reader = csv.DictReader(f, delimiter=delimiter)
             for row in reader:
                 local_id = normalize_identifier(str(row.get(rownum_col, "")))
                 if not local_id:
@@ -206,6 +218,29 @@ def parsed_prediction_items(record: Dict[str, Any]) -> List[Dict[str, Any]]:
         if isinstance(obj, list):
             return [item for item in obj if isinstance(item, dict)]
     return []
+
+
+def empty_output_reason(record: Dict[str, Any], parsed_items: List[Dict[str, Any]]) -> str:
+    if parsed_items:
+        return "not_empty"
+    if record.get("error"):
+        return "runtime_error"
+    if record.get("parse_error"):
+        return "parse_error"
+    parsed = record.get("parsed_output")
+    if record.get("ok") is True and isinstance(parsed, list) and len(parsed) == 0:
+        return "model_returned_empty_array"
+    output_text = record.get("output_text")
+    if isinstance(output_text, str) and not output_text.strip():
+        return "empty_raw_output"
+    return "no_parsed_items"
+
+
+def add_empty_output_fields(detail: Dict[str, Any], record: Dict[str, Any], parsed_items: List[Dict[str, Any]]) -> None:
+    reason = empty_output_reason(record, parsed_items)
+    detail["predicted_item_count"] = len(parsed_items)
+    detail["empty_prediction"] = reason != "not_empty"
+    detail["empty_output_reason"] = reason
 
 
 def score_sets(expected: Set[str], predicted: Set[str]) -> Dict[str, Any]:
@@ -342,6 +377,7 @@ def evaluate(
             "provenance_missing": provenance_score["missing"],
             "provenance_extra": provenance_score["extra"],
         }
+        add_empty_output_fields(detail, record, parsed_items)
         details.append(detail)
 
         for prefix, score in (("answer", answer_score), ("provenance", provenance_score)):
@@ -377,6 +413,12 @@ def evaluate(
         "unmatched_predictions": unmatched_predictions,
         "ok_rate": sum(1 for item in details if item["ok"]) / n if n else 0.0,
         "valid_output_rate": sum(1 for item in details if item["valid_output"]) / n if n else 0.0,
+        "empty_prediction_count": sum(1 for item in details if item["empty_prediction"]),
+        "empty_prediction_rate": sum(1 for item in details if item["empty_prediction"]) / n if n else 0.0,
+        "empty_output_reasons": {
+            reason: sum(1 for item in details if item["empty_output_reason"] == reason)
+            for reason in sorted({str(item["empty_output_reason"]) for item in details})
+        },
         "answer_exact_match_rate": sum(1 for item in details if item["answer_exact_match"]) / n if n else 0.0,
         "provenance_exact_match_rate": (
             sum(1 for item in details if item["provenance_exact_match"]) / n if n else 0.0
@@ -462,6 +504,7 @@ def evaluate_leaf(
             "hallucinated_row_ids": score["extra"],
             "missing_answer_row_ids": score["missing"],
         }
+        add_empty_output_fields(detail, record, parsed_items)
         details.append(detail)
 
         for key in ("tp", "fp", "fn", "expected_count", "predicted_count"):
@@ -510,6 +553,12 @@ def evaluate_leaf(
         "ok_rate": sum(1 for item in details if item["ok"]) / n if n else 0.0,
         "valid_leaf_output_rate": sum(1 for item in details if item["valid_leaf_output"]) / n if n else 0.0,
         "valid_output_rate": sum(1 for item in details if item["valid_output"]) / n if n else 0.0,
+        "empty_prediction_count": sum(1 for item in details if item["empty_prediction"]),
+        "empty_prediction_rate": sum(1 for item in details if item["empty_prediction"]) / n if n else 0.0,
+        "empty_output_reasons": {
+            reason: sum(1 for item in details if item["empty_output_reason"] == reason)
+            for reason in sorted({str(item["empty_output_reason"]) for item in details})
+        },
         "leaf_exact_match_rate": sum(1 for item in details if item["exact_match"]) / n if n else 0.0,
         "content_row_accuracy": content_row_accuracy,
         "content_row_f1": content_row_f1,
@@ -569,6 +618,9 @@ def write_csv(path: Path, details: List[Dict[str, Any]]) -> None:
             "ok",
             "valid_leaf_output",
             "parse_error",
+            "predicted_item_count",
+            "empty_prediction",
+            "empty_output_reason",
             "expected_count",
             "predicted_count",
             "tp",
@@ -615,6 +667,9 @@ def write_csv(path: Path, details: List[Dict[str, Any]]) -> None:
         "ok",
         "valid_output",
         "parse_error",
+        "predicted_item_count",
+        "empty_prediction",
+        "empty_output_reason",
         "answer_expected_count",
         "answer_predicted_count",
         "answer_tp",
@@ -658,6 +713,35 @@ def write_plots(path: Path, report: Dict[str, Any]) -> None:
 
     path.mkdir(parents=True, exist_ok=True)
     summary = report["summary"]
+
+    def write_empty_output_reasons_plot() -> None:
+        reasons = summary.get("empty_output_reasons") or {}
+        if not reasons:
+            return
+        labels = list(reasons.keys())
+        values = [int(reasons[label]) for label in labels]
+        width = max(7, min(14, len(labels) * 2.4))
+        plt.figure(figsize=(width, 4.6))
+        bars = plt.bar(labels, values)
+        plt.ylabel("records")
+        plt.title("Empty output reasons")
+        plt.xticks(rotation=25, ha="right")
+        ymax = max(values) if values else 0
+        plt.ylim(0, ymax * 1.18 if ymax else 1)
+        for bar, value in zip(bars, values):
+            plt.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height(),
+                str(value),
+                ha="center",
+                va="bottom",
+            )
+        plt.tight_layout()
+        plt.savefig(path / "empty_output_reasons.png", dpi=160)
+        plt.close()
+
+    write_empty_output_reasons_plot()
+
     if "leaf_records_evaluated" in summary:
         micro = summary["micro"]
         details = report["details"]
@@ -827,6 +911,10 @@ def print_report(report: Dict[str, Any]) -> None:
         print("Run quality")
         print(f"  ok rate:                  {summary['ok_rate']:.4f}")
         print(f"  valid leaf-output rate:   {summary['valid_leaf_output_rate']:.4f}")
+        print(f"  empty prediction rate:    {summary['empty_prediction_rate']:.4f}")
+        if summary["empty_output_reasons"]:
+            reasons = ", ".join(f"{key}={value}" for key, value in summary["empty_output_reasons"].items())
+            print(f"  empty reasons:            {reasons}")
         print(f"  TP / FP / FN:             {micro['tp']} / {micro['fp']} / {micro['fn']}")
         print()
         print("Answer hallucination checks")
@@ -852,6 +940,10 @@ def print_report(report: Dict[str, Any]) -> None:
     print("Run quality")
     print(f"  ok rate:                     {summary['ok_rate']:.4f}")
     print(f"  valid output rate:           {summary['valid_output_rate']:.4f}")
+    print(f"  empty prediction rate:       {summary['empty_prediction_rate']:.4f}")
+    if summary["empty_output_reasons"]:
+        reasons = ", ".join(f"{key}={value}" for key, value in summary["empty_output_reasons"].items())
+        print(f"  empty reasons:               {reasons}")
     print()
     print("Answer value metrics")
     print(f"  exact-match rate:            {summary['answer_exact_match_rate']:.4f}")

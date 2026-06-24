@@ -61,7 +61,7 @@ def main() -> None:
     parser.add_argument("question", help="Question or retrieval query to test.")
     parser.add_argument(
         "--documents",
-        default="faiss_index_tpch_rows_bge_m3/documents.jsonl",
+        default="faiss_index_relf1_rows_bge_m3_docs/row_documents_relf1.jsonl",
         help="Path to row documents JSONL.",
     )
     parser.add_argument("--table", default="", help="Optional table filter, e.g. customer.")

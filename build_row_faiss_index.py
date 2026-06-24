@@ -104,6 +104,7 @@ def main() -> None:
     parser.add_argument("--embedding-model", default="BAAI/bge-m3")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--encode-batch-size", type=int, default=64)
     parser.add_argument("--checkpoint-every-batches", type=int, default=25)
     parser.add_argument("--no-resume", action="store_true")
     args = parser.parse_args()
@@ -115,7 +116,10 @@ def main() -> None:
     embeddings = HuggingFaceEmbeddings(
         model_name=args.embedding_model,
         model_kwargs={"device": args.device},
-        encode_kwargs={"normalize_embeddings": True},
+        encode_kwargs={
+            "normalize_embeddings": True,
+            "batch_size": args.encode_batch_size,
+        },
     )
 
     vectorstore = None

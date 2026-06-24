@@ -4,13 +4,13 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
-mkdir -p evaluation/logs logs
+mkdir -p evaluation_relf1/logs_internal_knowledge
 
 JOB_ID="${OAR_JOB_ID:-local}"
 OLLAMA_PORT="${OLLAMA_PORT:-11434}"
 OLLAMA_BIND_HOST="${OLLAMA_BIND_HOST:-127.0.0.1:${OLLAMA_PORT}}"
 OLLAMA_API_URL="http://127.0.0.1:${OLLAMA_PORT}"
-OLLAMA_LOG="evaluation/logs/ollama_internal_${JOB_ID}.log"
+OLLAMA_LOG="evaluation_relf1/logs_internal_knowledge/ollama_internal_${JOB_ID}.log"
 OLLAMA_BIN="${OLLAMA_BIN:-}"
 
 export GATEWAY_LOG_PATH="${GATEWAY_LOG_PATH:-$REPO_ROOT/logs/provsql_gateway_logs.jsonl}"
@@ -99,29 +99,39 @@ if [[ -f "$REPO_ROOT/.venv/bin/activate" ]]; then
   source "$REPO_ROOT/.venv/bin/activate"
 fi
 
-EVAL_OUTPUT="${EVAL_OUTPUT:-evaluation/internal_knowledge_outputs_${JOB_ID}.jsonl}"
-METRICS_OUTPUT="${METRICS_OUTPUT:-evaluation/internal_knowledge_metrics_${JOB_ID}.json}"
-METRICS_CSV_OUTPUT="${METRICS_CSV_OUTPUT:-evaluation/internal_knowledge_metrics_${JOB_ID}.csv}"
-METRICS_PLOTS_DIR="${METRICS_PLOTS_DIR:-evaluation/internal_knowledge_plots_${JOB_ID}}"
+EVAL_OUTPUT="${EVAL_OUTPUT:-evaluation_relf1/internal_knowledge_outputs_70b_${JOB_ID}.jsonl}"
+METRICS_OUTPUT="${METRICS_OUTPUT:-evaluation_relf1/internal_knowledge_metrics_70b_${JOB_ID}.json}"
+METRICS_CSV_OUTPUT="${METRICS_CSV_OUTPUT:-evaluation_relf1/internal_knowledge_metrics_70b_${JOB_ID}.csv}"
+METRICS_PLOTS_DIR="${METRICS_PLOTS_DIR:-evaluation_relf1/internal_knowledge_plots_70b_${JOB_ID}}"
 RUN_METRICS="${RUN_METRICS:-1}"
 EVAL_MODE="${EVAL_MODE:-root}"
 METRICS_MODE="${METRICS_MODE:-auto}"
+PROMPT_DOMAIN="${PROMPT_DOMAIN:-relf}"
+
+if [[ "$EVAL_MODE" == "leaf" ]]; then
+  DEFAULT_EVAL_INPUT="evaluation_relf1/leaf_node_questions.json"
+  DEFAULT_GROUND_TRUTH="evaluation_relf1/ground_truth_leaf_tasks.json"
+else
+  DEFAULT_EVAL_INPUT="evaluation_relf1/questions.json"
+  DEFAULT_GROUND_TRUTH="evaluation_relf1/ground_truth_queries.json"
+fi
 
 echo "[oar-internal-eval] running internal-knowledge evaluation"
 python3 run_internal_knowledge_eval.py \
   --resume \
-  --input "${EVAL_INPUT:-evaluation/questions.json}" \
+  --input "${EVAL_INPUT:-$DEFAULT_EVAL_INPUT}" \
   --output "$EVAL_OUTPUT" \
   --mode "$EVAL_MODE" \
-  --ollama-model "${OLLAMA_MODEL_INTERNAL_KNOWLEDGE:-${OLLAMA_MODEL_BASE:-llama3:8b}}" \
+  --prompt-domain "$PROMPT_DOMAIN" \
+  --ollama-model "${OLLAMA_MODEL_INTERNAL_KNOWLEDGE:-${OLLAMA_MODEL_BASE:-llama3:70b}}" \
   "$@"
 
 if [[ "$RUN_METRICS" == "1" ]]; then
   echo "[oar-internal-eval] computing metrics"
   python3 evaluate_internal_knowledge_outputs.py \
     --predictions "$EVAL_OUTPUT" \
-    --ground-truth "${GROUND_TRUTH:-evaluation/ground_truth_queries.json}" \
-    --csv-dir "${CSV_DIR:-tpch_no_provsql}" \
+    --ground-truth "${GROUND_TRUTH:-$DEFAULT_GROUND_TRUTH}" \
+    --csv-dir "${CSV_DIR:-rel-f1-csv}" \
     --output "$METRICS_OUTPUT" \
     --csv-output "$METRICS_CSV_OUTPUT" \
     --mode "$METRICS_MODE" \
