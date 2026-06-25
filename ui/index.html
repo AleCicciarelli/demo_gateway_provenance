@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Provenance Query UI</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="query-panel" aria-labelledby="query-title">
+        <div>
+          <p class="eyebrow">Demo Gateway</p>
+          <h1 id="query-title">Query provenance workspace</h1>
+        </div>
+
+        <label class="field-label" for="query-input">Question or SQL query</label>
+        <textarea id="query-input" spellcheck="false">SELECT n.n_name, r.r_name
+FROM nation n
+JOIN region r ON n.n_regionkey = r.r_regionkey
+WHERE r.r_name = 'EUROPE'
+LIMIT 5;</textarea>
+
+        <div class="actions">
+          <button id="plan-button" type="button">Generate plan</button>
+          <button id="run-button" type="button" class="secondary">Run selected pipelines</button>
+        </div>
+
+        <p id="backend-status" class="status-note" role="status"></p>
+      </section>
+
+      <section class="workspace-grid">
+        <section class="panel" aria-labelledby="plan-title">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Planner</p>
+              <h2 id="plan-title">Query plan</h2>
+            </div>
+            <span id="leaf-count" class="pill">0 leaves</span>
+          </div>
+
+          <div id="plan-summary" class="summary-grid"></div>
+          <div id="plan-tree" class="plan-tree empty-state">
+            The plan tree will appear here after planning.
+          </div>
+          <div id="leaf-list" class="leaf-list empty-state">
+            Generate a plan to inspect leaf tasks and choose how each one should run.
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="output-title">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">Result</p>
+              <h2 id="output-title">Final output</h2>
+            </div>
+            <span id="run-status" class="pill muted-pill">Waiting</span>
+          </div>
+
+          <div class="tabs" role="tablist" aria-label="Result views">
+            <button class="tab active" type="button" data-tab="answer">Answer</button>
+            <button class="tab" type="button" data-tab="provenance">Provenance</button>
+            <button class="tab" type="button" data-tab="rows">Supporting rows</button>
+          </div>
+
+          <div id="answer-view" class="tab-view"></div>
+          <div id="provenance-view" class="tab-view hidden"></div>
+          <div id="rows-view" class="tab-view hidden"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
