@@ -26,6 +26,14 @@ import uuid
 
 app = FastAPI()
 
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # =========================
 # Config
 # =========================
@@ -34,6 +42,16 @@ LOG_PATH = os.getenv("GATEWAY_LOG_PATH", "/app/logs/provsql_gateway_logs.jsonl")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 OLLAMA_REQUEST_TIMEOUT = float(os.getenv("OLLAMA_REQUEST_TIMEOUT", "300"))
+LLM_API_BASE = os.getenv("LLM_API_BASE", "").rstrip("/")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+LLM_API_MODEL = os.getenv("LLM_API_MODEL", "")
+LLM_SSL_VERIFY = _env_bool("LLM_SSL_VERIFY", True)
+LLM_REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", str(OLLAMA_REQUEST_TIMEOUT)))
+PLANNER_LLM_PROVIDER = os.getenv("PLANNER_LLM_PROVIDER", "ollama").strip().lower()
+PLANNER_LLM_MODEL = os.getenv(
+    "PLANNER_LLM_MODEL",
+    LLM_API_MODEL if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"} and LLM_API_MODEL else "llama3:8b",
+)
 CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
 MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "37"))
 MAX_TABLES = int(os.getenv("MAX_TABLES", "5"))
@@ -73,7 +91,13 @@ EXPLANATION_BUCKET_DIR = Path(os.getenv("EXPLANATION_BUCKET_DIR", "/shared_bucke
 EXPLANATION_REQUEST_TIMEOUT = float(os.getenv("EXPLANATION_REQUEST_TIMEOUT", "300"))
 
 EXPLANATION_CSV_DELIMITER = os.getenv("EXPLANATION_CSV_DELIMITER", ",")
-EXPLANATION_KEEP_ROWNUM = os.getenv("EXPLANATION_KEEP_ROWNUM", "true")
+EXPLANATION_KEEP_ROWNUM = _env_bool("EXPLANATION_KEEP_ROWNUM", True)
+EXPLANATION_RESET_FORMULA_STATE = _env_bool("EXPLANATION_RESET_FORMULA_STATE", False)
+EXPLANATION_POSTGRES_HOST = os.getenv("EXPLANATION_POSTGRES_HOST", "postgres-provsql")
+EXPLANATION_POSTGRES_PORT = int(os.getenv("EXPLANATION_POSTGRES_PORT", "5432"))
+EXPLANATION_POSTGRES_DB = os.getenv("EXPLANATION_POSTGRES_DB", "mathe")
+EXPLANATION_POSTGRES_USER = os.getenv("EXPLANATION_POSTGRES_USER", "provdemo")
+EXPLANATION_POSTGRES_PASSWORD = os.getenv("EXPLANATION_POSTGRES_PASSWORD", "provdemo")
 
 # una pipeline explanation alla volta per evitare che due pipeline concorrenti scrivano i csv nella stessa cartella del bucket
 _EXPLANATION_PIPELINE_LOCK = threading.Lock()
@@ -82,8 +106,12 @@ MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
     "best-ft-llama3-8b-nl": os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest"),
     "best-ft-llama3-8b-sql": os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:latest"),
-    "planner-first": os.getenv("OLLAMA_MODEL_PLANNER_FIRST", "llama3:8b"),
-    "planner-first-explanation": os.getenv("OLLAMA_MODEL_PLANNER_FIRST_EXPLANATION", "llama3:8b"),
+    "planner-first": PLANNER_LLM_MODEL
+    if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
+    else os.getenv("OLLAMA_MODEL_PLANNER_FIRST", PLANNER_LLM_MODEL),
+    "planner-first-explanation": PLANNER_LLM_MODEL
+    if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
+    else os.getenv("OLLAMA_MODEL_PLANNER_FIRST_EXPLANATION", PLANNER_LLM_MODEL),
     "internal-knowledge": os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", "llama3:8b"),
 }
 
@@ -294,6 +322,52 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
     except Exception as e:
         raise RuntimeError(f"Failed calling Ollama model '{model}' at {url}: {e}")
 
+def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> str:
+    if not LLM_API_BASE:
+        raise RuntimeError("LLM_API_BASE is required when PLANNER_LLM_PROVIDER=openai")
+
+    url = f"{LLM_API_BASE}/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+
+    payload: Dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+        "stream": False,
+    }
+
+    try:
+        r = requests.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=LLM_REQUEST_TIMEOUT,
+            verify=LLM_SSL_VERIFY,
+        )
+        if not r.ok:
+            raise RuntimeError(f"LLM API error {r.status_code}: {r.text}")
+        data = r.json()
+        choices = data.get("choices") or []
+        if not choices:
+            raise RuntimeError(f"LLM API returned no choices: {data}")
+        message = choices[0].get("message") or {}
+        content = message.get("content")
+        if content is None:
+            content = choices[0].get("text")
+        return content or ""
+    except Exception as e:
+        raise RuntimeError(f"Failed calling LLM model '{model}' at {url}: {e}")
+
+def _generate_model(provider: str, model: str, prompt: str, temperature: float) -> str:
+    provider = provider.strip().lower()
+    if provider in {"openai", "openai-compatible"}:
+        return _openai_compatible_generate(model, prompt, temperature)
+    if provider == "ollama":
+        return _ollama_generate(model, prompt, temperature)
+    raise RuntimeError(f"Unsupported model provider: {provider}")
+
 def _is_valid_json_array(text: str) -> Tuple[bool, Optional[str]]:
     """
     Return True if text is a valid JSON array, False otherwise. If False, also return an error message.
@@ -332,6 +406,7 @@ def _call_model_with_retry(
     ollama_model: str,
     base_prompt: str,
     temperature: float,
+    provider: str = "ollama",
     max_tries: int = 2,
     validator: Optional[Callable[[str], Tuple[bool, Optional[str]]]] = None,
     scorer: Optional[Callable[[str], int]] = None,
@@ -348,7 +423,7 @@ def _call_model_with_retry(
     best_score = -1
     validate = validator or _is_valid_json_array
     for attempt in range(1, max_tries + 1):
-        out = _ollama_generate(ollama_model, prompt, temperature)
+        out = _generate_model(provider, ollama_model, prompt, temperature)
         last = out
         ok, err = validate(out)
         score = scorer(out) if scorer is not None else (1 if ok else 0)
@@ -357,6 +432,7 @@ def _call_model_with_retry(
             best_score = score
         _log_event({
             "type": "attempt",
+            "model_provider": provider,
             "ollama_model": ollama_model,
             "attempt": attempt,
             "ok_json_array": ok,
@@ -766,6 +842,7 @@ def _leaf_rows_by_id(ctx: Dict[str, Any], table_name: str) -> Dict[str, Dict[str
 def _run_leaf_task(
     task: Dict[str, Any],
     ollama_model: str,
+    model_provider: str,
     temperature: float,
     ctx: Dict[str, Any],
     retrieval_query: str,
@@ -779,6 +856,7 @@ def _run_leaf_task(
         ollama_model,
         prompt,
         temperature,
+        provider=model_provider,
         max_tries=2,
         validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
         scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id)[2] or []),
@@ -804,6 +882,7 @@ def _run_leaf_task(
 def _run_planner_first(
     sql_query: str,
     ollama_model: str,
+    model_provider: str,
     temperature: float,
 ) -> Dict[str, Any]:
     plan = build_query_plan(sql_query)
@@ -830,6 +909,7 @@ def _run_planner_first(
             _run_leaf_task(
                 task=task_dict,
                 ollama_model=ollama_model,
+                model_provider=model_provider,
                 temperature=temperature,
                 ctx=leaf_ctx,
                 retrieval_query=retrieval_query,
@@ -1188,6 +1268,7 @@ def chat_completions(
             planner_result = _run_planner_first(
                 sql_query=question,
                 ollama_model=ollama_model,
+                model_provider=PLANNER_LLM_PROVIDER,
                 temperature=temperature,
             )
 
@@ -1199,6 +1280,7 @@ def chat_completions(
                 "ui_model": req.model,
                 "request_id": request_id,
                 "ollama_model": ollama_model,
+                "model_provider": PLANNER_LLM_PROVIDER,
                 "temperature": temperature,
                 "stream": req.stream,
                 "sql_query": question,
@@ -1214,6 +1296,7 @@ def chat_completions(
                 raw_messages=[m.model_dump() for m in req.messages],
                 ui_model=req.model,
                 ollama_model=ollama_model,
+                model_provider=PLANNER_LLM_PROVIDER,
                 temperature=temperature,
                 context_tables=[],
                 context_preview={},
@@ -1254,6 +1337,7 @@ def chat_completions(
                 planner_result = _run_planner_first(
                     sql_query=question,
                     ollama_model=ollama_model,
+                    model_provider=PLANNER_LLM_PROVIDER,
                     temperature=temperature,
                 )
 
@@ -1279,6 +1363,7 @@ def chat_completions(
                     "ui_model": req.model,
                     "request_id": request_id,
                     "ollama_model": ollama_model,
+                    "model_provider": PLANNER_LLM_PROVIDER,
                     "temperature": temperature,
                     "sql_query": question,
                     "generated_csv_files": pipeline_result["generated_csv_files"],
