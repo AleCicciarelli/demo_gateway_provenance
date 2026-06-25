@@ -45,6 +45,11 @@ OLLAMA_REQUEST_TIMEOUT = float(os.getenv("OLLAMA_REQUEST_TIMEOUT", "300"))
 LLM_API_BASE = os.getenv("LLM_API_BASE", "").rstrip("/")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_API_MODEL = os.getenv("LLM_API_MODEL", "")
+LLM_API_MODEL_ALIASES = [
+    item.strip()
+    for item in os.getenv("LLM_API_MODEL_ALIASES", "").split(",")
+    if item.strip()
+]
 LLM_SSL_VERIFY = _env_bool("LLM_SSL_VERIFY", True)
 LLM_REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", str(OLLAMA_REQUEST_TIMEOUT)))
 PLANNER_LLM_PROVIDER = os.getenv("PLANNER_LLM_PROVIDER", "ollama").strip().lower()
@@ -331,14 +336,19 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
     if LLM_API_KEY:
         headers["Authorization"] = f"Bearer {LLM_API_KEY}"
 
-    payload: Dict[str, Any] = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": temperature,
-        "stream": False,
-    }
+    model_candidates = [model, *LLM_API_MODEL_ALIASES]
+    if "/" in model:
+        model_candidates.append(model.rsplit("/", 1)[-1])
+    model_candidates = list(dict.fromkeys(model_candidates))
 
-    try:
+    last_error = ""
+    for model_candidate in model_candidates:
+        payload: Dict[str, Any] = {
+            "model": model_candidate,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "stream": False,
+        }
         r = requests.post(
             url,
             json=payload,
@@ -347,7 +357,8 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
             verify=LLM_SSL_VERIFY,
         )
         if not r.ok:
-            raise RuntimeError(f"LLM API error {r.status_code}: {r.text}")
+            last_error = f"LLM API error {r.status_code} for model '{model_candidate}': {r.text}"
+            continue
         data = r.json()
         choices = data.get("choices") or []
         if not choices:
@@ -357,8 +368,10 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
         if content is None:
             content = choices[0].get("text")
         return content or ""
-    except Exception as e:
-        raise RuntimeError(f"Failed calling LLM model '{model}' at {url}: {e}")
+
+    raise RuntimeError(
+        f"Failed calling LLM model '{model}' at {url}. Tried {model_candidates}. Last error: {last_error}"
+    )
 
 def _generate_model(provider: str, model: str, prompt: str, temperature: float) -> str:
     provider = provider.strip().lower()
