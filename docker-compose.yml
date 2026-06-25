@@ -89,7 +89,7 @@ services:
 #              count: all
 #              capabilities: [gpu]
   explanation_app:
-    image: ghcr.io/datagems-eosc/datagems-eosc/ap-explanation:v0.11.0
+    image: ghcr.io/datagems-eosc/datagems-eosc/ap-explanation:v0.13.1
     container_name: explanation_app
     depends_on:
       postgres-provsql:

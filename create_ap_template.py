@@ -62,9 +62,9 @@ def build_ap_csv_template(
             "to": operator_id,
         },
         {
-            "from": operator_id,
+            "from": csv_set_id,
             "labels": ["input"],
-            "to": csv_set_id,
+            "to": operator_id,
         },
     ]
 
