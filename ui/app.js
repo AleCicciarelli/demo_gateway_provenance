@@ -5,6 +5,7 @@ const BACKEND_ENDPOINTS = {
 
 const PIPELINES = [
   { id: "planner-first", label: "Planner-first" },
+  { id: "planner-first-explanation", label: "Planner-first explanation" },
   { id: "rag", label: "RAG" },
   { id: "internal-knowledge", label: "Internal knowledge" },
   { id: "manual", label: "Manual review" },
@@ -478,6 +479,7 @@ function renderLeafCard(leaf, index) {
         ${renderDetail("Predicates", compactList(leaf.local_predicates))}
         ${renderDetail("Join keys", compactList(leaf.join_keys))}
         ${renderDetail("Select columns", compactList(leaf.select_columns))}
+        ${renderDetail("Leaf SQL", leaf.question_sql ?? "not available")}
       </div>
     </article>
   `;
@@ -507,10 +509,39 @@ function renderOutput() {
     ${state.output?.source === "mock" ? `<p class="notice">Mock output. Wire BACKEND_ENDPOINTS.run in app.js to replace this.</p>` : ""}
     ${state.output?.note ? `<p class="notice">${escapeHtml(state.output.note)}</p>` : ""}
     ${renderErrors(state.output?.errors ?? [])}
+    ${renderExplanationOutput(state.output)}
     ${renderAnswerTable(answer)}
   `;
   els.provenanceView.innerHTML = renderProvenance(answer);
   els.rowsView.innerHTML = renderSupportingRows(state.output?.rows_by_id ?? {});
+}
+
+function renderExplanationOutput(output) {
+  const explanations = Array.isArray(output?.explanations)
+    ? output.explanations
+    : output?.explanation
+      ? [output.explanation]
+      : [];
+
+  if (!explanations.length) {
+    return "";
+  }
+
+  return `
+    <div class="provenance-formula">
+      ${explanations
+        .map(
+          (explanation, index) => `
+            <div class="formula-card">
+              <strong>Planner-first explanation ${index + 1}: ${escapeHtml(explanation.table ?? "leaf")}</strong>
+              ${explanation.question_sql ? `<code>${escapeHtml(explanation.question_sql)}</code>` : ""}
+              <pre>${escapeHtml(explanation.response_text ?? "")}</pre>
+            </div>
+          `,
+        )
+        .join("")}
+    </div>
+  `;
 }
 
 function renderErrors(errors) {
@@ -629,7 +660,7 @@ els.tabs.forEach((tab) => {
 
 clearOutput();
 if (hasBackend(BACKEND_ENDPOINTS.plan) && hasBackend(BACKEND_ENDPOINTS.run)) {
-  setStatus("Connected mode. Planning and leaf pipeline runs will call the gateway.");
+  setStatus("Connected mode. Planning, leaf runs, and explanation runs will call the gateway.");
 } else {
   setStatus("Backend endpoints are empty in file mode; the UI is running with mock data.");
 }

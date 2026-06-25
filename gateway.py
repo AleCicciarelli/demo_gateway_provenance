@@ -12,8 +12,8 @@ from pathlib import Path
 from collections import defaultdict
 import requests
 from fastapi import FastAPI, Header, HTTPException
-from pydantic import BaseModel, ConfigDict
-from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, ConfigDict, Field
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from embedding_strategies import EmbeddingStrategies
 from explanation_client import ExplanationClient
 from explanation_pipeline import run_planner_first_explanation_pipeline
@@ -258,6 +258,17 @@ class ProvenanceExplainRequest(BaseModel):
     question: str
     answer_json: str
     model: Optional[str] = None
+    temperature: Optional[float] = 0.0
+
+class UiPlanRequest(BaseModel):
+    question: str
+    sql: Optional[str] = None
+
+class UiRunRequest(BaseModel):
+    question: str
+    sql: str
+    plan: Dict[str, Any]
+    leaf_pipeline_choices: Dict[str, str] = Field(default_factory=dict)
     temperature: Optional[float] = 0.0
 # =========================
 # Debug state
@@ -935,6 +946,252 @@ def _run_planner_first(
         "leaf_outputs": leaf_outputs,
     }
 
+def _manual_leaf_output(
+    task: Dict[str, Any],
+    ctx: Dict[str, Any],
+    retrieval_query: str,
+) -> Dict[str, Any]:
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    rows_by_id = _leaf_rows_by_id(ctx, table_name)
+    parsed_output = [
+        {
+            "row_id": row_id,
+            "values": row,
+        }
+        for row_id, row in rows_by_id.items()
+    ]
+
+    return {
+        "table_name": table_name,
+        "task": task,
+        "retrieval_query": retrieval_query,
+        "context_data": ctx,
+        "prompt": "MANUAL REVIEW MODE",
+        "output_text": json.dumps(parsed_output, ensure_ascii=False, indent=2),
+        "parsed_output": parsed_output,
+        "parse_error": None,
+        "valid_leaf_output": True,
+    }
+
+def _raw_model_leaf_output(
+    task: Dict[str, Any],
+    pipeline: str,
+    model_id: str,
+    model_provider: str,
+    temperature: float,
+    retrieval_query: str,
+    raw_output: str,
+) -> Dict[str, Any]:
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    return {
+        "table_name": table_name,
+        "task": task,
+        "retrieval_query": retrieval_query,
+        "context_data": {},
+        "prompt": f"{pipeline.upper()} MODE",
+        "output_text": raw_output,
+        "parsed_output": [],
+        "parse_error": "Pipeline returned free-form model output, not leaf rows.",
+        "valid_leaf_output": False,
+        "pipeline": pipeline,
+        "model_id": model_id,
+        "model_provider": model_provider,
+    }
+
+def _run_ui_leaf_pipeline(
+    task: Dict[str, Any],
+    pipeline: str,
+    sql_query: str,
+    temperature: float,
+) -> Dict[str, Any]:
+    pipeline = (pipeline or "planner-first").strip().lower()
+    retrieval_query = _build_leaf_retrieval_query(task)
+
+    if pipeline == "manual":
+        ctx = retrieve_context_data_iterative(retrieval_query)
+        return _manual_leaf_output(task, ctx, retrieval_query)
+
+    if pipeline == "rag":
+        ctx = retrieve_context_data_iterative(retrieval_query)
+        return _run_leaf_task(
+            task=task,
+            ollama_model=MODEL_ROUTING["base-llama3-8b"],
+            model_provider="ollama",
+            temperature=temperature,
+            ctx=ctx,
+            retrieval_query=retrieval_query,
+        )
+
+    if pipeline == "planner-first-explanation":
+        return _run_ui_leaf_planner_first_explanation(
+            task=task,
+            sql_query=sql_query,
+            temperature=temperature,
+            retrieval_query=retrieval_query,
+        )
+
+    if pipeline == "internal-knowledge":
+        model_id = "internal-knowledge"
+        model_name = MODEL_ROUTING[model_id]
+        prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=sql_query)
+        raw_output = _call_model_with_retry(
+            model_name,
+            prompt,
+            temperature,
+            provider="ollama",
+            max_tries=2,
+        )
+        return _raw_model_leaf_output(
+            task=task,
+            pipeline=pipeline,
+            model_id=model_id,
+            model_provider="ollama",
+            temperature=temperature,
+            retrieval_query=retrieval_query,
+            raw_output=raw_output,
+        )
+
+    if pipeline != "planner-first":
+        raise ValueError(f"Unsupported UI pipeline: {pipeline}")
+
+    ctx = retrieve_context_data_iterative(retrieval_query)
+    return _run_leaf_task(
+        task=task,
+        ollama_model=MODEL_ROUTING["planner-first"],
+        model_provider=PLANNER_LLM_PROVIDER,
+        temperature=temperature,
+        ctx=ctx,
+        retrieval_query=retrieval_query,
+    )
+
+def _ui_rows_from_leaf_outputs(
+    leaf_outputs: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any], List[str]]:
+    answer: List[Dict[str, Any]] = []
+    rows_by_id: Dict[str, Any] = {}
+    errors: List[str] = []
+
+    for leaf in leaf_outputs:
+        table_name = leaf.get("table_name", "")
+        parse_error = leaf.get("parse_error")
+        if parse_error:
+            errors.append(f"{table_name}: {parse_error}")
+
+        parsed_output = leaf.get("parsed_output") or []
+        if not isinstance(parsed_output, list):
+            continue
+
+        for item in parsed_output:
+            if not isinstance(item, dict):
+                continue
+            row_id = item.get("row_id")
+            values = item.get("values")
+            if not isinstance(row_id, str) or not isinstance(values, dict):
+                continue
+
+            rows_by_id[row_id] = {
+                "table": table_name,
+                "row": values,
+            }
+            answer.append({
+                "result": {
+                    "table": table_name,
+                    "row_id": row_id,
+                    **values,
+                },
+                "provenance": [[row_id]],
+            })
+
+    return answer, rows_by_id, errors
+
+def _leaf_question_sql(task: Dict[str, Any]) -> str:
+    existing = str(task.get("question_sql") or task.get("sql") or "").strip()
+    if existing:
+        return existing
+
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    if not table_name:
+        return "SELECT *;"
+
+    predicates = [
+        str(predicate).strip()
+        for predicate in task.get("local_predicates") or []
+        if str(predicate).strip()
+    ]
+
+    sql = f"SELECT * FROM {table_name}"
+    if predicates:
+        sql += " WHERE " + " AND ".join(predicates)
+    return sql + ";"
+
+def _one_leaf_plan(task: Dict[str, Any], leaf_sql: str) -> Dict[str, Any]:
+    return {
+        "query_type": "SELECT",
+        "sql": leaf_sql,
+        "leaf_tasks": [task],
+        "joins": [],
+        "post_ops": [
+            {
+                "op": "Project",
+                "payload": {
+                    "select": ["*"],
+                },
+            }
+        ],
+    }
+
+def _run_ui_leaf_planner_first_explanation(
+    task: Dict[str, Any],
+    sql_query: str,
+    temperature: float,
+    retrieval_query: str,
+) -> Dict[str, Any]:
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    leaf_sql = _leaf_question_sql(task)
+    ctx = retrieve_context_data_iterative(retrieval_query)
+    leaf_output = _run_leaf_task(
+        task=task,
+        ollama_model=MODEL_ROUTING["planner-first-explanation"],
+        model_provider=PLANNER_LLM_PROVIDER,
+        temperature=temperature,
+        ctx=ctx,
+        retrieval_query=retrieval_query,
+    )
+
+    planner_result = {
+        "sql": leaf_sql,
+        "root_sql": sql_query,
+        "plan": _one_leaf_plan(task, leaf_sql),
+        "leaf_outputs": [leaf_output],
+    }
+
+    with _EXPLANATION_PIPELINE_LOCK:
+        explanation_client = ExplanationClient(
+            base_url=EXPLANATION_URL,
+            post_endpoint=EXPLANATION_ENDPOINT,
+            timeout=EXPLANATION_REQUEST_TIMEOUT,
+        )
+
+        pipeline_result = run_planner_first_explanation_pipeline(
+            sql_query=leaf_sql,
+            planner_result=planner_result,
+            bucket_dir=EXPLANATION_BUCKET_DIR,
+            explanation_client=explanation_client,
+            delimiter=EXPLANATION_CSV_DELIMITER,
+            keep_rownum=EXPLANATION_KEEP_ROWNUM,
+        )
+
+    leaf_output["pipeline"] = "planner-first-explanation"
+    leaf_output["question_sql"] = leaf_sql
+    leaf_output["explanation"] = {
+        "table": table_name,
+        "question_sql": leaf_sql,
+        "generated_csv_files": pipeline_result["generated_csv_files"],
+        "explanation_output": pipeline_result["explanation_output"],
+        "response_text": pipeline_result["response_text"],
+    }
+    return leaf_output
+
 
 # =========================
 # Provenance helpers
@@ -1247,6 +1504,138 @@ def _explain_provenance_with_model(
 # =========================
 # Routes (OpenAI-compatible: OpenWebUI has already an OPENAI-compatible backend, so we can just mimic that) 
 # =========================
+
+UI_DIR = Path(__file__).resolve().parent / "ui"
+
+@app.get("/")
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/ui")
+
+@app.get("/ui", response_class=HTMLResponse)
+def ui_index() -> FileResponse:
+    index_path = UI_DIR / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="UI index.html not found")
+    return FileResponse(index_path)
+
+@app.get("/ui/{asset_name}")
+def ui_asset(asset_name: str) -> FileResponse:
+    if asset_name not in {"app.js", "styles.css"}:
+        raise HTTPException(status_code=404, detail="UI asset not found")
+
+    asset_path = UI_DIR / asset_name
+    if not asset_path.exists():
+        raise HTTPException(status_code=404, detail=f"UI asset not found: {asset_name}")
+    return FileResponse(asset_path)
+
+@app.post("/ui/plan")
+def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
+    sql_query = (req.sql or req.question).strip()
+    if not sql_query:
+        raise HTTPException(status_code=400, detail="Empty SQL query")
+
+    try:
+        plan = build_query_plan(sql_query)
+        if plan is None:
+            raise RuntimeError("build_query_plan returned None")
+
+        plan_dict = plan.to_dict()
+        for task in plan_dict.get("leaf_tasks", []):
+            if isinstance(task, dict) and not task.get("question_sql"):
+                task["question_sql"] = _leaf_question_sql(task)
+
+        _log_event({
+            "type": "ui_plan",
+            "sql_query": sql_query,
+            "leaf_tasks": len(plan_dict.get("leaf_tasks", [])),
+        })
+        return {
+            "source": "gateway",
+            "sql": sql_query,
+            "plan": plan_dict,
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"UI planning failed: {e}")
+
+@app.post("/ui/run")
+def ui_run(req: UiRunRequest) -> Dict[str, Any]:
+    sql_query = req.sql.strip() or req.question.strip()
+    if not sql_query:
+        raise HTTPException(status_code=400, detail="Empty SQL query")
+
+    leaf_tasks = req.plan.get("leaf_tasks") or []
+    if not isinstance(leaf_tasks, list):
+        raise HTTPException(status_code=400, detail="plan.leaf_tasks must be a list")
+
+    temperature = 0.0 if req.temperature is None else float(req.temperature)
+    leaf_outputs: List[Dict[str, Any]] = []
+    pipeline_choices: List[Dict[str, str]] = []
+
+    try:
+        for task in leaf_tasks:
+            if not isinstance(task, dict):
+                continue
+
+            table_name = str(task.get("table_name") or task.get("table") or "").strip()
+            pipeline = req.leaf_pipeline_choices.get(table_name, "planner-first")
+            print(
+                f"\n[UI] Running table '{table_name}' with pipeline '{pipeline}'\n",
+                flush=True,
+            )
+            leaf_output = _run_ui_leaf_pipeline(
+                task=task,
+                pipeline=pipeline,
+                sql_query=sql_query,
+                temperature=temperature,
+            )
+            leaf_output["pipeline"] = pipeline
+            leaf_outputs.append(leaf_output)
+            pipeline_choices.append({
+                "table": table_name,
+                "pipeline": pipeline,
+            })
+
+        answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
+        explanations = [
+            leaf["explanation"]
+            for leaf in leaf_outputs
+            if isinstance(leaf.get("explanation"), dict)
+        ]
+
+        result = {
+            "source": "gateway",
+            "sql": sql_query,
+            "plan": req.plan,
+            "answer": answer,
+            "rows_by_id": rows_by_id,
+            "leaf_outputs": leaf_outputs,
+            "pipeline_choices": pipeline_choices,
+            "errors": errors,
+            "explanations": explanations,
+            "note": (
+                "The UI run endpoint executes selected leaf pipelines and returns "
+                "candidate source rows. Planner-first explanation runs per selected "
+                "leaf using that leaf SQL."
+            ),
+        }
+
+        _log_event({
+            "type": "ui_run",
+            "sql_query": sql_query,
+            "pipeline_choices": pipeline_choices,
+            "answer_rows": len(answer),
+            "explanations": len(explanations),
+            "errors": errors,
+        })
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"UI run failed: {e}")
 
 # API for listing available models
 @app.get("/v1/models")

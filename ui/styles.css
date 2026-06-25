@@ -419,6 +419,15 @@ tr:last-child td {
   color: var(--accent-strong);
 }
 
+.formula-card pre {
+  margin: 8px 0 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+}
+
 .notice {
   border: 1px solid #fed7aa;
   border-radius: var(--radius);
