@@ -18,7 +18,7 @@ The demo runs two services:
   - FastAPI application
   - RAG pipeline
   - FAISS indexing
-  - Planner first pipeline
+  - Planner only pipeline
 
 - **Ollama**
   - Hosts the base LLM models
@@ -28,11 +28,11 @@ Both services are started using **Docker Compose**.
 
 ---
 
-## Planner-First Documentation
+## Planner Only Documentation
 
-The detailed documentation for the planner-first pipeline and evaluation workflow is here:
+The detailed documentation for the planner-only pipeline and evaluation workflow is here:
 
-- [Planner-first logic and evaluation](docs/planner_first.md)
+- [Planner-only logic and evaluation](docs/planner_first.md)
 
 It covers SQL planning, leaf extraction, iterative retrieval, output validation, ProvSQL ground-truth generation, local/OAR evaluation runs, metrics, logs, and current limitations.
 
@@ -104,7 +104,7 @@ curl http://localhost:9005/v1/models
 Expected response:
 
 ```json
-{"object":"list","data":[{"id":"base-llama3-8b","object":"model"},{"id":"best-ft-llama3-8b-nl","object":"model"},{"id":"best-ft-llama3-8b-sql","object":"model"},{"id":"planner-first","object":"model"}]}
+{"object":"list","data":[{"id":"base-llama3-8b","object":"model"},{"id":"best-ft-llama3-8b-nl","object":"model"},{"id":"best-ft-llama3-8b-sql","object":"model"},{"id":"planner-only","object":"model"},{"id":"planner-only-explanation","object":"model"},{"id":"internal-knowledge","object":"model"}]}
 ```
 
 You should see the following models:
@@ -112,19 +112,21 @@ You should see the following models:
 - `base-llama3-8b`
 - `best-ft-llama3-8b-nl`
 - `best-ft-llama3-8b-sql`
-- `planner-first`
+- `planner-only`
+- `planner-only-explanation`
+- `internal-knowledge`
 
 ---
 
 ## 6. Example Request
 
-Example request using the **planner-first** model:
+Example request using the **planner-only** model:
 
 ```bash
 curl -X POST http://localhost:9005/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "planner-first",
+    "model": "planner-only",
     "messages": [
       {
         "role": "user",

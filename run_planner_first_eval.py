@@ -194,7 +194,7 @@ def run_one(item: Dict[str, Any], ollama_model: str, temperature: float) -> Dict
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Run evaluation SQL through gateway.py planner-first iterative pipeline."
+        description="Run evaluation SQL through gateway.py planner-only iterative pipeline."
     )
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
@@ -210,7 +210,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ollama-model",
         default=None,
-        help="Actual Ollama model name. Defaults to gateway MODEL_ROUTING['planner-first'].",
+        help="Actual Ollama model name. Defaults to gateway.MODEL_ROUTING[gateway.PLANNER_ONLY_MODEL_ID].",
     )
     parser.add_argument(
         "--resume",
@@ -266,7 +266,7 @@ def main() -> int:
     if args.limit is not None:
         items = items[: args.limit]
 
-    ollama_model = args.ollama_model or gateway.MODEL_ROUTING["planner-first"]
+    ollama_model = args.ollama_model or gateway.MODEL_ROUTING[gateway.PLANNER_ONLY_MODEL_ID]
 
     print(f"[eval] input={args.input}")
     print(f"[eval] output={output_path}")

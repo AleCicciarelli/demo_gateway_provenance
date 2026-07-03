@@ -9,6 +9,12 @@ from collections import defaultdict
 from typing import Any, Dict, List
 
 
+def _normalize_csv_value(value: Any) -> Any:
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
 def clean_bucket(bucket_dir: Path) -> None:
     bucket_dir.mkdir(parents=True, exist_ok=True)
 
@@ -50,7 +56,10 @@ def planner_result_to_csv_files(
             if row_id and row_id in seen_row_ids[table_name]:
                 continue
 
-            row = dict(values)
+            row = {
+                column: _normalize_csv_value(value)
+                for column, value in values.items()
+            }
 
             row.pop("__rid__", None)
 

@@ -13,10 +13,11 @@ from collections import defaultdict
 import requests
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from embedding_strategies import EmbeddingStrategies
 from explanation_client import ExplanationClient
 from explanation_pipeline import run_planner_first_explanation_pipeline
+from json_to_csv import clean_bucket, planner_result_to_csv_files
 from faiss_index_manager import FaissIndexManager
 from prompt import build_leaf_prompt
 from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE
@@ -106,22 +107,54 @@ EXPLANATION_POSTGRES_PASSWORD = os.getenv("EXPLANATION_POSTGRES_PASSWORD", "prov
 
 # una pipeline explanation alla volta per evitare che due pipeline concorrenti scrivano i csv nella stessa cartella del bucket
 _EXPLANATION_PIPELINE_LOCK = threading.Lock()
+PLANNER_ONLY_MODEL_ID = "planner-only"
+PLANNER_ONLY_EXPLANATION_MODEL_ID = "planner-only-explanation"
+PLANNER_ONLY_ALIASES = {
+    "planner only": PLANNER_ONLY_MODEL_ID,
+    "planner-first": PLANNER_ONLY_MODEL_ID,
+    "planner_first": PLANNER_ONLY_MODEL_ID,
+    "planner only-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
+    "planner-first-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
+    "planner_first_explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
+}
+
+
+def _canonical_pipeline_id(pipeline: Optional[str]) -> str:
+    pipeline_id = (pipeline or PLANNER_ONLY_MODEL_ID).strip().lower()
+    return PLANNER_ONLY_ALIASES.get(pipeline_id, pipeline_id)
+
+
+def _canonical_model_id(model: str) -> str:
+    model_id = (model or "").strip()
+    return PLANNER_ONLY_ALIASES.get(model_id.lower(), model_id)
+
+
 # Mapping "UI model id" -> "Ollama model name".
 MODEL_ROUTING: Dict[str, str] = {
     "base-llama3-8b": os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
     "best-ft-llama3-8b-nl": os.getenv("OLLAMA_MODEL_FT_NL", "llama3-8b-dpo2-sft1-nl:latest"),
     "best-ft-llama3-8b-sql": os.getenv("OLLAMA_MODEL_FT_SQL", "llama3-8b-dpo1-sft2-sql:latest"),
-    "planner-first": PLANNER_LLM_MODEL
+    PLANNER_ONLY_MODEL_ID: PLANNER_LLM_MODEL
     if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
     else os.getenv("OLLAMA_MODEL_PLANNER_FIRST", PLANNER_LLM_MODEL),
-    "planner-first-explanation": PLANNER_LLM_MODEL
+    PLANNER_ONLY_EXPLANATION_MODEL_ID: PLANNER_LLM_MODEL
     if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
     else os.getenv("OLLAMA_MODEL_PLANNER_FIRST_EXPLANATION", PLANNER_LLM_MODEL),
     "internal-knowledge": os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", "llama3:8b"),
 }
+for alias, canonical in PLANNER_ONLY_ALIASES.items():
+    MODEL_ROUTING.setdefault(alias, MODEL_ROUTING[canonical])
 
 # Exposing only the UI model ids in the /v1/models endpoint.
-EXPOSED_MODELS = [{"id": mid, "object": "model"} for mid in MODEL_ROUTING.keys()]
+EXPOSED_MODEL_IDS = [
+    "base-llama3-8b",
+    "best-ft-llama3-8b-nl",
+    "best-ft-llama3-8b-sql",
+    PLANNER_ONLY_MODEL_ID,
+    PLANNER_ONLY_EXPLANATION_MODEL_ID,
+    "internal-knowledge",
+]
+EXPOSED_MODELS = [{"id": mid, "object": "model"} for mid in EXPOSED_MODEL_IDS]
 
 
 #Fixed prompt, user insert QUESTION and CONTEXT_DATA is retrieved 
@@ -832,7 +865,7 @@ def _retrieve_context_data(question: str) -> Dict[str, Any]:
 
     return ctx
 # =========================
-# Planner-first helpers
+# Planner-only helpers
 # =========================
 
 def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
@@ -925,9 +958,9 @@ def _run_planner_first(
         retrieval_query = _build_leaf_retrieval_query(task_dict)
         print(f"\n--- Running leaf task for table '{task.table_name}' with retrieval query: {retrieval_query}\n", flush=True)
 
-        print("[PLANNER-FIRST] calling retrieve_context_data_iterative()", flush=True)
+        print("[planner only] calling retrieve_context_data_iterative()", flush=True)
         leaf_ctx = retrieve_context_data_iterative(retrieval_query)
-        print("[PLANNER-FIRST] retrieve_context_data_iterative() returned", flush=True)
+        print("[planner only] retrieve_context_data_iterative() returned", flush=True)
 
         leaf_outputs.append(
             _run_leaf_task(
@@ -1004,7 +1037,7 @@ def _run_ui_leaf_pipeline(
     sql_query: str,
     temperature: float,
 ) -> Dict[str, Any]:
-    pipeline = (pipeline or "planner-first").strip().lower()
+    pipeline = _canonical_pipeline_id(pipeline)
     retrieval_query = _build_leaf_retrieval_query(task)
 
     if pipeline == "manual":
@@ -1022,11 +1055,14 @@ def _run_ui_leaf_pipeline(
             retrieval_query=retrieval_query,
         )
 
-    if pipeline == "planner-first-explanation":
-        return _run_ui_leaf_planner_first_explanation(
+    if pipeline == PLANNER_ONLY_EXPLANATION_MODEL_ID:
+        ctx = retrieve_context_data_iterative(retrieval_query)
+        return _run_leaf_task(
             task=task,
-            sql_query=sql_query,
+            ollama_model=MODEL_ROUTING[PLANNER_ONLY_EXPLANATION_MODEL_ID],
+            model_provider=PLANNER_LLM_PROVIDER,
             temperature=temperature,
+            ctx=ctx,
             retrieval_query=retrieval_query,
         )
 
@@ -1051,13 +1087,80 @@ def _run_ui_leaf_pipeline(
             raw_output=raw_output,
         )
 
-    if pipeline != "planner-first":
+    if pipeline != PLANNER_ONLY_MODEL_ID:
         raise ValueError(f"Unsupported UI pipeline: {pipeline}")
 
     ctx = retrieve_context_data_iterative(retrieval_query)
     return _run_leaf_task(
         task=task,
-        ollama_model=MODEL_ROUTING["planner-first"],
+        ollama_model=MODEL_ROUTING[PLANNER_ONLY_MODEL_ID],
+        model_provider=PLANNER_LLM_PROVIDER,
+        temperature=temperature,
+        ctx=ctx,
+        retrieval_query=retrieval_query,
+    )
+
+def _context_row_count(ctx: Dict[str, Any]) -> int:
+    total = 0
+    for rows in ctx.values():
+        if isinstance(rows, dict):
+            total += len(rows)
+        elif isinstance(rows, list):
+            total += len(rows)
+    return total
+
+def _context_preview(
+    ctx: Dict[str, Any],
+    rows_per_table: int = 3,
+    max_tables: int = 4,
+) -> Dict[str, Any]:
+    preview: Dict[str, Any] = {}
+    for table_name, rows in list(ctx.items())[:max_tables]:
+        if isinstance(rows, dict):
+            preview[table_name] = dict(list(rows.items())[:rows_per_table])
+        elif isinstance(rows, list):
+            preview[table_name] = rows[:rows_per_table]
+    return preview
+
+def _run_ui_leaf_pipeline_with_context(
+    task: Dict[str, Any],
+    pipeline: str,
+    sql_query: str,
+    temperature: float,
+    retrieval_query: str,
+    ctx: Dict[str, Any],
+) -> Dict[str, Any]:
+    pipeline = _canonical_pipeline_id(pipeline)
+
+    if pipeline == "manual":
+        return _manual_leaf_output(task, ctx, retrieval_query)
+
+    if pipeline == "rag":
+        return _run_leaf_task(
+            task=task,
+            ollama_model=MODEL_ROUTING["base-llama3-8b"],
+            model_provider="ollama",
+            temperature=temperature,
+            ctx=ctx,
+            retrieval_query=retrieval_query,
+        )
+
+    if pipeline == PLANNER_ONLY_EXPLANATION_MODEL_ID:
+        return _run_leaf_task(
+            task=task,
+            ollama_model=MODEL_ROUTING[PLANNER_ONLY_EXPLANATION_MODEL_ID],
+            model_provider=PLANNER_LLM_PROVIDER,
+            temperature=temperature,
+            ctx=ctx,
+            retrieval_query=retrieval_query,
+        )
+
+    if pipeline != PLANNER_ONLY_MODEL_ID:
+        raise ValueError(f"Unsupported UI pipeline: {pipeline}")
+
+    return _run_leaf_task(
+        task=task,
+        ollama_model=MODEL_ROUTING[PLANNER_ONLY_MODEL_ID],
         model_provider=PLANNER_LLM_PROVIDER,
         temperature=temperature,
         ctx=ctx,
@@ -1124,45 +1227,15 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
         sql += " WHERE " + " AND ".join(predicates)
     return sql + ";"
 
-def _one_leaf_plan(task: Dict[str, Any], leaf_sql: str) -> Dict[str, Any]:
-    return {
-        "query_type": "SELECT",
-        "sql": leaf_sql,
-        "leaf_tasks": [task],
-        "joins": [],
-        "post_ops": [
-            {
-                "op": "Project",
-                "payload": {
-                    "select": ["*"],
-                },
-            }
-        ],
-    }
-
-def _run_ui_leaf_planner_first_explanation(
-    task: Dict[str, Any],
+def _run_ui_ap_explanation(
     sql_query: str,
-    temperature: float,
-    retrieval_query: str,
+    plan: Dict[str, Any],
+    leaf_outputs: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
-    table_name = str(task.get("table_name") or task.get("table") or "").strip()
-    leaf_sql = _leaf_question_sql(task)
-    ctx = retrieve_context_data_iterative(retrieval_query)
-    leaf_output = _run_leaf_task(
-        task=task,
-        ollama_model=MODEL_ROUTING["planner-first-explanation"],
-        model_provider=PLANNER_LLM_PROVIDER,
-        temperature=temperature,
-        ctx=ctx,
-        retrieval_query=retrieval_query,
-    )
-
     planner_result = {
-        "sql": leaf_sql,
-        "root_sql": sql_query,
-        "plan": _one_leaf_plan(task, leaf_sql),
-        "leaf_outputs": [leaf_output],
+        "sql": sql_query,
+        "plan": plan,
+        "leaf_outputs": leaf_outputs,
     }
 
     with _EXPLANATION_PIPELINE_LOCK:
@@ -1173,7 +1246,7 @@ def _run_ui_leaf_planner_first_explanation(
         )
 
         pipeline_result = run_planner_first_explanation_pipeline(
-            sql_query=leaf_sql,
+            sql_query=sql_query,
             planner_result=planner_result,
             bucket_dir=EXPLANATION_BUCKET_DIR,
             explanation_client=explanation_client,
@@ -1181,16 +1254,97 @@ def _run_ui_leaf_planner_first_explanation(
             keep_rownum=EXPLANATION_KEEP_ROWNUM,
         )
 
-    leaf_output["pipeline"] = "planner-first-explanation"
-    leaf_output["question_sql"] = leaf_sql
-    leaf_output["explanation"] = {
-        "table": table_name,
-        "question_sql": leaf_sql,
+    return {
+        "scope": "query",
+        "query_sql": sql_query,
         "generated_csv_files": pipeline_result["generated_csv_files"],
         "explanation_output": pipeline_result["explanation_output"],
         "response_text": pipeline_result["response_text"],
     }
-    return leaf_output
+
+def _planner_result_from_ui_run(
+    sql_query: str,
+    plan: Dict[str, Any],
+    leaf_outputs: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    return {
+        "sql": sql_query,
+        "plan": plan,
+        "leaf_outputs": leaf_outputs,
+    }
+
+def _generate_ui_csv_files(
+    sql_query: str,
+    plan: Dict[str, Any],
+    leaf_outputs: List[Dict[str, Any]],
+) -> List[str]:
+    clean_bucket(EXPLANATION_BUCKET_DIR)
+    return planner_result_to_csv_files(
+        planner_result=_planner_result_from_ui_run(sql_query, plan, leaf_outputs),
+        output_dir=EXPLANATION_BUCKET_DIR,
+        delimiter=EXPLANATION_CSV_DELIMITER,
+        keep_rownum=EXPLANATION_KEEP_ROWNUM,
+    )
+
+def _run_ui_ap_explanation_for_csv_files(
+    sql_query: str,
+    csv_files: List[str],
+) -> Dict[str, Any]:
+    explanation_client = ExplanationClient(
+        base_url=EXPLANATION_URL,
+        post_endpoint=EXPLANATION_ENDPOINT,
+        timeout=EXPLANATION_REQUEST_TIMEOUT,
+    )
+    explanation_output = explanation_client.run_explanation(
+        sql_query=sql_query,
+        csv_files=csv_files,
+        delimiter=EXPLANATION_CSV_DELIMITER,
+    )
+    generated_files_markdown = "\n".join(f"- `{name}`" for name in csv_files) or "No CSV files generated."
+    response_text = (
+        "### Full Pipeline Result\n\n"
+        "#### Query\n\n"
+        f"```sql\n{sql_query}\n```\n\n"
+        "#### Generated CSV files\n\n"
+        f"{generated_files_markdown}\n\n"
+        "#### Explanation Service Output\n\n"
+        "```json\n"
+        f"{json.dumps(explanation_output, ensure_ascii=False, indent=2)}\n"
+        "```\n"
+    )
+    return {
+        "scope": "query",
+        "query_sql": sql_query,
+        "generated_csv_files": csv_files,
+        "explanation_output": explanation_output,
+        "response_text": response_text,
+    }
+
+def _answer_from_ap_explanation(explanation: Dict[str, Any]) -> List[Dict[str, Any]]:
+    output = explanation.get("explanation_output")
+    if not isinstance(output, dict):
+        return []
+
+    result = output.get("result")
+    if not isinstance(result, dict):
+        return []
+
+    derivations = result.get("derivations")
+    if not isinstance(derivations, list):
+        return []
+
+    answer: List[Dict[str, Any]] = []
+    for derivation in derivations:
+        if not isinstance(derivation, dict):
+            continue
+        row = derivation.get("answer")
+        if not isinstance(row, dict):
+            continue
+        answer.append({
+            "result": row,
+            "provenance": derivation.get("provenance"),
+        })
+    return answer
 
 
 # =========================
@@ -1357,7 +1511,7 @@ def _render_planner_first_markdown(planner_result: Dict[str, Any]) -> str:
     }]
 
     markdown = (
-        "### Planner-first Result\n\n"
+        "### Planner Only Result\n\n"
         + _render_markdown_table(summary_rows)
         + "\n\n### Leaf Tasks\n\n"
         + _render_markdown_table(leaf_rows)
@@ -1507,26 +1661,84 @@ def _explain_provenance_with_model(
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 
+def _ui_file_response(path: Path) -> FileResponse:
+    return FileResponse(
+        path,
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "Pragma": "no-cache",
+        },
+    )
+
 @app.get("/")
 def root() -> RedirectResponse:
     return RedirectResponse(url="/ui")
 
 @app.get("/ui", response_class=HTMLResponse)
+@app.get("/ui/", response_class=HTMLResponse)
 def ui_index() -> FileResponse:
     index_path = UI_DIR / "index.html"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="UI index.html not found")
-    return FileResponse(index_path)
+    return _ui_file_response(index_path)
 
 @app.get("/ui/{asset_name}")
-def ui_asset(asset_name: str) -> FileResponse:
+def ui_asset(asset_name: str) -> Any:
+    if asset_name == "csv":
+        return ui_csv_files()
+
     if asset_name not in {"app.js", "styles.css"}:
         raise HTTPException(status_code=404, detail="UI asset not found")
 
     asset_path = UI_DIR / asset_name
     if not asset_path.exists():
         raise HTTPException(status_code=404, detail=f"UI asset not found: {asset_name}")
-    return FileResponse(asset_path)
+    return _ui_file_response(asset_path)
+
+@app.get("/ui/csv", response_class=HTMLResponse)
+def ui_csv_files() -> HTMLResponse:
+    rows = []
+    if EXPLANATION_BUCKET_DIR.exists():
+        for path in sorted(EXPLANATION_BUCKET_DIR.glob("*.csv")):
+            try:
+                preview = path.read_text(encoding="utf-8", errors="replace")
+            except Exception as e:
+                preview = f"Could not read {path.name}: {e}"
+            rows.append(
+                "<section class='csv-card'>"
+                f"<h2>{html.escape(path.name)}</h2>"
+                f"<pre>{html.escape(preview)}</pre>"
+                "</section>"
+            )
+
+    body = "\n".join(rows) if rows else "<p class='empty'>No generated CSV files yet.</p>"
+    return HTMLResponse(
+        """
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Generated CSV files</title>
+    <link rel="stylesheet" href="/ui/styles.css?v=flow-6" />
+  </head>
+  <body>
+    <main class="csv-page">
+      <header class="csv-header">
+        <div>
+          <p class="eyebrow">Generated Data</p>
+          <h1>CSV files produced by the selected pipelines</h1>
+        </div>
+        <a class="button-link" href="/ui">Back to workspace</a>
+      </header>
+      """
+        + body
+        + """
+    </main>
+  </body>
+</html>
+        """
+    )
 
 @app.post("/ui/plan")
 def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
@@ -1579,7 +1791,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
                 continue
 
             table_name = str(task.get("table_name") or task.get("table") or "").strip()
-            pipeline = req.leaf_pipeline_choices.get(table_name, "planner-first")
+            pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
             print(
                 f"\n[UI] Running table '{table_name}' with pipeline '{pipeline}'\n",
                 flush=True,
@@ -1597,12 +1809,24 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
                 "pipeline": pipeline,
             })
 
-        answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
-        explanations = [
-            leaf["explanation"]
-            for leaf in leaf_outputs
-            if isinstance(leaf.get("explanation"), dict)
-        ]
+        _leaf_answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
+        explanations: List[Dict[str, Any]] = []
+        answer: List[Dict[str, Any]] = []
+        try:
+            explanation = _run_ui_ap_explanation(
+                sql_query=sql_query,
+                plan=req.plan,
+                leaf_outputs=leaf_outputs,
+            )
+            explanations.append(explanation)
+            answer = _answer_from_ap_explanation(explanation)
+        except Exception as e:
+            errors.append(f"ap-explanation: {e}")
+            _log_event({
+                "type": "ui_ap_explanation_error",
+                "sql_query": sql_query,
+                "error": str(e),
+            })
 
         result = {
             "source": "gateway",
@@ -1610,15 +1834,13 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
             "plan": req.plan,
             "answer": answer,
             "rows_by_id": rows_by_id,
+            "leaf_answer": _leaf_answer,
             "leaf_outputs": leaf_outputs,
             "pipeline_choices": pipeline_choices,
             "errors": errors,
             "explanations": explanations,
-            "note": (
-                "The UI run endpoint executes selected leaf pipelines and returns "
-                "candidate source rows. Planner-first explanation runs per selected "
-                "leaf using that leaf SQL."
-            ),
+            "csv_page_url": "/ui/csv",
+            "csv_ready": bool(explanations),
         }
 
         _log_event({
@@ -1636,6 +1858,194 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"UI run failed: {e}")
+
+@app.post("/ui/run/stream")
+def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
+    sql_query = req.sql.strip() or req.question.strip()
+    if not sql_query:
+        raise HTTPException(status_code=400, detail="Empty SQL query")
+
+    leaf_tasks = req.plan.get("leaf_tasks") or []
+    if not isinstance(leaf_tasks, list):
+        raise HTTPException(status_code=400, detail="plan.leaf_tasks must be a list")
+
+    temperature = 0.0 if req.temperature is None else float(req.temperature)
+
+    def encode_event(event_type: str, payload: Dict[str, Any]) -> str:
+        return json.dumps(
+            {
+                "type": event_type,
+                **payload,
+            },
+            ensure_ascii=False,
+        ) + "\n"
+
+    def event_stream():
+        leaf_outputs: List[Dict[str, Any]] = []
+        pipeline_choices: List[Dict[str, str]] = []
+        explanations: List[Dict[str, Any]] = []
+        errors: List[str] = []
+        rows_by_id: Dict[str, Any] = {}
+        leaf_answer: List[Dict[str, Any]] = []
+        answer: List[Dict[str, Any]] = []
+        generated_csv_files: List[str] = []
+
+        pending_events: List[str] = []
+
+        def emit(event_type: str, payload: Dict[str, Any]) -> None:
+            pending_events.append(encode_event(event_type, payload))
+
+        try:
+            yield encode_event("start", {
+                "message": "Running selected leaf pipelines.",
+                "leaf_count": len(leaf_tasks),
+            })
+
+            for index, task in enumerate(leaf_tasks):
+                if not isinstance(task, dict):
+                    continue
+
+                table_name = str(task.get("table_name") or task.get("table") or "").strip()
+                pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
+                pipeline_choices.append({
+                    "table": table_name,
+                    "pipeline": pipeline,
+                })
+                yield encode_event("leaf_start", {
+                    "table": table_name,
+                    "pipeline": pipeline,
+                    "index": index + 1,
+                    "message": f"Running {table_name} with {pipeline}.",
+                })
+
+                if pipeline == "internal-knowledge":
+                    yield encode_event("leaf_context", {
+                        "table": table_name,
+                        "pipeline": pipeline,
+                        "message": "No context retrieval needed for internal knowledge.",
+                        "rows": 0,
+                    })
+                    leaf_output = _run_ui_leaf_pipeline(
+                        task=task,
+                        pipeline=pipeline,
+                        sql_query=sql_query,
+                        temperature=temperature,
+                    )
+                else:
+                    retrieval_query = _build_leaf_retrieval_query(task)
+                    ctx = retrieve_context_data_iterative(retrieval_query)
+                    yield encode_event("leaf_context", {
+                        "table": table_name,
+                        "pipeline": pipeline,
+                        "message": f"Context retrieved for {table_name}.",
+                        "rows": _context_row_count(ctx),
+                        "tables": sorted(ctx.keys()),
+                        "context_preview": _context_preview(ctx),
+                    })
+                    leaf_output = _run_ui_leaf_pipeline_with_context(
+                        task=task,
+                        pipeline=pipeline,
+                        sql_query=sql_query,
+                        temperature=temperature,
+                        retrieval_query=retrieval_query,
+                        ctx=ctx,
+                    )
+
+                leaf_output["pipeline"] = pipeline
+                leaf_outputs.append(leaf_output)
+                parsed_rows = leaf_output.get("parsed_output") or []
+                yield encode_event("leaf_done", {
+                    "table": table_name,
+                    "pipeline": pipeline,
+                    "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
+                    "message": f"{table_name} leaf pipeline completed.",
+                })
+
+            leaf_answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
+
+            try:
+                with _EXPLANATION_PIPELINE_LOCK:
+                    generated_csv_files = _generate_ui_csv_files(
+                        sql_query=sql_query,
+                        plan=req.plan,
+                        leaf_outputs=leaf_outputs,
+                    )
+                    yield encode_event("csv_done", {
+                        "files": generated_csv_files,
+                        "csv_page_url": "/ui/csv",
+                        "message": "CSV files generated from leaf outputs.",
+                    })
+
+                    explanation = _run_ui_ap_explanation_for_csv_files(
+                        sql_query=sql_query,
+                        csv_files=generated_csv_files,
+                    )
+                    explanations.append(explanation)
+                    answer = _answer_from_ap_explanation(explanation)
+                    yield encode_event("ap_explanation_done", {
+                        "explanation": explanation,
+                        "answer": answer,
+                        "message": "AP explanation service completed.",
+                    })
+                    yield encode_event("answer_done", {
+                        "answer": answer,
+                        "message": "Answer received from AP explanation service.",
+                    })
+            except Exception as e:
+                errors.append(f"ap-explanation: {e}")
+                _log_event({
+                    "type": "ui_ap_explanation_error",
+                    "sql_query": sql_query,
+                    "error": str(e),
+                })
+                yield encode_event("error", {
+                    "message": f"AP explanation failed: {e}",
+                    "errors": errors,
+                })
+
+            result = {
+                "source": "gateway",
+                "sql": sql_query,
+                "plan": req.plan,
+                "answer": answer,
+                "rows_by_id": rows_by_id,
+                "leaf_answer": leaf_answer,
+                "leaf_outputs": leaf_outputs,
+                "pipeline_choices": pipeline_choices,
+                "errors": errors,
+                "explanations": explanations,
+                "generated_csv_files": generated_csv_files,
+                "csv_page_url": "/ui/csv",
+                "csv_ready": bool(generated_csv_files),
+            }
+
+            _log_event({
+                "type": "ui_run",
+                "sql_query": sql_query,
+                "pipeline_choices": pipeline_choices,
+                "answer_rows": len(answer),
+                "explanations": len(explanations),
+                "errors": errors,
+            })
+            yield encode_event("complete", {
+                "result": result,
+                "message": "Pipeline execution complete.",
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield encode_event("fatal_error", {
+                "message": f"UI run failed: {e}",
+            })
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 # API for listing available models
 @app.get("/v1/models")
@@ -1656,7 +2066,8 @@ def chat_completions(
         raise HTTPException(status_code=400, detail="Empty user question")
 
     # Routing: UI model -> Ollama model
-    ollama_model = MODEL_ROUTING.get(req.model)
+    ui_model = _canonical_model_id(req.model)
+    ollama_model = MODEL_ROUTING.get(ui_model)
     if not ollama_model:
         raise HTTPException(status_code=400, detail=f"Unknown model id: {req.model}")
 
@@ -1664,7 +2075,7 @@ def chat_completions(
     temperature = 0.0 if req.temperature is None else float(req.temperature)
     
 
-    if req.model == "planner-first":
+    if ui_model == PLANNER_ONLY_MODEL_ID:
 
         try:
             planner_result = _run_planner_first(
@@ -1679,7 +2090,8 @@ def chat_completions(
 
             _log_event({
                 "type": "planner_first_request",
-                "ui_model": req.model,
+                "ui_model": ui_model,
+                "requested_model": req.model,
                 "request_id": request_id,
                 "ollama_model": ollama_model,
                 "model_provider": PLANNER_LLM_PROVIDER,
@@ -1696,14 +2108,14 @@ def chat_completions(
             _set_last_debug(
                 question=question,
                 raw_messages=[m.model_dump() for m in req.messages],
-                ui_model=req.model,
+                ui_model=ui_model,
                 ollama_model=ollama_model,
                 model_provider=PLANNER_LLM_PROVIDER,
                 temperature=temperature,
                 context_tables=[],
                 context_preview={},
                 context_data={},
-                prompt_full="PLANNER-FIRST MODE",
+                prompt_full="PLANNER ONLY MODE",
                 output_text=out_text,
                 response_text=response_text,
                 planner_result=planner_result,
@@ -1716,7 +2128,7 @@ def chat_completions(
                 "id": f"chatcmpl-{created}",
                 "object": "chat.completion",
                 "created": created,
-                "model": req.model,
+                "model": ui_model,
                 "choices": [
                     {
                         "index": 0,
@@ -1730,9 +2142,9 @@ def chat_completions(
         except Exception as e:
             import traceback
             traceback.print_exc()
-            raise HTTPException(status_code=500, detail=f"Planner-first failed: {e}")
+            raise HTTPException(status_code=500, detail=f"planner only failed: {e}")
         
-    if req.model == "planner-first-explanation":
+    if ui_model == PLANNER_ONLY_EXPLANATION_MODEL_ID:
         
         try:
             with _EXPLANATION_PIPELINE_LOCK:
@@ -1762,7 +2174,8 @@ def chat_completions(
 
                 _log_event({
                     "type": "planner_first_explanation_request",
-                    "ui_model": req.model,
+                    "ui_model": ui_model,
+                    "requested_model": req.model,
                     "request_id": request_id,
                     "ollama_model": ollama_model,
                     "model_provider": PLANNER_LLM_PROVIDER,
@@ -1779,7 +2192,7 @@ def chat_completions(
                     "id": f"chatcmpl-{created}",
                     "object": "chat.completion",
                     "created": created,
-                    "model": req.model,
+                    "model": ui_model,
                     "choices": [
                         {
                             "index": 0,
@@ -1802,7 +2215,7 @@ def chat_completions(
             traceback.print_exc()
             raise HTTPException(
                 status_code=500,
-                detail=f"Planner-first explanation pipeline failed: {e}",
+                detail=f"planner only explanation pipeline failed: {e}",
             )
     if req.model == "internal-knowledge":
         base_prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)

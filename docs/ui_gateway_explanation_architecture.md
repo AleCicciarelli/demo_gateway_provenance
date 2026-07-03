@@ -1,6 +1,6 @@
 # UI - Gateway - Explanation Pipeline Architecture
 
-This note describes the request path used when the UI selects the `planner-first-explanation` model.
+This note describes the request path used when the UI selects the `planner-only-explanation` model.
 
 ## High-Level Flow
 
@@ -8,11 +8,11 @@ This note describes the request path used when the UI selects the `planner-first
 UI
  |
  | POST /v1/chat/completions
- | model = planner-first-explanation
+ | model = planner-only-explanation
  v
 Gateway FastAPI app
  |
- | 1. Build planner-first result from the SQL query
+ | 1. Build planner-only result from the SQL query
  | 2. Convert planner leaf outputs to CSV files
  | 3. Write CSV files into the shared bucket
  v
@@ -48,7 +48,7 @@ To trigger the full explanation path, the request uses:
 
 ```json
 {
-  "model": "planner-first-explanation",
+  "model": "planner-only-explanation",
   "messages": [
     {
       "role": "user",
@@ -62,10 +62,10 @@ To trigger the full explanation path, the request uses:
 
 File: `gateway.py`
 
-The gateway is the orchestration layer. For `planner-first-explanation`, it:
+The gateway is the orchestration layer. For `planner-only-explanation`, it:
 
 1. Extracts the SQL query from the user message.
-2. Runs the planner-first pipeline.
+2. Runs the planner-only pipeline.
 3. Creates an `ExplanationClient`.
 4. Calls `run_planner_first_explanation_pipeline(...)`.
 5. Returns the final markdown result as the assistant message content.
@@ -159,7 +159,7 @@ redis
   Celery broker/result backend for explanation_app
 
 ollama
-  Local LLM runtime used by the gateway planner-first pipeline
+  Local LLM runtime used by the gateway planner-only pipeline
 ```
 
 ## Important Environment Variables
@@ -189,8 +189,8 @@ CELERY_RESULT_BACKEND=redis://redis:6379/0
 ## Use Case Scenario
 
 ```text
-1. UI sends SQL query to gateway with model planner-first-explanation.
-2. Gateway runs the planner-first flow and obtains planner_result.
+1. UI sends SQL query to gateway with model planner-only-explanation.
+2. Gateway runs the planner-only flow and obtains planner_result.
 3. explanation_pipeline cleans /shared_bucket.
 4. json_to_csv writes table CSVs into /shared_bucket.
 5. explanation_client builds an AP payload referencing those CSVs.
@@ -200,4 +200,3 @@ CELERY_RESULT_BACKEND=redis://redis:6379/0
 9. explanation_pipeline renders the result as markdown.
 10. Gateway returns that markdown to the UI.
 ```
-

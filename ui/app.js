@@ -1,11 +1,12 @@
 const BACKEND_ENDPOINTS = {
   plan: window.location.protocol === "file:" ? "" : "/ui/plan",
   run: window.location.protocol === "file:" ? "" : "/ui/run",
+  runStream: window.location.protocol === "file:" ? "" : "/ui/run/stream",
 };
 
 const PIPELINES = [
-  { id: "planner-first", label: "Planner-first" },
-  { id: "planner-first-explanation", label: "Planner-first explanation" },
+  { id: "planner-only", label: "Planner only" },
+  { id: "planner-only-explanation", label: "Planner only + explanation" },
   { id: "rag", label: "RAG" },
   { id: "internal-knowledge", label: "Internal knowledge" },
   { id: "manual", label: "Manual review" },
@@ -15,7 +16,11 @@ const state = {
   plan: null,
   selectedPipelines: {},
   output: null,
+  progress: [],
+  explanationOpen: false,
 };
+
+const DEFAULT_PIPELINE = "planner-only";
 
 const els = {
   queryInput: document.querySelector("#query-input"),
@@ -55,6 +60,22 @@ function compactList(values) {
     return "none";
   }
   return values.join(", ");
+}
+
+function pipelineLabel(id) {
+  return PIPELINES.find((pipeline) => pipeline.id === id)?.label ?? id ?? "unknown";
+}
+
+function formatPipelineSummary(output) {
+  const choices = output?.pipeline_choices ?? [];
+  if (!Array.isArray(choices) || !choices.length) {
+    return "Pipeline executed.";
+  }
+
+  const parts = choices.map(
+    (choice) => `${choice.table} with ${pipelineLabel(choice.pipeline)}`,
+  );
+  return `Pipeline executed: ${parts.join(", ")}.`;
 }
 
 function firstTableFromSql(sql) {
@@ -118,7 +139,7 @@ function makeMockOutput() {
   const leaves = state.plan?.plan?.leaf_tasks ?? [];
   const chosen = leaves.map((leaf) => ({
     table: leaf.table_name,
-    pipeline: state.selectedPipelines[leaf.table_name] ?? "planner-first",
+    pipeline: state.selectedPipelines[leaf.table_name] ?? DEFAULT_PIPELINE,
   }));
 
   const first = chosen[0]?.table ?? "result";
@@ -145,19 +166,19 @@ function makeMockOutput() {
     rows_by_id: {
       [`${first}_1`]: {
         table: first,
-        row: { id: `${first}_1`, produced_by: chosen[0]?.pipeline ?? "planner-first" },
+        row: { id: `${first}_1`, produced_by: chosen[0]?.pipeline ?? DEFAULT_PIPELINE },
       },
       [`${second}_3`]: {
         table: second,
-        row: { id: `${second}_3`, produced_by: chosen[1]?.pipeline ?? "planner-first" },
+        row: { id: `${second}_3`, produced_by: chosen[1]?.pipeline ?? DEFAULT_PIPELINE },
       },
       [`${first}_2`]: {
         table: first,
-        row: { id: `${first}_2`, produced_by: chosen[0]?.pipeline ?? "planner-first" },
+        row: { id: `${first}_2`, produced_by: chosen[0]?.pipeline ?? DEFAULT_PIPELINE },
       },
       [`${second}_4`]: {
         table: second,
-        row: { id: `${second}_4`, produced_by: chosen[1]?.pipeline ?? "planner-first" },
+        row: { id: `${second}_4`, produced_by: chosen[1]?.pipeline ?? DEFAULT_PIPELINE },
       },
     },
     pipeline_choices: chosen,
@@ -281,48 +302,137 @@ function truncateLabel(label) {
 }
 
 function renderPlanTree(plan) {
-  const tree = planToTree(plan);
-  if (!tree) {
+  const leaves = plan?.leaf_tasks ?? [];
+  if (!leaves.length) {
     els.planTree.className = "plan-tree empty-state";
     els.planTree.textContent = "No tree available for this plan.";
     return;
   }
 
-  const layout = layoutTree(tree);
-  const nodeWidth = 132;
-  const nodeHeight = 42;
-  const edges = layout.edges
-    .map(
-      (edge) => `
-        <line
-          class="tree-edge"
-          x1="${edge.from.x}"
-          y1="${edge.from.y + nodeHeight / 2}"
-          x2="${edge.to.x}"
-          y2="${edge.to.y - nodeHeight / 2}"
-        />
-      `,
-    )
-    .join("");
-  const nodes = layout.nodes
-    .map(
-      (node) => `
-        <g class="tree-node ${escapeHtml(node.type)}" transform="translate(${node.x - nodeWidth / 2}, ${node.y - nodeHeight / 2})">
-          <rect width="${nodeWidth}" height="${nodeHeight}" rx="6"></rect>
-          <text x="${nodeWidth / 2}" y="${nodeHeight / 2}">${escapeHtml(truncateLabel(node.label))}</text>
-          <title>${escapeHtml(node.label)}</title>
-        </g>
-      `,
-    )
-    .join("");
+  const joins = plan?.joins ?? [];
+  const postOps = plan?.post_ops ?? [];
+  const joinStep = 2;
+  const postOpStep = joins.length ? 3 : 2;
 
   els.planTree.className = "plan-tree";
   els.planTree.innerHTML = `
-    <svg viewBox="0 0 ${layout.width} ${layout.height}" width="${layout.width}" height="${layout.height}" role="img" aria-label="Query plan tree">
-      ${edges}
-      ${nodes}
-    </svg>
+    <div class="plan-flow" aria-label="Query execution flow">
+      <section class="flow-stage">
+        <div class="flow-stage-label">
+          <span>Step 1</span>
+          <strong>Read source tables</strong>
+        </div>
+        <div class="flow-leaf-grid">
+          ${leaves.map(renderFlowLeaf).join("")}
+        </div>
+      </section>
+
+      ${joins.length ? renderFlowJoins(joins, joinStep) : ""}
+      ${postOps.length ? renderFlowPostOps(postOps, postOpStep) : ""}
+
+      <section class="flow-stage flow-output">
+        <div class="flow-stage-label">
+          <span>Output</span>
+          <strong>Return final tuples with provenance</strong>
+        </div>
+      </section>
+    </div>
   `;
+}
+
+function renderFlowLeaf(leaf) {
+  const predicates = leaf.local_predicates ?? [];
+  const joinKeys = leaf.join_keys ?? [];
+  const selectColumns = leaf.select_columns ?? [];
+
+  return `
+    <article class="flow-leaf">
+      <div class="flow-leaf-title">
+        <span class="flow-node-type">${escapeHtml(leaf.scan_op || "LeafScan")}</span>
+        <strong>${escapeHtml(leaf.table_name)}</strong>
+        ${leaf.alias ? `<small>alias ${escapeHtml(leaf.alias)}</small>` : ""}
+      </div>
+      <div class="flow-facts">
+        ${renderFlowFact("Filter", predicates.length ? predicates.join(" AND ") : "none")}
+        ${renderFlowFact("Join keys", compactList(joinKeys))}
+        ${renderFlowFact("Output cols", compactList(selectColumns))}
+      </div>
+    </article>
+  `;
+}
+
+function renderFlowJoins(joins, stepNumber) {
+  return `
+    <section class="flow-stage">
+      <div class="flow-stage-label">
+        <span>Step ${stepNumber}</span>
+        <strong>Combine matching rows</strong>
+      </div>
+      <div class="flow-op-list">
+        ${joins
+          .map(
+            (join, index) => `
+              <div class="flow-op join-op">
+                <span>${escapeHtml(join.join_type || "JOIN")} ${escapeHtml(join.table || `table ${index + 2}`)}</span>
+                <code>${escapeHtml(join.on_sql || "no join condition")}</code>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderFlowPostOps(postOps, stepNumber) {
+  return `
+    <section class="flow-stage">
+      <div class="flow-stage-label">
+        <span>Step ${stepNumber}</span>
+        <strong>Shape the result</strong>
+      </div>
+      <div class="flow-op-list">
+        ${postOps
+          .map(
+            (postOp) => `
+              <div class="flow-op">
+                <span>${escapeHtml(postOp.op)}</span>
+                <code>${escapeHtml(describePostOp(postOp))}</code>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderFlowFact(label, value) {
+  return `
+    <div class="flow-fact">
+      <span>${escapeHtml(label)}</span>
+      <code>${escapeHtml(value)}</code>
+    </div>
+  `;
+}
+
+function describePostOp(postOp) {
+  const payload = postOp?.payload ?? {};
+  if (postOp?.op === "Project") {
+    const select = payload.select ?? payload.columns ?? [];
+    if (Array.isArray(select)) {
+      return select
+        .map((item) => (typeof item === "string" ? item : item.sql ?? JSON.stringify(item)))
+        .join(", ");
+    }
+  }
+  if (postOp?.op === "Limit") {
+    return `keep first ${payload.value ?? payload.limit ?? "n"} rows`;
+  }
+  if (postOp?.op === "OrderBy") {
+    return JSON.stringify(payload.order_by ?? payload);
+  }
+  return Object.keys(payload).length ? JSON.stringify(payload) : "no extra parameters";
 }
 
 async function postJson(url, payload) {
@@ -337,6 +447,51 @@ async function postJson(url, payload) {
   }
 
   return response.json();
+}
+
+async function postJsonStream(url, payload, onEvent) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Request failed with ${response.status}`);
+  }
+
+  if (!response.body) {
+    onEvent({ type: "complete", result: await response.json() });
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const clean = line.trim();
+      if (clean) {
+        onEvent(JSON.parse(clean));
+      }
+    }
+  }
+
+  buffer += decoder.decode();
+  const clean = buffer.trim();
+  if (clean) {
+    onEvent(JSON.parse(clean));
+  }
 }
 
 async function generatePlan() {
@@ -360,7 +515,7 @@ async function generatePlan() {
 
     state.selectedPipelines = {};
     for (const leaf of state.plan.plan.leaf_tasks) {
-      state.selectedPipelines[leaf.table_name] = "planner-first";
+      state.selectedPipelines[leaf.table_name] = DEFAULT_PIPELINE;
     }
 
     renderPlan();
@@ -382,6 +537,8 @@ async function runSelectedPipelines() {
   els.runStatus.textContent = "Running";
   els.runStatus.classList.remove("muted-pill");
   setStatus("Running selected leaf pipelines...");
+  state.progress = [];
+  state.explanationOpen = false;
 
   const payload = {
     question: els.queryInput.value.trim(),
@@ -391,22 +548,102 @@ async function runSelectedPipelines() {
   };
 
   try {
-    if (hasBackend(BACKEND_ENDPOINTS.run)) {
-      state.output = await postJson(BACKEND_ENDPOINTS.run, payload);
-      setStatus("Output loaded from backend.");
+    if (hasBackend(BACKEND_ENDPOINTS.runStream)) {
+      state.output = makeEmptyRunOutput();
+      renderOutput();
+      await postJsonStream(BACKEND_ENDPOINTS.runStream, payload, applyRunEvent);
     } else {
       state.output = makeMockOutput();
       setStatus("Backend endpoints are empty. Showing local mock output.");
+      els.runStatus.textContent = "Complete";
+      renderOutput();
     }
-
-    els.runStatus.textContent = "Complete";
-    renderOutput();
   } catch (error) {
     els.runStatus.textContent = "Error";
     setStatus(error.message);
   } finally {
     els.runButton.disabled = false;
   }
+}
+
+function makeEmptyRunOutput() {
+  const choices = (state.plan?.plan?.leaf_tasks ?? []).map((leaf) => ({
+    table: leaf.table_name,
+    pipeline: state.selectedPipelines[leaf.table_name] ?? DEFAULT_PIPELINE,
+  }));
+
+  return {
+    source: "gateway",
+    answer: [],
+    rows_by_id: {},
+    pipeline_choices: choices,
+    errors: [],
+    explanations: [],
+    csv_page_url: "/ui/csv",
+    generated_csv_files: [],
+    csv_ready: false,
+    progress: state.progress,
+  };
+}
+
+function pushProgress(event, tone = "info") {
+  state.progress.push({
+    type: event.type,
+    tone,
+    message: event.message ?? event.type,
+    table: event.table,
+    pipeline: event.pipeline,
+    rows: event.rows,
+    files: event.files,
+    contextPreview: event.context_preview,
+  });
+}
+
+function applyRunEvent(event) {
+  if (!state.output) {
+    state.output = makeEmptyRunOutput();
+  }
+
+  if (event.message) {
+    setStatus(event.message);
+  }
+
+  if (event.type === "leaf_start") {
+    pushProgress(event);
+  } else if (event.type === "leaf_context") {
+    pushProgress(event, "success");
+  } else if (event.type === "leaf_done") {
+    pushProgress(event, "success");
+  } else if (event.type === "csv_done") {
+    state.output.generated_csv_files = event.files ?? [];
+    state.output.csv_page_url = event.csv_page_url ?? "/ui/csv";
+    state.output.csv_ready = true;
+    pushProgress(event, "success");
+  } else if (event.type === "answer_done") {
+    state.output.answer = event.answer ?? [];
+    pushProgress(event, "success");
+  } else if (event.type === "ap_explanation_done") {
+    state.output.explanations = [event.explanation];
+    pushProgress(event, "success");
+  } else if (event.type === "error") {
+    state.output.errors = event.errors ?? [event.message];
+    pushProgress(event, "warning");
+  } else if (event.type === "fatal_error") {
+    state.output.errors = [event.message];
+    pushProgress(event, "warning");
+    els.runStatus.textContent = "Error";
+  } else if (event.type === "complete") {
+    state.output = event.result ?? state.output;
+    state.output.csv_ready = Array.isArray(state.output.generated_csv_files)
+      && state.output.generated_csv_files.length > 0;
+    state.output.progress = state.progress;
+    els.runStatus.textContent = "Complete";
+  } else if (event.type === "start") {
+    pushProgress(event);
+  }
+
+  state.output.progress = state.progress;
+  renderOutput();
 }
 
 function renderPlan() {
@@ -450,7 +687,7 @@ function renderPlan() {
 }
 
 function renderLeafCard(leaf, index) {
-  const selected = state.selectedPipelines[leaf.table_name] ?? "planner-first";
+  const selected = state.selectedPipelines[leaf.table_name] ?? DEFAULT_PIPELINE;
   const options = PIPELINES.map(
     (pipeline) => `
       <option value="${escapeHtml(pipeline.id)}" ${pipeline.id === selected ? "selected" : ""}>
@@ -496,6 +733,8 @@ function renderDetail(label, value) {
 
 function clearOutput() {
   state.output = null;
+  state.progress = [];
+  state.explanationOpen = false;
   els.runStatus.textContent = "Waiting";
   els.runStatus.classList.add("muted-pill");
   els.answerView.innerHTML = `<div class="empty-state">Run the selected pipelines to see final output.</div>`;
@@ -507,13 +746,109 @@ function renderOutput() {
   const answer = state.output?.answer ?? [];
   els.answerView.innerHTML = `
     ${state.output?.source === "mock" ? `<p class="notice">Mock output. Wire BACKEND_ENDPOINTS.run in app.js to replace this.</p>` : ""}
-    ${state.output?.note ? `<p class="notice">${escapeHtml(state.output.note)}</p>` : ""}
     ${renderErrors(state.output?.errors ?? [])}
-    ${renderExplanationOutput(state.output)}
+    ${renderRunSummary(state.output)}
+    ${renderProgress(state.output?.progress ?? [])}
     ${renderAnswerTable(answer)}
+    ${renderInlineExplanation(state.output)}
   `;
   els.provenanceView.innerHTML = renderProvenance(answer);
   els.rowsView.innerHTML = renderSupportingRows(state.output?.rows_by_id ?? {});
+  bindOutputActions();
+}
+
+function renderRunSummary(output) {
+  const csvUrl = output?.csv_page_url ?? "/ui/csv";
+  const csvReady = Boolean(output?.csv_ready || output?.generated_csv_files?.length);
+  const hasExplanation = Array.isArray(output?.explanations) && output.explanations.length > 0;
+  return `
+    <div class="run-summary">
+      <span>${escapeHtml(formatPipelineSummary(output))}</span>
+      <div class="run-summary-actions">
+        ${
+          csvReady
+            ? `<a class="button-link" href="${escapeHtml(csvUrl)}" target="_blank" rel="noreferrer">
+                View generated CSVs
+              </a>`
+            : `<button class="button-link disabled-link" type="button" disabled>
+                CSVs not ready
+              </button>`
+        }
+        ${
+          hasExplanation
+            ? `<button class="secondary small-button" type="button" data-action="toggle-explanation">
+                ${state.explanationOpen ? "Hide AP explanation" : "Show AP explanation"}
+              </button>`
+            : ""
+        }
+      </div>
+    </div>
+  `;
+}
+
+function renderProgress(progress) {
+  if (!Array.isArray(progress) || !progress.length) {
+    return "";
+  }
+
+  return `
+    <div class="progress-list" aria-label="Pipeline progress">
+      ${progress
+        .map((item) => {
+          const detail = [
+            item.table ? `table ${item.table}` : "",
+            item.pipeline ? pipelineLabel(item.pipeline) : "",
+            Number.isFinite(item.rows) ? `${item.rows} rows` : "",
+            Array.isArray(item.files) && item.files.length ? item.files.join(", ") : "",
+          ]
+            .filter(Boolean)
+            .join(" / ");
+          return `
+            <div class="progress-item ${escapeHtml(item.tone ?? "info")}">
+              <div class="progress-item-line">
+                <span>${escapeHtml(item.message)}</span>
+                ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+              </div>
+              ${renderContextPreview(item.contextPreview)}
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function renderContextPreview(contextPreview) {
+  if (!contextPreview || typeof contextPreview !== "object" || !Object.keys(contextPreview).length) {
+    return "";
+  }
+
+  return `
+    <details class="context-preview">
+      <summary>View retrieved context</summary>
+      <pre>${escapeHtml(JSON.stringify(contextPreview, null, 2))}</pre>
+    </details>
+  `;
+}
+
+function renderInlineExplanation(output) {
+  const explanations = Array.isArray(output?.explanations) ? output.explanations : [];
+  if (!explanations.length) {
+    return "";
+  }
+
+  return `
+    <div class="inline-explanation ${state.explanationOpen ? "" : "hidden"}">
+      ${renderExplanationOutput(output)}
+    </div>
+  `;
+}
+
+function bindOutputActions() {
+  els.answerView.querySelector("[data-action='toggle-explanation']")?.addEventListener("click", () => {
+    state.explanationOpen = !state.explanationOpen;
+    renderOutput();
+  });
 }
 
 function renderExplanationOutput(output) {
@@ -533,7 +868,8 @@ function renderExplanationOutput(output) {
         .map(
           (explanation, index) => `
             <div class="formula-card">
-              <strong>Planner-first explanation ${index + 1}: ${escapeHtml(explanation.table ?? "leaf")}</strong>
+              <strong>AP explanation ${index + 1}: ${escapeHtml(explanation.scope ?? "query")}</strong>
+              ${explanation.query_sql ? `<code>${escapeHtml(explanation.query_sql)}</code>` : ""}
               ${explanation.question_sql ? `<code>${escapeHtml(explanation.question_sql)}</code>` : ""}
               <pre>${escapeHtml(explanation.response_text ?? "")}</pre>
             </div>
@@ -592,9 +928,7 @@ function renderProvenance(answer) {
     <div class="provenance-formula">
       ${answer
         .map((item, index) => {
-          const formula = (item.provenance ?? [])
-            .map((witnessSet) => witnessSet.join(" AND "))
-            .join(" OR ");
+          const formula = formatProvenance(item.provenance);
           return `
             <div class="formula-card">
               <strong>Result ${index + 1}</strong>
@@ -605,6 +939,24 @@ function renderProvenance(answer) {
         .join("")}
     </div>
   `;
+}
+
+function formatProvenance(provenance) {
+  if (Array.isArray(provenance)) {
+    return provenance
+      .map((witnessSet) => (Array.isArray(witnessSet) ? witnessSet.join(" AND ") : String(witnessSet)))
+      .join(" OR ");
+  }
+
+  if (provenance && typeof provenance === "object") {
+    const preferred = provenance.formula ?? provenance.why ?? provenance.how ?? provenance.which;
+    if (preferred && typeof preferred === "object" && "expression" in preferred) {
+      return preferred.expression ?? "";
+    }
+    return JSON.stringify(provenance);
+  }
+
+  return "";
 }
 
 function renderSupportingRows(rowsById) {

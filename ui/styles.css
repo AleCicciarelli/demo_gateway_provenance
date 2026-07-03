@@ -121,8 +121,35 @@ button {
   font-weight: 700;
 }
 
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 9px 13px;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 button:hover {
   background: var(--accent-strong);
+}
+
+.button-link:hover {
+  background: var(--accent-strong);
+}
+
+.button-link.disabled-link,
+.button-link.disabled-link:hover {
+  color: var(--muted);
+  background: var(--panel-soft);
+  border-color: var(--line);
+  cursor: not-allowed;
 }
 
 button.secondary,
@@ -235,51 +262,134 @@ button.tab.active {
   text-align: center;
 }
 
-.plan-tree svg {
-  display: block;
-  min-width: 100%;
+.plan-flow {
+  display: grid;
+  gap: 12px;
 }
 
-.tree-edge {
-  stroke: #7a8794;
-  stroke-width: 1.4;
+.flow-stage {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: #fff;
 }
 
-.tree-node rect {
-  fill: #ffffff;
-  stroke: #aeb8c4;
-  stroke-width: 1.2;
+.flow-stage + .flow-stage {
+  position: relative;
 }
 
-.tree-node.operation rect {
-  fill: var(--panel-soft);
+.flow-stage + .flow-stage::before {
+  content: "";
+  position: absolute;
+  top: -13px;
+  left: 34px;
+  width: 1px;
+  height: 12px;
+  background: var(--line);
 }
 
-.tree-node.join rect {
-  fill: #eef6ff;
-  stroke: #8cbbe8;
+.flow-stage-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
-.tree-node.filter rect {
-  fill: #fff7ed;
-  stroke: #fdba74;
-}
-
-.tree-node.table rect {
-  fill: #16a34a;
-  stroke: #12823d;
-}
-
-.tree-node text {
-  fill: var(--text);
+.flow-stage-label span {
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: var(--panel-soft);
+  color: var(--muted);
   font-size: 12px;
   font-weight: 700;
-  text-anchor: middle;
-  dominant-baseline: middle;
 }
 
-.tree-node.table text {
-  fill: #ffffff;
+.flow-stage-label strong {
+  font-size: 14px;
+}
+
+.flow-leaf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.flow-leaf {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: var(--panel-soft);
+}
+
+.flow-leaf-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.flow-leaf-title strong {
+  font-size: 15px;
+}
+
+.flow-leaf-title small {
+  color: var(--muted);
+}
+
+.flow-node-type {
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: #075985;
+  background: #e0f2fe;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.flow-facts {
+  display: grid;
+  gap: 6px;
+}
+
+.flow-fact,
+.flow-op {
+  display: grid;
+  gap: 3px;
+}
+
+.flow-fact span,
+.flow-op span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.flow-fact code,
+.flow-op code {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.flow-op-list {
+  display: grid;
+  gap: 8px;
+}
+
+.flow-op {
+  border-left: 3px solid var(--accent);
+  padding: 8px 10px;
+  background: var(--panel-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.join-op {
+  border-left-color: #16a34a;
+}
+
+.flow-output {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .leaf-card {
@@ -368,6 +478,103 @@ select {
   min-height: 304px;
 }
 
+.run-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(15, 118, 110, 0.25);
+  border-radius: var(--radius);
+  padding: 10px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.run-summary-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.small-button {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.progress-list {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.progress-item {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.progress-item-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.progress-item.success {
+  border-color: rgba(15, 118, 110, 0.25);
+  background: #f0fdfa;
+}
+
+.progress-item.warning {
+  border-color: #fed7aa;
+  background: var(--warn-soft);
+}
+
+.progress-item small {
+  flex: 0 1 auto;
+  color: var(--muted);
+  text-align: right;
+}
+
+.context-preview {
+  border-top: 1px solid rgba(15, 118, 110, 0.18);
+  padding-top: 8px;
+}
+
+.context-preview summary {
+  width: max-content;
+  cursor: pointer;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
+.context-preview pre {
+  margin: 8px 0 0;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.inline-explanation {
+  margin-top: 12px;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
@@ -437,6 +644,54 @@ tr:last-child td {
   font-size: 13px;
 }
 
+.csv-page {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 24px 0;
+}
+
+.csv-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px;
+  background: var(--panel);
+}
+
+.csv-card {
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.csv-card h2 {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.csv-card pre {
+  margin: 0;
+  max-height: 520px;
+  overflow: auto;
+  padding: 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.empty {
+  margin: 0;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  color: var(--muted);
+  background: var(--panel);
+}
+
 @media (max-width: 960px) {
   .workspace-grid {
     grid-template-columns: 1fr;
@@ -461,5 +716,21 @@ tr:last-child td {
 
   .leaf-card-header {
     display: grid;
+  }
+
+  .run-summary,
+  .csv-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .run-summary-actions,
+  .progress-item-line {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .progress-item small {
+    text-align: left;
   }
 }

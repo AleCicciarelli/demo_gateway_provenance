@@ -1,29 +1,29 @@
-# Planner-First Logic and Evaluation
+# Planner-Only Logic and Evaluation
 
-This document explains the planner-first path in the demo gateway and the evaluation workflow used to measure it.
+This document explains the planner-only path in the demo gateway and the evaluation workflow used to measure it.
 
-The planner-first mode is exposed as the OpenAI-compatible model id `planner-first`. Unlike the regular gateway path, it does not ask the model to answer the full SQL query directly. It first decomposes the SQL into table-level leaf extraction tasks, retrieves candidate rows for each leaf, asks the model to copy rows from the retrieved context, and returns the full intermediate trace.
+The planner-only mode is exposed as the OpenAI-compatible model id `planner-only`. Unlike the regular gateway path, it does not ask the model to answer the full SQL query directly. It first decomposes the SQL into table-level leaf extraction tasks, retrieves candidate rows for each leaf, asks the model to copy rows from the retrieved context, and returns the full intermediate trace. The older `planner-first` id is still accepted as a compatibility alias.
 
-At the current stage, planner-first is an extraction pipeline. The gateway builds and returns the plan and leaf outputs, but it does not yet execute the deterministic post-processing operators such as joins, filters, grouping, aggregation, projection, ordering, or limit.
+At the current stage, planner-only is an extraction pipeline. The gateway builds and returns the plan and leaf outputs, but it does not yet execute the deterministic post-processing operators such as joins, filters, grouping, aggregation, projection, ordering, or limit.
 
 ## Main Files
 
 - `planner.py`: parses SQL and builds a structured query plan.
-- `gateway.py`: exposes the `planner-first` model route, performs retrieval, builds prompts, calls Ollama, validates leaf output, and logs debug data.
+- `gateway.py`: exposes the `planner-only` model route, performs retrieval, builds prompts, calls Ollama, validates leaf output, and logs debug data.
 - `prompt.py`: builds the leaf extraction prompt.
-- `run_planner_first_eval.py`: runs planner-first over the evaluation dataset and writes JSONL predictions.
+- `run_planner_first_eval.py`: runs planner-only over the evaluation dataset and writes JSONL predictions.
 - `evaluate_planner_first_outputs.py`: compares predictions against ProvSQL-generated ground truth and writes metrics.
 - `run_oar_planner_eval.sh`: convenience wrapper for running the evaluation on an OAR cluster with a local Ollama server.
 - `evaluation/generate_ground_truth_provsql.sh`: generates query and leaf ground truth from a ProvSQL-enabled PostgreSQL container.
 
 Related notes:
 
-- `docs/planner_first_results.md`: current planner-first result discussion.
+- `docs/planner_first_results.md`: current planner-only result discussion.
 - `docs/internal_knowledge_logic_and_results.md`: internal-knowledge baseline logic and result discussion.
 
 ## Runtime Flow
 
-### 1. User Calls `planner-first`
+### 1. User Calls `planner-only`
 
 Send a request to the normal chat completions endpoint:
 
@@ -31,7 +31,7 @@ Send a request to the normal chat completions endpoint:
 curl -X POST http://localhost:9005/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "planner-first",
+    "model": "planner-only",
     "messages": [
       {
         "role": "user",
@@ -41,7 +41,7 @@ curl -X POST http://localhost:9005/v1/chat/completions \
   }'
 ```
 
-The visible model id `planner-first` is routed through `MODEL_ROUTING` in `gateway.py` to the actual Ollama model named by `OLLAMA_MODEL_PLANNER_FIRST`. If that environment variable is not set, the default is `llama3:8b`.
+The visible model id `planner-only` is routed through `MODEL_ROUTING` in `gateway.py` to the actual Ollama model named by `OLLAMA_MODEL_PLANNER_FIRST`. If that environment variable is not set, the default is `llama3:8b`.
 
 ### 2. SQL Is Parsed Into a Plan
 
@@ -119,7 +119,7 @@ Relevant environment variables:
 - `MAX_ITERATIVE_RETRIEVALS`: maximum retrieval iterations.
 - `MAX_TABLES`: maximum number of tables included in retrieved context.
 
-If the FAISS index folder is missing or empty, the first request builds the index from the CSV files. This is why the first planner-first request can be much slower.
+If the FAISS index folder is missing or empty, the first request builds the index from the CSV files. This is why the first planner-only request can be much slower.
 
 ### 6. The Leaf Prompt Asks for Row Copying Only
 
@@ -285,11 +285,11 @@ Useful options:
 - `--overwrite`: truncate the output file before running.
 - `--verbose-gateway`: print gateway retrieval and prompt logs to the console.
 - `--gateway-log-output PATH`: store gateway stdout somewhere specific.
-- `--ollama-model MODEL`: use an actual Ollama model name instead of `gateway.MODEL_ROUTING["planner-first"]`.
+- `--ollama-model MODEL`: use an actual Ollama model name instead of `gateway.MODEL_ROUTING[gateway.PLANNER_ONLY_MODEL_ID]`.
 
 ## Running Internal-Knowledge On The Same Leaf Tasks
 
-The internal-knowledge runner can use the same `root|leaf|both` split as planner-first. To compare against planner-first leaf extraction, run it with `--mode leaf` on `evaluation/leaf_node_questions.json`:
+The internal-knowledge runner can use the same `root|leaf|both` split as planner-only. To compare against planner-only leaf extraction, run it with `--mode leaf` on `evaluation/leaf_node_questions.json`:
 
 ```bash
 python3 run_internal_knowledge_eval.py \
@@ -362,7 +362,7 @@ It exports GPU-friendly defaults:
 
 ## Prediction JSONL Format
 
-Each line in a planner-first evaluation output file is one record:
+Each line in a planner-only evaluation output file is one record:
 
 ```json
 {
@@ -506,7 +506,7 @@ Use `--verbose-gateway` when you want to see prompts and retrieval output live.
 ## Known Limitations
 
 - Only `SELECT` queries are supported by the planner.
-- The planner-first endpoint does not yet execute `post_ops`.
+- The planner-only endpoint does not yet execute `post_ops`.
 - Leaf prompts currently ignore local predicates, so leaf outputs are table-context copies rather than filtered table scans.
 - Retrieval is approximate and bounded by `RETRIEVER_K`, `MAX_ITERATIVE_RETRIEVALS`, and context limits.
 - Large leaf tasks can exceed practical model output length.
