@@ -14,6 +14,14 @@
           <h1 id="query-title">Query provenance workspace</h1>
         </div>
 
+        <div class="query-tools">
+          <label class="field-label" for="dataset-select">Dataset</label>
+          <select id="dataset-select">
+            <option value="tpch" selected>TPCH</option>
+            <option value="relf1">RELF1</option>
+          </select>
+        </div>
+
         <label class="field-label" for="query-input">Question or SQL query</label>
         <textarea id="query-input" spellcheck="false">SELECT n.n_name, r.r_name
 FROM nation n

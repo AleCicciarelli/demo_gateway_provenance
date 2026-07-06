@@ -78,6 +78,8 @@ services:
       - ./logs:/app/logs
       - ./faiss_index_tpch:/app/faiss_index_tpch
       - ./tpch_no_provsql:/app/tpch_no_provsql
+      - ./faiss_index_relf1_rows_bge_m3:/app/faiss_index_relf1_rows_bge_m3
+      - ./rel-f1-csv:/app/rel-f1-csv
 
       # Shared bucket for explanation service
       - ./bucket:/shared_bucket:rw

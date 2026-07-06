@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import html
 import json
 import os
@@ -21,7 +21,7 @@ from json_to_csv import clean_bucket, planner_result_to_csv_files
 from faiss_index_manager import FaissIndexManager
 from prompt import build_leaf_prompt
 from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE
-from tpch_schema_info import SCHEMA_INFO
+from tpch_schema_info import SCHEMA_INFO as TPCH_SCHEMA_INFO
 from planner import  build_query_plan
 import uuid
 
@@ -58,6 +58,7 @@ PLANNER_LLM_MODEL = os.getenv(
     "PLANNER_LLM_MODEL",
     LLM_API_MODEL if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"} and LLM_API_MODEL else "llama3:8b",
 )
+DEFAULT_DATASET = os.getenv("DEFAULT_DATASET", os.getenv("DATASET", "tpch")).strip().lower()
 CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
 MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "37"))
 MAX_TABLES = int(os.getenv("MAX_TABLES", "5"))
@@ -82,6 +83,14 @@ EMB_DEVICE = os.getenv("EMB_DEVICE", "auto")
 INDEX_TABLES = os.getenv("INDEX_TABLES", "")
 INDEX_SET = set(t.strip() for t in INDEX_TABLES.split(",") if t.strip())
 BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", "500"))
+
+RELF1_CSV_DIR = os.getenv("RELF1_CSV_DIR", "/app/rel-f1-csv")
+RELF1_FAISS_INDEX_FOLDER = os.getenv("RELF1_FAISS_INDEX_FOLDER", "/app/faiss_index_relf1_rows_bge_m3")
+RELF1_EMB_MODEL = os.getenv("RELF1_EMB_MODEL", "BAAI/bge-m3")
+RELF1_EMB_STRATEGY = os.getenv("RELF1_EMB_STRATEGY", "bge-m3")
+RELF1_INDEX_TABLES = os.getenv("RELF1_INDEX_TABLES", "")
+RELF1_INDEX_SET = set(t.strip() for t in RELF1_INDEX_TABLES.split(",") if t.strip())
+RELF1_SCHEMA_PROFILE = os.getenv("RELF1_SCHEMA_PROFILE", "/app/rel-f1-csv/schema_profile_relf1.json")
 
 EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
@@ -155,6 +164,146 @@ EXPOSED_MODEL_IDS = [
     "internal-knowledge",
 ]
 EXPOSED_MODELS = [{"id": mid, "object": "model"} for mid in EXPOSED_MODEL_IDS]
+
+
+@dataclass(frozen=True)
+class DatasetConfig:
+    name: str
+    csv_dir: str
+    faiss_index_folder: str
+    emb_model: str
+    emb_strategy: str
+    index_set: set[str]
+    schema_info: Dict[str, Any]
+
+
+@dataclass
+class DatasetRuntime:
+    csv_cache: Dict[str, List[Dict[str, Any]]]
+    csv_loaded: bool
+    csv_rid_index: Dict[str, Dict[str, int]]
+    global_rid_index: Dict[str, Tuple[str, int]]
+    embeddings: Optional[EmbeddingStrategies]
+    faiss_manager: Optional[FaissIndexManager]
+
+
+def _schema_info_from_profile(profile_path: str) -> Dict[str, Any]:
+    path = Path(profile_path)
+    if not path.exists():
+        return {}
+
+    try:
+        profile = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print(f"[dataset] Could not read schema profile {profile_path}: {exc}", flush=True)
+        return {}
+
+    tables = profile.get("tables") or {}
+    foreign_key_candidates = profile.get("foreign_key_candidates") or []
+    schema_info: Dict[str, Any] = {}
+
+    for table, info in tables.items():
+        columns = [
+            col
+            for col, col_info in (info.get("columns") or {}).items()
+            if not col.endswith("_rownum") and not bool(col_info.get("is_provenance"))
+        ]
+        row_id = next(
+            (col for col in (info.get("columns") or {}) if col.endswith("_rownum")),
+            f"{table}_rownum",
+        )
+        primary_key: Any = None
+        pk_candidates = info.get("primary_key_candidates") or []
+        if pk_candidates:
+            pk_cols = [
+                col
+                for col in (pk_candidates[0].get("columns") or [])
+                if not str(col).endswith("_rownum")
+            ]
+            if len(pk_cols) == 1:
+                primary_key = pk_cols[0]
+            elif pk_cols:
+                primary_key = pk_cols
+
+        schema_info[table] = {
+            "columns": columns,
+            "primary_key": primary_key,
+            "row_id": row_id,
+            "foreign_keys": {},
+        }
+
+    for fk in foreign_key_candidates:
+        from_table = fk.get("from_table")
+        if from_table not in schema_info:
+            continue
+        from_cols = fk.get("from_columns") or []
+        to_table = fk.get("to_table")
+        to_cols = fk.get("to_columns") or []
+        for from_col, to_col in zip(from_cols, to_cols):
+            schema_info[from_table]["foreign_keys"][from_col] = f"{to_table}.{to_col}"
+
+    return schema_info
+
+
+DATASET_CONFIGS: Dict[str, DatasetConfig] = {
+    "tpch": DatasetConfig(
+        name="tpch",
+        csv_dir=CSV_DIR,
+        faiss_index_folder=FAISS_INDEX_FOLDER,
+        emb_model=EMB_MODEL,
+        emb_strategy=EMB_STRATEGY,
+        index_set=INDEX_SET,
+        schema_info=TPCH_SCHEMA_INFO,
+    ),
+    "relf1": DatasetConfig(
+        name="relf1",
+        csv_dir=RELF1_CSV_DIR,
+        faiss_index_folder=RELF1_FAISS_INDEX_FOLDER,
+        emb_model=RELF1_EMB_MODEL,
+        emb_strategy=RELF1_EMB_STRATEGY,
+        index_set=RELF1_INDEX_SET,
+        schema_info=_schema_info_from_profile(RELF1_SCHEMA_PROFILE),
+    ),
+}
+DATASET_ALIASES = {
+    "rel-f1": "relf1",
+    "rel_f1": "relf1",
+    "f1": "relf1",
+    "formula1": "relf1",
+    "tpc-h": "tpch",
+    "tpc_h": "tpch",
+}
+
+_DATASET_RUNTIMES: Dict[str, DatasetRuntime] = {}
+
+
+def _normalize_dataset(dataset: Optional[str]) -> str:
+    name = (dataset or DEFAULT_DATASET or "tpch").strip().lower()
+    name = DATASET_ALIASES.get(name, name)
+    if name not in DATASET_CONFIGS:
+        known = ", ".join(sorted(DATASET_CONFIGS))
+        raise ValueError(f"Unknown dataset '{dataset}'. Use one of: {known}")
+    return name
+
+
+def _dataset_config(dataset: Optional[str] = None) -> DatasetConfig:
+    return DATASET_CONFIGS[_normalize_dataset(dataset)]
+
+
+def _dataset_runtime(dataset: Optional[str] = None) -> DatasetRuntime:
+    name = _normalize_dataset(dataset)
+    runtime = _DATASET_RUNTIMES.get(name)
+    if runtime is None:
+        runtime = DatasetRuntime(
+            csv_cache={},
+            csv_loaded=False,
+            csv_rid_index={},
+            global_rid_index={},
+            embeddings=None,
+            faiss_manager=None,
+        )
+        _DATASET_RUNTIMES[name] = runtime
+    return runtime
 
 
 #Fixed prompt, user insert QUESTION and CONTEXT_DATA is retrieved 
@@ -285,6 +434,7 @@ class ChatCompletionRequest(BaseModel):
     messages: List[ChatMessage]
     temperature: Optional[float] = None
     stream: Optional[bool] = False
+    dataset: Optional[str] = None
     model_config = ConfigDict(extra="allow")  # allow extra fields, for compatibility with OpenAI's API which can use more fields
 
 class ProvenanceExplainRequest(BaseModel):
@@ -292,10 +442,12 @@ class ProvenanceExplainRequest(BaseModel):
     answer_json: str
     model: Optional[str] = None
     temperature: Optional[float] = 0.0
+    dataset: Optional[str] = None
 
 class UiPlanRequest(BaseModel):
     question: str
     sql: Optional[str] = None
+    dataset: Optional[str] = None
 
 class UiRunRequest(BaseModel):
     question: str
@@ -303,6 +455,7 @@ class UiRunRequest(BaseModel):
     plan: Dict[str, Any]
     leaf_pipeline_choices: Dict[str, str] = Field(default_factory=dict)
     temperature: Optional[float] = 0.0
+    dataset: Optional[str] = None
 # =========================
 # Debug state
 # =========================
@@ -312,18 +465,17 @@ _LAST_EXPLAIN_DEBUG: Dict[str, Any] = {}
 # Helpers
 # =========================
 
-_EMBEDDINGS: Optional[EmbeddingStrategies] = None
-
-def _get_embeddings() -> EmbeddingStrategies:
-    global _EMBEDDINGS
-    if _EMBEDDINGS is None:
-        _EMBEDDINGS = EmbeddingStrategies(
-            model_name=EMB_MODEL,
-            strategy=EMB_STRATEGY,
+def _get_embeddings(dataset: Optional[str] = None) -> EmbeddingStrategies:
+    config = _dataset_config(dataset)
+    runtime = _dataset_runtime(config.name)
+    if runtime.embeddings is None:
+        runtime.embeddings = EmbeddingStrategies(
+            model_name=config.emb_model,
+            strategy=config.emb_strategy,
             device=EMB_DEVICE,
             batch_size=BATCH_SIZE,
         )
-    return _EMBEDDINGS
+    return runtime.embeddings
 
 def _now() -> int:
     return int(time.time())
@@ -591,13 +743,6 @@ def _parse_leaf_json_array_partial(
 
     return True, None, valid_items
 
-# Cache in memoria: table -> list[dict]
-_CSV_CACHE: Dict[str, List[Dict[str, Any]]] = {}
-_CSV_LOADED = False
-_CSV_RID_INDEX: Dict[str, Dict[str, int]] = {}
-_GLOBAL_RID_INDEX: Dict[str, Tuple[str, int]] = {}
-
-
 def _detect_csv_delimiter(path: Path) -> str:
     sample = path.read_text(encoding="utf-8", errors="ignore")[:4096]
     try:
@@ -607,15 +752,20 @@ def _detect_csv_delimiter(path: Path) -> str:
         return "," if header.count(",") > header.count("|") else "|"
 
 
-def _load_csvs_once() -> None:
-    global _CSV_LOADED
-    if _CSV_LOADED:
+def _load_csvs_once(dataset: Optional[str] = None) -> None:
+    config = _dataset_config(dataset)
+    runtime = _dataset_runtime(config.name)
+    if runtime.csv_loaded:
         return
 
-    base = Path(CSV_DIR)
+    base = Path(config.csv_dir)
     if not base.exists():
-        _log_event({"type": "retrieval_error", "error": f"CSV_DIR not found: {CSV_DIR}"})
-        _CSV_LOADED = True
+        _log_event({
+            "type": "retrieval_error",
+            "dataset": config.name,
+            "error": f"CSV_DIR not found: {config.csv_dir}",
+        })
+        runtime.csv_loaded = True
         return
 
     for p in sorted(base.glob("*.csv")):
@@ -640,31 +790,37 @@ def _load_csvs_once() -> None:
                 # len(rows) is robust if any rows is not saved (rid not present), 
                 rid_to_idx[rid] = len(rows)
                 rows.append(r2)
-        _CSV_CACHE[table] = rows
-        _CSV_RID_INDEX[table] = rid_to_idx
+        runtime.csv_cache[table] = rows
+        runtime.csv_rid_index[table] = rid_to_idx
 
-    _CSV_LOADED = True
-    _log_event({"type": "retrieval_loaded", "tables": list(_CSV_CACHE.keys()), "csv_dir": CSV_DIR})
+    runtime.csv_loaded = True
+    _log_event({
+        "type": "retrieval_loaded",
+        "dataset": config.name,
+        "tables": list(runtime.csv_cache.keys()),
+        "csv_dir": config.csv_dir,
+    })
 
 
-def _build_global_rid_index() -> None:
-    _load_csvs_once()
-    global _GLOBAL_RID_INDEX
-    if _GLOBAL_RID_INDEX:
+def _build_global_rid_index(dataset: Optional[str] = None) -> None:
+    _load_csvs_once(dataset)
+    runtime = _dataset_runtime(dataset)
+    if runtime.global_rid_index:
         return
 
-    for table, rid_map in _CSV_RID_INDEX.items():
+    for table, rid_map in runtime.csv_rid_index.items():
         for rid, idx in rid_map.items():
-            _GLOBAL_RID_INDEX[rid] = (table, idx)
+            runtime.global_rid_index[rid] = (table, idx)
 
-def _resolve_row_by_rid(rid: str) -> Optional[Dict[str, Any]]:
-    _build_global_rid_index()
-    hit = _GLOBAL_RID_INDEX.get(rid)
+def _resolve_row_by_rid(rid: str, dataset: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    _build_global_rid_index(dataset)
+    runtime = _dataset_runtime(dataset)
+    hit = runtime.global_rid_index.get(rid)
     if not hit:
         return None
 
     table, idx = hit
-    row = _CSV_CACHE[table][idx]
+    row = runtime.csv_cache[table][idx]
 
     return {
         "table": table,
@@ -676,7 +832,6 @@ def _resolve_row_by_rid(rid: str) -> Optional[Dict[str, Any]]:
 # =========================
 # Retrieval and indexing
 # ========================
-_FAISS_MANAGER: Optional[FaissIndexManager] = None
 
 def _context_to_prompt_text(ctx: Dict[str, Any]) -> str:
     lines = []
@@ -687,33 +842,37 @@ def _context_to_prompt_text(ctx: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _get_or_build_faiss():
-    global _FAISS_MANAGER
-    if _FAISS_MANAGER is None:
-        _FAISS_MANAGER = FaissIndexManager(
-            index_folder=FAISS_INDEX_FOLDER,
-            embeddings_factory=_get_embeddings,
-            csv_cache=_CSV_CACHE,
-            load_csvs=_load_csvs_once,
-            index_set=INDEX_SET,
+def _get_or_build_faiss(dataset: Optional[str] = None):
+    config = _dataset_config(dataset)
+    runtime = _dataset_runtime(config.name)
+    if runtime.faiss_manager is None:
+        runtime.faiss_manager = FaissIndexManager(
+            index_folder=config.faiss_index_folder,
+            embeddings_factory=lambda: _get_embeddings(config.name),
+            csv_cache=runtime.csv_cache,
+            load_csvs=lambda: _load_csvs_once(config.name),
+            index_set=config.index_set,
             batch_size=BATCH_SIZE,
-            emb_model=EMB_MODEL,
-            emb_strategy=EMB_STRATEGY,
+            emb_model=config.emb_model,
+            emb_strategy=config.emb_strategy,
             log_event=_log_event,
         )
 
-    return _FAISS_MANAGER.get_or_build()
+    return runtime.faiss_manager.get_or_build()
 
-def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
+def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None) -> Dict[str, Any]:
     """
     Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K
     in each iteration, until no new rows are retrieved or MAX_ITERATIVE_RETRIEVALS is reached.
     """
-    _load_csvs_once()
+    config = _dataset_config(dataset)
+    runtime = _dataset_runtime(config.name)
+    _load_csvs_once(config.name)
     print("\n[ITERATIVE RETRIEVAL] START", flush=True)
+    print(f"[ITERATIVE RETRIEVAL] dataset={config.name}", flush=True)
     print(f"[ITERATIVE RETRIEVAL] question={question}", flush=True)
 
-    vs = _get_or_build_faiss()
+    vs = _get_or_build_faiss(config.name)
 
     ctx: Dict[str, Any] = defaultdict(dict)
     seen_docs = set()
@@ -737,14 +896,14 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
             if rid in seen_docs:
                 continue
 
-            idx0 = _CSV_RID_INDEX.get(table, {}).get(rid)
+            idx0 = runtime.csv_rid_index.get(table, {}).get(rid)
             if idx0 is None:
                 continue
 
             if table not in ctx and len(ctx) >= MAX_TABLES:
                 continue
 
-            row = _CSV_CACHE[table][idx0]
+            row = runtime.csv_cache[table][idx0]
             ctx[table][rid] = row
             seen_docs.add(rid)
             new_count += 1
@@ -755,7 +914,7 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
         for rank, table, rid in new_rids:
             print(f"  + rank={rank:>3} | table={table:<12} | rid={rid}", flush=True)
             print(
-                json.dumps(_CSV_CACHE[table][_CSV_RID_INDEX[table][rid]], ensure_ascii=False),
+                json.dumps(runtime.csv_cache[table][runtime.csv_rid_index[table][rid]], ensure_ascii=False),
                 flush=True,
             )
 
@@ -770,13 +929,14 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
             rid: {
                 "rank": rank,
                 "table": table,
-                "row": _CSV_CACHE[table][_CSV_RID_INDEX[table][rid]],
+                "row": runtime.csv_cache[table][runtime.csv_rid_index[table][rid]],
             }
             for rank, table, rid in new_rids
         }
 
         _log_event({
             "type": "iterative_retrieval",
+            "dataset": config.name,
             "iteration": iteration,
             "retriever_k": k,
             "new_rows_added": new_count,
@@ -810,6 +970,7 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
     final_context_data = {table: dict(rows) for table, rows in ctx.items()}
     _log_event({
         "type": "iterative_retrieval_final",
+        "dataset": config.name,
         "tables": list(ctx.keys()),
         "rows_preview": preview,
         "final_rids": final_rids,
@@ -819,9 +980,11 @@ def retrieve_context_data_iterative(question: str) -> Dict[str, Any]:
     })
 
     return dict(ctx)
-def _retrieve_context_data(question: str) -> Dict[str, Any]:
-    _load_csvs_once()
-    vs = _get_or_build_faiss()
+def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict[str, Any]:
+    config = _dataset_config(dataset)
+    runtime = _dataset_runtime(config.name)
+    _load_csvs_once(config.name)
+    vs = _get_or_build_faiss(config.name)
 
     docs = vs.similarity_search(question, k=RETRIEVER_K)
 
@@ -835,10 +998,10 @@ def _retrieve_context_data(question: str) -> Dict[str, Any]:
         if not table or not rid:
             continue
 
-        idx0 = _CSV_RID_INDEX.get(table, {}).get(rid)
+        idx0 = runtime.csv_rid_index.get(table, {}).get(rid)
         if idx0 is None:
             continue
-        row = _CSV_CACHE[table][idx0]
+        row = runtime.csv_cache[table][idx0]
         if table not in ctx and len(ctx) >= MAX_TABLES:
             continue
 
@@ -856,6 +1019,7 @@ def _retrieve_context_data(question: str) -> Dict[str, Any]:
 
     _log_event({
         "type": "retrieval",
+        "dataset": config.name,
         "tables": list(ctx.keys()),
         "rows_preview": preview,
         "context_data": ctx,
@@ -941,7 +1105,9 @@ def _run_planner_first(
     ollama_model: str,
     model_provider: str,
     temperature: float,
+    dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
+    selected_dataset = _dataset_config(dataset).name
     plan = build_query_plan(sql_query)
 
     if plan is None:
@@ -959,7 +1125,7 @@ def _run_planner_first(
         print(f"\n--- Running leaf task for table '{task.table_name}' with retrieval query: {retrieval_query}\n", flush=True)
 
         print("[planner only] calling retrieve_context_data_iterative()", flush=True)
-        leaf_ctx = retrieve_context_data_iterative(retrieval_query)
+        leaf_ctx = retrieve_context_data_iterative(retrieval_query, dataset=selected_dataset)
         print("[planner only] retrieve_context_data_iterative() returned", flush=True)
 
         leaf_outputs.append(
@@ -974,6 +1140,7 @@ def _run_planner_first(
         )
 
     return {
+        "dataset": selected_dataset,
         "sql": sql_query,
         "plan": plan_dict,
         "leaf_outputs": leaf_outputs,
@@ -1036,16 +1203,17 @@ def _run_ui_leaf_pipeline(
     pipeline: str,
     sql_query: str,
     temperature: float,
+    dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
     pipeline = _canonical_pipeline_id(pipeline)
     retrieval_query = _build_leaf_retrieval_query(task)
 
     if pipeline == "manual":
-        ctx = retrieve_context_data_iterative(retrieval_query)
+        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
         return _manual_leaf_output(task, ctx, retrieval_query)
 
     if pipeline == "rag":
-        ctx = retrieve_context_data_iterative(retrieval_query)
+        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
         return _run_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING["base-llama3-8b"],
@@ -1056,7 +1224,7 @@ def _run_ui_leaf_pipeline(
         )
 
     if pipeline == PLANNER_ONLY_EXPLANATION_MODEL_ID:
-        ctx = retrieve_context_data_iterative(retrieval_query)
+        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
         return _run_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[PLANNER_ONLY_EXPLANATION_MODEL_ID],
@@ -1090,7 +1258,7 @@ def _run_ui_leaf_pipeline(
     if pipeline != PLANNER_ONLY_MODEL_ID:
         raise ValueError(f"Unsupported UI pipeline: {pipeline}")
 
-    ctx = retrieve_context_data_iterative(retrieval_query)
+    ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
     return _run_leaf_task(
         task=task,
         ollama_model=MODEL_ROUTING[PLANNER_ONLY_MODEL_ID],
@@ -1549,7 +1717,10 @@ def _render_chat_response(raw_text: str, parsed_payload: Optional[Any] = None) -
 
     return raw_text
 
-def _collect_provenance_rows(answer_items: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _collect_provenance_rows(
+    answer_items: List[Dict[str, Any]],
+    dataset: Optional[str] = None,
+) -> Dict[str, Any]:
     rows_by_id: Dict[str, Any] = {}
     missing_ids: List[str] = []
 
@@ -1558,7 +1729,7 @@ def _collect_provenance_rows(answer_items: List[Dict[str, Any]]) -> Dict[str, An
             for rid in witness_set:
                 if rid in rows_by_id:
                     continue
-                resolved = _resolve_row_by_rid(rid)
+                resolved = _resolve_row_by_rid(rid, dataset=dataset)
                 if resolved is None:
                     missing_ids.append(rid)
                 else:
@@ -1597,9 +1768,13 @@ def _validate_provenance_structure(
 
     return errors
 
-def _build_schema_subset_from_rows(rows_by_id: Dict[str, Any]) -> Dict[str, Any]:
+def _build_schema_subset_from_rows(
+    rows_by_id: Dict[str, Any],
+    dataset: Optional[str] = None,
+) -> Dict[str, Any]:
+    schema_info = _dataset_config(dataset).schema_info
     tables = sorted({info["table"] for info in rows_by_id.values()})
-    return {t: SCHEMA_INFO[t] for t in tables if t in SCHEMA_INFO}
+    return {t: schema_info[t] for t in tables if t in schema_info}
 
 def _provenance_to_formula(prov: List[List[str]]) -> str:
     parts = []
@@ -1616,8 +1791,9 @@ def _explain_provenance_with_model(
     rows_by_id: Dict[str, Any],
     temperature: float = 0.0,
     explainer_model: Optional[str] = None,
+    dataset: Optional[str] = None,
 ) -> str:
-    schema_info = _build_schema_subset_from_rows(rows_by_id)
+    schema_info = _build_schema_subset_from_rows(rows_by_id, dataset=dataset)
     model_name = explainer_model or EXPLAIN_MODEL
 
     prompt = EXPLAIN_PROMPT_TEMPLATE.format(
@@ -1747,6 +1923,7 @@ def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=400, detail="Empty SQL query")
 
     try:
+        dataset = _dataset_config(req.dataset).name
         plan = build_query_plan(sql_query)
         if plan is None:
             raise RuntimeError("build_query_plan returned None")
@@ -1758,11 +1935,13 @@ def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
 
         _log_event({
             "type": "ui_plan",
+            "dataset": dataset,
             "sql_query": sql_query,
             "leaf_tasks": len(plan_dict.get("leaf_tasks", [])),
         })
         return {
             "source": "gateway",
+            "dataset": dataset,
             "sql": sql_query,
             "plan": plan_dict,
         }
@@ -1786,6 +1965,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
     pipeline_choices: List[Dict[str, str]] = []
 
     try:
+        dataset = _dataset_config(req.dataset).name
         for task in leaf_tasks:
             if not isinstance(task, dict):
                 continue
@@ -1801,6 +1981,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
                 pipeline=pipeline,
                 sql_query=sql_query,
                 temperature=temperature,
+                dataset=dataset,
             )
             leaf_output["pipeline"] = pipeline
             leaf_outputs.append(leaf_output)
@@ -1830,6 +2011,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
 
         result = {
             "source": "gateway",
+            "dataset": dataset,
             "sql": sql_query,
             "plan": req.plan,
             "answer": answer,
@@ -1845,6 +2027,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
 
         _log_event({
             "type": "ui_run",
+            "dataset": dataset,
             "sql_query": sql_query,
             "pipeline_choices": pipeline_choices,
             "answer_rows": len(answer),
@@ -1898,6 +2081,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
         try:
             yield encode_event("start", {
                 "message": "Running selected leaf pipelines.",
+                "dataset": dataset,
                 "leaf_count": len(leaf_tasks),
             })
 
@@ -1930,10 +2114,11 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         pipeline=pipeline,
                         sql_query=sql_query,
                         temperature=temperature,
+                        dataset=dataset,
                     )
                 else:
                     retrieval_query = _build_leaf_retrieval_query(task)
-                    ctx = retrieve_context_data_iterative(retrieval_query)
+                    ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
                     yield encode_event("leaf_context", {
                         "table": table_name,
                         "pipeline": pipeline,
@@ -2005,6 +2190,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
 
             result = {
                 "source": "gateway",
+                "dataset": dataset,
                 "sql": sql_query,
                 "plan": req.plan,
                 "answer": answer,
@@ -2021,6 +2207,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
 
             _log_event({
                 "type": "ui_run",
+                "dataset": dataset,
                 "sql_query": sql_query,
                 "pipeline_choices": pipeline_choices,
                 "answer_rows": len(answer),
@@ -2073,6 +2260,7 @@ def chat_completions(
 
     # if not specified, default to 0.0 (deterministic)
     temperature = 0.0 if req.temperature is None else float(req.temperature)
+    dataset = _dataset_config(req.dataset).name
     
 
     if ui_model == PLANNER_ONLY_MODEL_ID:
@@ -2083,6 +2271,7 @@ def chat_completions(
                 ollama_model=ollama_model,
                 model_provider=PLANNER_LLM_PROVIDER,
                 temperature=temperature,
+                dataset=dataset,
             )
 
             out_text = json.dumps(planner_result, ensure_ascii=False, indent=2)
@@ -2090,6 +2279,7 @@ def chat_completions(
 
             _log_event({
                 "type": "planner_first_request",
+                "dataset": dataset,
                 "ui_model": ui_model,
                 "requested_model": req.model,
                 "request_id": request_id,
@@ -2153,6 +2343,7 @@ def chat_completions(
                     ollama_model=ollama_model,
                     model_provider=PLANNER_LLM_PROVIDER,
                     temperature=temperature,
+                    dataset=dataset,
                 )
 
                 explanation_client = ExplanationClient(
@@ -2174,6 +2365,7 @@ def chat_completions(
 
                 _log_event({
                     "type": "planner_first_explanation_request",
+                    "dataset": dataset,
                     "ui_model": ui_model,
                     "requested_model": req.model,
                     "request_id": request_id,
@@ -2223,6 +2415,7 @@ def chat_completions(
         response_text = _render_chat_response(out_text)
         _log_event({
             "type": "internal_knowledge_request",
+            "dataset": dataset,
             "ui_model": req.model,
             "request_id": request_id,
             "ollama_model": ollama_model,
@@ -2255,7 +2448,7 @@ def chat_completions(
 
 
     #schema_info = _get_relevant_schema_info(question)
-    ctx = _retrieve_context_data(question)
+    ctx = _retrieve_context_data(question, dataset=dataset)
 
     base_prompt = PROMPT_TEMPLATE.format(
         question=question,
@@ -2265,6 +2458,7 @@ def chat_completions(
 
     _log_event({
         "type": "request",
+        "dataset": dataset,
         "ui_model": req.model,
         "request_id": request_id,
         "ollama_model": ollama_model,
@@ -2331,7 +2525,8 @@ def explain_provenance(
     authorization: Optional[str] = Header(default=None),
 ) -> Dict[str, Any]:
     try:
-        _load_csvs_once()
+        dataset = _dataset_config(req.dataset).name
+        _load_csvs_once(dataset)
 
         if not req.question.strip():
             raise HTTPException(status_code=400, detail="Empty question")
@@ -2341,7 +2536,7 @@ def explain_provenance(
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Invalid answer_json: {e}")
 
-        collected = _collect_provenance_rows(answer_items)
+        collected = _collect_provenance_rows(answer_items, dataset=dataset)
         rows_by_id = collected["rows_by_id"]
         missing_ids = collected["missing_ids"]
 
@@ -2360,6 +2555,7 @@ def explain_provenance(
                     rows_by_id=rows_by_id,
                     temperature=temperature,
                     explainer_model=model_name,
+                    dataset=dataset,
                 )
             except Exception as e:
                 validation_errors.append(f"Explanation generation failed: {e}")
@@ -2378,6 +2574,7 @@ def explain_provenance(
 
         _log_event({
             "type": "provenance_explain",
+            "dataset": dataset,
             "has_auth": bool(authorization),
             "model": model_name,
             "temperature": temperature,
@@ -2397,9 +2594,11 @@ def explain_provenance(
             explanation_text=explanation_text,
             model=model_name,
             temperature=temperature,
+            dataset=dataset,
         )
 
         return {
+            "dataset": dataset,
             "question": req.question,
             "answer": answer_items,
             "formulae": formulae,

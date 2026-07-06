@@ -13,6 +13,7 @@ const PIPELINES = [
 ];
 
 const state = {
+  dataset: "tpch",
   plan: null,
   selectedPipelines: {},
   output: null,
@@ -24,6 +25,7 @@ const DEFAULT_PIPELINE = "planner-only";
 
 const els = {
   queryInput: document.querySelector("#query-input"),
+  datasetSelect: document.querySelector("#dataset-select"),
   planButton: document.querySelector("#plan-button"),
   runButton: document.querySelector("#run-button"),
   backendStatus: document.querySelector("#backend-status"),
@@ -106,6 +108,7 @@ function makeMockPlan(sql) {
 
   return {
     source: "mock",
+    dataset: state.dataset,
     sql,
     plan: {
       query_type: "SELECT",
@@ -505,8 +508,13 @@ async function generatePlan() {
   setStatus("Building query plan...");
 
   try {
+    state.dataset = els.datasetSelect?.value ?? "tpch";
     if (hasBackend(BACKEND_ENDPOINTS.plan)) {
-      state.plan = await postJson(BACKEND_ENDPOINTS.plan, { question: query, sql: query });
+      state.plan = await postJson(BACKEND_ENDPOINTS.plan, {
+        question: query,
+        sql: query,
+        dataset: state.dataset,
+      });
       setStatus("Plan loaded from backend.");
     } else {
       state.plan = makeMockPlan(query);
@@ -545,6 +553,7 @@ async function runSelectedPipelines() {
     sql: state.plan.sql,
     plan: state.plan.plan,
     leaf_pipeline_choices: state.selectedPipelines,
+    dataset: state.plan.dataset ?? state.dataset,
   };
 
   try {
@@ -574,6 +583,7 @@ function makeEmptyRunOutput() {
 
   return {
     source: "gateway",
+    dataset: state.plan?.dataset ?? state.dataset,
     answer: [],
     rows_by_id: {},
     pipeline_choices: choices,
@@ -655,6 +665,7 @@ function renderPlan() {
     ["Type", plan?.query_type ?? "-"],
     ["Joins", plan?.joins?.length ?? 0],
     ["Post-ops", plan?.post_ops?.length ?? 0],
+    ["Dataset", state.plan?.dataset ?? state.dataset],
     ["Source", state.plan?.source ?? "backend"],
   ]
     .map(
@@ -1006,6 +1017,14 @@ function switchTab(tabName) {
 
 els.planButton.addEventListener("click", generatePlan);
 els.runButton.addEventListener("click", runSelectedPipelines);
+els.datasetSelect?.addEventListener("change", () => {
+  state.dataset = els.datasetSelect.value;
+  state.plan = null;
+  state.selectedPipelines = {};
+  renderPlan();
+  clearOutput();
+  setStatus("Dataset changed. Generate a new plan before running pipelines.");
+});
 els.tabs.forEach((tab) => {
   tab.addEventListener("click", () => switchTab(tab.dataset.tab));
 });
