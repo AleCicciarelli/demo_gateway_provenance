@@ -41,6 +41,8 @@ services:
       context: .
       args:
         EMB_MODEL: ${EMB_MODEL:-sentence-transformers/all-mpnet-base-v2}
+        RELF1_EMB_MODEL: ${RELF1_EMB_MODEL:-BAAI/bge-m3}
+        RELF1_EMB_STRATEGY: ${RELF1_EMB_STRATEGY:-bge-m3}
     container_name: demo_gateway
     depends_on:
       ollama:
@@ -73,6 +75,8 @@ services:
       EXPLANATION_REQUEST_TIMEOUT: "1800"
 
     volumes:
+      - ./gateway.py:/app/gateway.py:ro
+      - ./ui:/app/ui:ro
       - ./logs:/app/logs
       - ./faiss_index_tpch:/app/faiss_index_tpch
       - ./tpch_no_provsql:/app/tpch_no_provsql
