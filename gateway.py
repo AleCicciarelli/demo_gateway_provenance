@@ -2053,6 +2053,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
         raise HTTPException(status_code=400, detail="plan.leaf_tasks must be a list")
 
     temperature = 0.0 if req.temperature is None else float(req.temperature)
+    dataset = _dataset_config(req.dataset).name
 
     def encode_event(event_type: str, payload: Dict[str, Any]) -> str:
         return json.dumps(
