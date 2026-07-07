@@ -217,6 +217,13 @@ def _schema_info_from_profile(profile_path: str) -> Dict[str, Any]:
             for col, col_info in (info.get("columns") or {}).items()
             if not col.endswith("_rownum") and not bool(col_info.get("is_provenance"))
         ]
+        column_types = {
+            str(col): str(col_info.get("type") or "").strip().lower()
+            for col, col_info in (info.get("columns") or {}).items()
+            if not str(col).endswith("_rownum")
+            and isinstance(col_info, dict)
+            and not bool(col_info.get("is_provenance"))
+        }
         row_id = next(
             (col for col in (info.get("columns") or {}) if col.endswith("_rownum")),
             f"{table}_rownum",
@@ -236,6 +243,7 @@ def _schema_info_from_profile(profile_path: str) -> Dict[str, Any]:
 
         schema_info[table] = {
             "columns": columns,
+            "column_types": column_types,
             "primary_key": primary_key,
             "row_id": row_id,
             "foreign_keys": {},
@@ -402,6 +410,26 @@ def _dataset_columns_requiring_quotes(dataset: Optional[str] = None) -> set[str]
     return columns
 
 
+def _dataset_numeric_columns(dataset: Optional[str] = None) -> set[str]:
+    config = _dataset_config(dataset)
+    numeric_types = {"decimal", "double", "float", "integer", "number", "numeric", "real"}
+    columns: set[str] = set()
+    for table_info in config.schema_info.values():
+        if not isinstance(table_info, dict):
+            continue
+        for column_name, column_type in (table_info.get("column_types") or {}).items():
+            if str(column_type or "").strip().lower() in numeric_types:
+                columns.add(str(column_name))
+        columns_info = table_info.get("columns") or {}
+        if isinstance(columns_info, dict):
+            for column_name, column_info in columns_info.items():
+                if not isinstance(column_info, dict):
+                    continue
+                if str(column_info.get("type") or "").strip().lower() in numeric_types:
+                    columns.add(str(column_name))
+    return columns
+
+
 def _quote_sql_columns_for_dataset(sql_query: str, dataset: Optional[str] = None) -> str:
     columns_to_quote = _dataset_columns_requiring_quotes(dataset)
     if not columns_to_quote:
@@ -488,6 +516,168 @@ def _quote_sql_columns_for_dataset(sql_query: str, dataset: Optional[str] = None
         index += 1
 
     return "".join(out)
+
+
+_SQL_IDENTIFIER_TOKEN = r'(?:[A-Za-z_][A-Za-z0-9_$]*|"(?:""|[^"])+")'
+_SQL_COLUMN_REF = rf'(?:{_SQL_IDENTIFIER_TOKEN}\s*\.\s*)?{_SQL_IDENTIFIER_TOKEN}'
+_SQL_NUMERIC_LITERAL = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
+_SQL_COMPARISON_OP = r"=|<>|!=|<=|>=|<|>"
+_CSV_TEXT_LEFT_COMPARISON_RE = re.compile(
+    rf"(?<![A-Za-z0-9_$.:])(?P<col>{_SQL_COLUMN_REF})(?P<space1>\s*)(?P<op>{_SQL_COMPARISON_OP})(?P<space2>\s*)"
+    rf"(?P<num>{_SQL_NUMERIC_LITERAL})(?![A-Za-z0-9_$.])"
+)
+_CSV_TEXT_RIGHT_COMPARISON_RE = re.compile(
+    rf"(?<![A-Za-z0-9_$.])(?P<num>{_SQL_NUMERIC_LITERAL})(?P<space1>\s*)"
+    rf"(?P<op>{_SQL_COMPARISON_OP})(?P<space2>\s*)(?P<col>{_SQL_COLUMN_REF})"
+)
+_CSV_TEXT_IN_RE = re.compile(
+    rf"(?<![A-Za-z0-9_$.:])(?P<col>{_SQL_COLUMN_REF})(?P<space>\s+)(?P<not>NOT\s+)?IN\s*\((?P<items>[^()]+)\)",
+    flags=re.IGNORECASE,
+)
+_CSV_TEXT_NUMERIC_LIST_ITEM_RE = re.compile(
+    rf"(?<![A-Za-z0-9_$.']){_SQL_NUMERIC_LITERAL}(?![A-Za-z0-9_$.'])"
+)
+
+
+def _sql_column_name(column_ref: str) -> str:
+    token = column_ref.split(".")[-1].strip()
+    if token.startswith('"') and token.endswith('"'):
+        return token[1:-1].replace('""', '"')
+    return token
+
+
+def _sql_string_literal(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _cast_sql_column_numeric(column_ref: str) -> str:
+    if "::" in column_ref:
+        return column_ref
+    return f"{column_ref}::numeric"
+
+
+def _rewrite_csv_text_numeric_comparisons_in_code(sql_code: str, dataset: Optional[str]) -> str:
+    numeric_columns = _dataset_numeric_columns(dataset)
+
+    def replace_left(match: re.Match[str]) -> str:
+        col = match.group("col")
+        num = match.group("num")
+        if _sql_column_name(col) in numeric_columns:
+            lhs = _cast_sql_column_numeric(col)
+            rhs = num
+        else:
+            lhs = col
+            rhs = _sql_string_literal(num)
+        return f"{lhs}{match.group('space1')}{match.group('op')}{match.group('space2')}{rhs}"
+
+    def replace_right(match: re.Match[str]) -> str:
+        col = match.group("col")
+        num = match.group("num")
+        if _sql_column_name(col) in numeric_columns:
+            lhs = num
+            rhs = _cast_sql_column_numeric(col)
+        else:
+            lhs = _sql_string_literal(num)
+            rhs = col
+        return f"{lhs}{match.group('space1')}{match.group('op')}{match.group('space2')}{rhs}"
+
+    def replace_in(match: re.Match[str]) -> str:
+        col = match.group("col")
+        items = match.group("items")
+        if _sql_column_name(col) in numeric_columns:
+            rewritten_items = items
+            rewritten_col = _cast_sql_column_numeric(col)
+        else:
+            rewritten_items = _CSV_TEXT_NUMERIC_LIST_ITEM_RE.sub(
+                lambda item_match: _sql_string_literal(item_match.group(0)),
+                items,
+            )
+            rewritten_col = col
+        not_sql = match.group("not") or ""
+        return f"{rewritten_col}{match.group('space')}{not_sql}IN ({rewritten_items})"
+
+    sql_code = _CSV_TEXT_LEFT_COMPARISON_RE.sub(replace_left, sql_code)
+    sql_code = _CSV_TEXT_RIGHT_COMPARISON_RE.sub(replace_right, sql_code)
+    return _CSV_TEXT_IN_RE.sub(replace_in, sql_code)
+
+
+def _rewrite_csv_text_numeric_comparisons(sql_query: str, dataset: Optional[str] = None) -> str:
+    out: List[str] = []
+    index = 0
+    length = len(sql_query)
+
+    while index < length:
+        start = index
+        while index < length:
+            char = sql_query[index]
+            if char == "'":
+                break
+            if char == "-" and index + 1 < length and sql_query[index + 1] == "-":
+                break
+            if char == "/" and index + 1 < length and sql_query[index + 1] == "*":
+                break
+            if char == "$":
+                match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", sql_query[index:])
+                if match:
+                    break
+            index += 1
+
+        if index > start:
+            out.append(_rewrite_csv_text_numeric_comparisons_in_code(sql_query[start:index], dataset))
+            continue
+
+        char = sql_query[index]
+        if char == "'":
+            index += 1
+            while index < length:
+                if sql_query[index] == "'":
+                    index += 1
+                    if index < length and sql_query[index] == "'":
+                        index += 1
+                        continue
+                    break
+                index += 1
+            out.append(sql_query[start:index])
+            continue
+
+        if char == "-" and index + 1 < length and sql_query[index + 1] == "-":
+            end = sql_query.find("\n", index + 2)
+            if end == -1:
+                out.append(sql_query[index:])
+                break
+            out.append(sql_query[index:end])
+            index = end
+            continue
+
+        if char == "/" and index + 1 < length and sql_query[index + 1] == "*":
+            end = sql_query.find("*/", index + 2)
+            if end == -1:
+                out.append(sql_query[index:])
+                break
+            out.append(sql_query[index : end + 2])
+            index = end + 2
+            continue
+
+        match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", sql_query[index:])
+        if match:
+            tag = match.group(0)
+            end = sql_query.find(tag, index + len(tag))
+            if end == -1:
+                out.append(sql_query[index:])
+                break
+            out.append(sql_query[index : end + len(tag)])
+            index = end + len(tag)
+            continue
+
+        out.append(char)
+        index += 1
+
+    return "".join(out)
+
+
+def _service_sql_for_dataset(sql_query: str, dataset: Optional[str] = None) -> str:
+    quoted_sql = _quote_sql_columns_for_dataset(sql_query, dataset)
+    return _rewrite_csv_text_numeric_comparisons(quoted_sql, dataset)
 
 
 def _dataset_runtime(dataset: Optional[str] = None) -> DatasetRuntime:
@@ -1648,7 +1838,7 @@ def _run_ui_ap_explanation(
     leaf_outputs: List[Dict[str, Any]],
     dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
-    service_sql_query = _quote_sql_columns_for_dataset(sql_query, dataset)
+    service_sql_query = _service_sql_for_dataset(sql_query, dataset)
     planner_result = {
         "sql": sql_query,
         "plan": plan,
@@ -1710,7 +1900,7 @@ def _run_ui_ap_explanation_for_csv_files(
     csv_files: List[str],
     dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
-    service_sql_query = _quote_sql_columns_for_dataset(sql_query, dataset)
+    service_sql_query = _service_sql_for_dataset(sql_query, dataset)
     explanation_client = ExplanationClient(
         base_url=EXPLANATION_URL,
         post_endpoint=EXPLANATION_ENDPOINT,
@@ -2620,7 +2810,7 @@ def chat_completions(
                     explanation_client=explanation_client,
                     delimiter=EXPLANATION_CSV_DELIMITER,
                     keep_rownum=EXPLANATION_KEEP_ROWNUM,
-                    service_sql_query=_quote_sql_columns_for_dataset(question, dataset),
+                    service_sql_query=_service_sql_for_dataset(question, dataset),
                 )
 
                 response_text = pipeline_result["response_text"]
