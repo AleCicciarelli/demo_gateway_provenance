@@ -118,11 +118,15 @@ EXPLANATION_POSTGRES_PASSWORD = os.getenv("EXPLANATION_POSTGRES_PASSWORD", "prov
 # una pipeline explanation alla volta per evitare che due pipeline concorrenti scrivano i csv nella stessa cartella del bucket
 _EXPLANATION_PIPELINE_LOCK = threading.Lock()
 PLANNER_ONLY_MODEL_ID = "planner-only"
+PLANNER_ONLY_PUSHDOWN_MODEL_ID = "planner-only-pushdown"
 PLANNER_ONLY_EXPLANATION_MODEL_ID = "planner-only-explanation"
 PLANNER_ONLY_ALIASES = {
     "planner only": PLANNER_ONLY_MODEL_ID,
     "planner-first": PLANNER_ONLY_MODEL_ID,
     "planner_first": PLANNER_ONLY_MODEL_ID,
+    "planner only pushdown": PLANNER_ONLY_PUSHDOWN_MODEL_ID,
+    "planner-first-pushdown": PLANNER_ONLY_PUSHDOWN_MODEL_ID,
+    "planner_first_pushdown": PLANNER_ONLY_PUSHDOWN_MODEL_ID,
     "planner only-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "planner-first-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "planner_first_explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
@@ -147,6 +151,9 @@ MODEL_ROUTING: Dict[str, str] = {
     PLANNER_ONLY_MODEL_ID: PLANNER_LLM_MODEL
     if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
     else os.getenv("OLLAMA_MODEL_PLANNER_FIRST", PLANNER_LLM_MODEL),
+    PLANNER_ONLY_PUSHDOWN_MODEL_ID: PLANNER_LLM_MODEL
+    if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
+    else os.getenv("OLLAMA_MODEL_PLANNER_FIRST_PUSHDOWN", PLANNER_LLM_MODEL),
     PLANNER_ONLY_EXPLANATION_MODEL_ID: PLANNER_LLM_MODEL
     if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
     else os.getenv("OLLAMA_MODEL_PLANNER_FIRST_EXPLANATION", PLANNER_LLM_MODEL),
@@ -161,6 +168,7 @@ EXPOSED_MODEL_IDS = [
     "best-ft-llama3-8b-nl",
     "best-ft-llama3-8b-sql",
     PLANNER_ONLY_MODEL_ID,
+    PLANNER_ONLY_PUSHDOWN_MODEL_ID,
     PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "internal-knowledge",
 ]
@@ -1224,7 +1232,22 @@ def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict
 # Planner-only helpers
 # =========================
 
-def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
+def _dedupe_strings(values: List[Any]) -> List[str]:
+    seen: set[str] = set()
+    deduped: List[str] = []
+    for value in values:
+        text = str(value).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        deduped.append(text)
+    return deduped
+
+
+def _build_leaf_retrieval_query(
+    task: Dict[str, Any],
+    include_pushdown: bool = False,
+) -> str:
     """
     Build a retrieval query for one leaf task.
     """
@@ -1243,11 +1266,35 @@ def _build_leaf_retrieval_query(task: Dict[str, Any]) -> str:
             query += " | columns: " + ", ".join(columns)
         return query
     """
-    # if the embedding is bge m3, we build a natural language query instead of a table/columns query:
+    # For the default pipeline, keep the broad table-level retrieval baseline.
+    # The pushdown pipeline includes local predicates so entity/value tokens reach FAISS.
     table = str(task.get("table_name") or task.get("table") or "").strip()
-    if table:
+    if table and not include_pushdown:
         return f"Retrieve relevant rows for table '{table}'"
-    return "Retrieve relevant rows for this task"
+
+    predicates = _dedupe_strings(task.get("local_predicates") or [])
+    columns = _dedupe_strings(
+        [
+            *(task.get("select_columns") or []),
+            *(task.get("join_keys") or []),
+            *(task.get("group_by_columns") or []),
+            *(task.get("aggregate_columns") or []),
+            *(task.get("columns") or []),
+        ]
+    )
+
+    parts: List[str] = []
+    if table:
+        parts.append(f"Retrieve rows from table '{table}'")
+    else:
+        parts.append("Retrieve relevant rows for this task")
+
+    if predicates:
+        parts.append("where " + " and ".join(predicates))
+    if columns:
+        parts.append("needed columns: " + ", ".join(columns))
+
+    return ". ".join(parts)
 
 def _leaf_rows_by_id(ctx: Dict[str, Any], table_name: str) -> Dict[str, Dict[str, Any]]:
     return dict(ctx.get(table_name) or {})
@@ -1390,6 +1437,11 @@ def _raw_model_leaf_output(
         "model_provider": model_provider,
     }
 
+
+def _pipeline_uses_pushdown_retrieval(pipeline: str) -> bool:
+    return _canonical_pipeline_id(pipeline) == PLANNER_ONLY_PUSHDOWN_MODEL_ID
+
+
 def _run_ui_leaf_pipeline(
     task: Dict[str, Any],
     pipeline: str,
@@ -1398,7 +1450,10 @@ def _run_ui_leaf_pipeline(
     dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
     pipeline = _canonical_pipeline_id(pipeline)
-    retrieval_query = _build_leaf_retrieval_query(task)
+    retrieval_query = _build_leaf_retrieval_query(
+        task,
+        include_pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
+    )
 
     if pipeline == "manual":
         ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
@@ -1447,13 +1502,13 @@ def _run_ui_leaf_pipeline(
             raw_output=raw_output,
         )
 
-    if pipeline != PLANNER_ONLY_MODEL_ID:
+    if pipeline not in {PLANNER_ONLY_MODEL_ID, PLANNER_ONLY_PUSHDOWN_MODEL_ID}:
         raise ValueError(f"Unsupported UI pipeline: {pipeline}")
 
     ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
     return _run_leaf_task(
         task=task,
-        ollama_model=MODEL_ROUTING[PLANNER_ONLY_MODEL_ID],
+        ollama_model=MODEL_ROUTING[pipeline],
         model_provider=PLANNER_LLM_PROVIDER,
         temperature=temperature,
         ctx=ctx,
@@ -1515,12 +1570,12 @@ def _run_ui_leaf_pipeline_with_context(
             retrieval_query=retrieval_query,
         )
 
-    if pipeline != PLANNER_ONLY_MODEL_ID:
+    if pipeline not in {PLANNER_ONLY_MODEL_ID, PLANNER_ONLY_PUSHDOWN_MODEL_ID}:
         raise ValueError(f"Unsupported UI pipeline: {pipeline}")
 
     return _run_leaf_task(
         task=task,
-        ollama_model=MODEL_ROUTING[PLANNER_ONLY_MODEL_ID],
+        ollama_model=MODEL_ROUTING[pipeline],
         model_provider=PLANNER_LLM_PROVIDER,
         temperature=temperature,
         ctx=ctx,
@@ -2318,7 +2373,10 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         dataset=dataset,
                     )
                 else:
-                    retrieval_query = _build_leaf_retrieval_query(task)
+                    retrieval_query = _build_leaf_retrieval_query(
+                        task,
+                        include_pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
+                    )
                     ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
                     yield encode_event("leaf_context", {
                         "table": table_name,
@@ -2326,6 +2384,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         "message": f"Context retrieved for {table_name}.",
                         "rows": _context_row_count(ctx),
                         "tables": sorted(ctx.keys()),
+                        "retrieval_query": retrieval_query,
                         "context_preview": _context_preview(ctx),
                     })
                     leaf_output = _run_ui_leaf_pipeline_with_context(

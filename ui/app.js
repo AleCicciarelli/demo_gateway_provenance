@@ -6,6 +6,7 @@ const BACKEND_ENDPOINTS = {
 
 const PIPELINES = [
   { id: "planner-only", label: "Planner only" },
+  { id: "planner-only-pushdown", label: "Planner only + pushdown" },
   { id: "planner-only-explanation", label: "Planner only + explanation" },
   { id: "rag", label: "RAG" },
   { id: "internal-knowledge", label: "Internal knowledge" },
