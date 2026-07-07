@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 import html
 import json
 import os
+import re
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -275,6 +276,93 @@ DATASET_ALIASES = {
 }
 
 _DATASET_RUNTIMES: Dict[str, DatasetRuntime] = {}
+_IDENTIFIER_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+
+def _identifier_needs_quotes(identifier: str) -> bool:
+    return not bool(_IDENTIFIER_RE.match(identifier)) or identifier.upper() in {
+        "ALL",
+        "ANALYSE",
+        "ANALYZE",
+        "AND",
+        "ANY",
+        "ARRAY",
+        "AS",
+        "ASC",
+        "ASYMMETRIC",
+        "BOTH",
+        "CASE",
+        "CAST",
+        "CHECK",
+        "COLLATE",
+        "COLUMN",
+        "CONSTRAINT",
+        "CREATE",
+        "CURRENT_CATALOG",
+        "CURRENT_DATE",
+        "CURRENT_ROLE",
+        "CURRENT_TIME",
+        "CURRENT_TIMESTAMP",
+        "CURRENT_USER",
+        "DEFAULT",
+        "DEFERRABLE",
+        "DESC",
+        "DISTINCT",
+        "DO",
+        "ELSE",
+        "END",
+        "EXCEPT",
+        "FALSE",
+        "FETCH",
+        "FOR",
+        "FOREIGN",
+        "FROM",
+        "GRANT",
+        "GROUP",
+        "HAVING",
+        "IN",
+        "INITIALLY",
+        "INTERSECT",
+        "INTO",
+        "LATERAL",
+        "LEADING",
+        "LIMIT",
+        "LOCALTIME",
+        "LOCALTIMESTAMP",
+        "NOT",
+        "NULL",
+        "OFFSET",
+        "ON",
+        "ONLY",
+        "OR",
+        "ORDER",
+        "PLACING",
+        "PRIMARY",
+        "REFERENCES",
+        "RETURNING",
+        "SELECT",
+        "SESSION_USER",
+        "SOME",
+        "SYMMETRIC",
+        "TABLE",
+        "THEN",
+        "TO",
+        "TRAILING",
+        "TRUE",
+        "UNION",
+        "UNIQUE",
+        "USER",
+        "USING",
+        "VARIADIC",
+        "WHEN",
+        "WHERE",
+        "WINDOW",
+        "WITH",
+    }
+
+
+def _quote_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
 
 
 def _normalize_dataset(dataset: Optional[str]) -> str:
@@ -288,6 +376,110 @@ def _normalize_dataset(dataset: Optional[str]) -> str:
 
 def _dataset_config(dataset: Optional[str] = None) -> DatasetConfig:
     return DATASET_CONFIGS[_normalize_dataset(dataset)]
+
+
+def _dataset_columns_requiring_quotes(dataset: Optional[str] = None) -> set[str]:
+    config = _dataset_config(dataset)
+    columns: set[str] = set()
+    for table_info in config.schema_info.values():
+        if not isinstance(table_info, dict):
+            continue
+        for column in table_info.get("columns") or []:
+            column_name = str(column)
+            if _identifier_needs_quotes(column_name):
+                columns.add(column_name)
+        row_id = table_info.get("row_id")
+        if row_id and _identifier_needs_quotes(str(row_id)):
+            columns.add(str(row_id))
+    return columns
+
+
+def _quote_sql_columns_for_dataset(sql_query: str, dataset: Optional[str] = None) -> str:
+    columns_to_quote = _dataset_columns_requiring_quotes(dataset)
+    if not columns_to_quote:
+        return sql_query
+
+    out: List[str] = []
+    index = 0
+    length = len(sql_query)
+
+    while index < length:
+        char = sql_query[index]
+
+        if char == "'":
+            start = index
+            index += 1
+            while index < length:
+                if sql_query[index] == "'":
+                    index += 1
+                    if index < length and sql_query[index] == "'":
+                        index += 1
+                        continue
+                    break
+                index += 1
+            out.append(sql_query[start:index])
+            continue
+
+        if char == '"':
+            start = index
+            index += 1
+            while index < length:
+                if sql_query[index] == '"':
+                    index += 1
+                    if index < length and sql_query[index] == '"':
+                        index += 1
+                        continue
+                    break
+                index += 1
+            out.append(sql_query[start:index])
+            continue
+
+        if char == "-" and index + 1 < length and sql_query[index + 1] == "-":
+            end = sql_query.find("\n", index + 2)
+            if end == -1:
+                out.append(sql_query[index:])
+                break
+            out.append(sql_query[index:end])
+            index = end
+            continue
+
+        if char == "/" and index + 1 < length and sql_query[index + 1] == "*":
+            end = sql_query.find("*/", index + 2)
+            if end == -1:
+                out.append(sql_query[index:])
+                break
+            out.append(sql_query[index : end + 2])
+            index = end + 2
+            continue
+
+        if char == "$":
+            match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*\$|\$\$", sql_query[index:])
+            if match:
+                tag = match.group(0)
+                end = sql_query.find(tag, index + len(tag))
+                if end != -1:
+                    out.append(sql_query[index : end + len(tag)])
+                    index = end + len(tag)
+                    continue
+
+        if char.isalpha() or char == "_":
+            start = index
+            index += 1
+            while index < length and (
+                sql_query[index].isalnum() or sql_query[index] in {"_", "$"}
+            ):
+                index += 1
+            identifier = sql_query[start:index]
+            if identifier in columns_to_quote:
+                out.append(_quote_identifier(identifier))
+            else:
+                out.append(identifier)
+            continue
+
+        out.append(char)
+        index += 1
+
+    return "".join(out)
 
 
 def _dataset_runtime(dataset: Optional[str] = None) -> DatasetRuntime:
@@ -1399,7 +1591,9 @@ def _run_ui_ap_explanation(
     sql_query: str,
     plan: Dict[str, Any],
     leaf_outputs: List[Dict[str, Any]],
+    dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
+    service_sql_query = _quote_sql_columns_for_dataset(sql_query, dataset)
     planner_result = {
         "sql": sql_query,
         "plan": plan,
@@ -1420,11 +1614,13 @@ def _run_ui_ap_explanation(
             explanation_client=explanation_client,
             delimiter=EXPLANATION_CSV_DELIMITER,
             keep_rownum=EXPLANATION_KEEP_ROWNUM,
+            service_sql_query=service_sql_query,
         )
 
     return {
         "scope": "query",
         "query_sql": sql_query,
+        "service_sql": service_sql_query,
         "generated_csv_files": pipeline_result["generated_csv_files"],
         "explanation_output": pipeline_result["explanation_output"],
         "response_text": pipeline_result["response_text"],
@@ -1457,14 +1653,16 @@ def _generate_ui_csv_files(
 def _run_ui_ap_explanation_for_csv_files(
     sql_query: str,
     csv_files: List[str],
+    dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
+    service_sql_query = _quote_sql_columns_for_dataset(sql_query, dataset)
     explanation_client = ExplanationClient(
         base_url=EXPLANATION_URL,
         post_endpoint=EXPLANATION_ENDPOINT,
         timeout=EXPLANATION_REQUEST_TIMEOUT,
     )
     explanation_output = explanation_client.run_explanation(
-        sql_query=sql_query,
+        sql_query=service_sql_query,
         csv_files=csv_files,
         delimiter=EXPLANATION_CSV_DELIMITER,
     )
@@ -1483,6 +1681,7 @@ def _run_ui_ap_explanation_for_csv_files(
     return {
         "scope": "query",
         "query_sql": sql_query,
+        "service_sql": service_sql_query,
         "generated_csv_files": csv_files,
         "explanation_output": explanation_output,
         "response_text": response_text,
@@ -1998,6 +2197,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
                 sql_query=sql_query,
                 plan=req.plan,
                 leaf_outputs=leaf_outputs,
+                dataset=dataset,
             )
             explanations.append(explanation)
             answer = _answer_from_ap_explanation(explanation)
@@ -2165,6 +2365,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                     explanation = _run_ui_ap_explanation_for_csv_files(
                         sql_query=sql_query,
                         csv_files=generated_csv_files,
+                        dataset=dataset,
                     )
                     explanations.append(explanation)
                     answer = _answer_from_ap_explanation(explanation)
@@ -2360,6 +2561,7 @@ def chat_completions(
                     explanation_client=explanation_client,
                     delimiter=EXPLANATION_CSV_DELIMITER,
                     keep_rownum=EXPLANATION_KEEP_ROWNUM,
+                    service_sql_query=_quote_sql_columns_for_dataset(question, dataset),
                 )
 
                 response_text = pipeline_result["response_text"]

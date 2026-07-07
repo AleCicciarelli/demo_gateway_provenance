@@ -46,6 +46,7 @@ def run_planner_first_explanation_pipeline(
     explanation_client: ExplanationClient,
     delimiter: str = ",",
     keep_rownum: bool = False,
+    service_sql_query: str | None = None,
 ) -> Dict[str, Any]:
     clean_bucket(bucket_dir)
 
@@ -57,7 +58,7 @@ def run_planner_first_explanation_pipeline(
     )
 
     explanation_output = explanation_client.run_explanation(
-        sql_query=sql_query,
+        sql_query=service_sql_query or sql_query,
         csv_files=generated_csv_files,
         delimiter=delimiter,
     )
