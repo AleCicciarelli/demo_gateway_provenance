@@ -63,6 +63,8 @@ DEFAULT_DATASET = os.getenv("DEFAULT_DATASET", os.getenv("DATASET", "tpch")).str
 CSV_DIR = os.getenv("CSV_DIR", "/app/tpch_no_provsql")
 MAX_CONTEXT_ROWS = int(os.getenv("MAX_CONTEXT_ROWS", "37"))
 MAX_TABLES = int(os.getenv("MAX_TABLES", "5"))
+INCLUDE_CORRELATED_CONTEXT_ROWS = _env_bool("INCLUDE_CORRELATED_CONTEXT_ROWS", True)
+MAX_CORRELATED_CONTEXT_ROWS = int(os.getenv("MAX_CORRELATED_CONTEXT_ROWS", "24"))
 GATEWAY_RESPONSE_FORMAT = os.getenv("GATEWAY_RESPONSE_FORMAT", "json").strip().lower()
 GATEWAY_MARKDOWN_INCLUDE_RAW = os.getenv("GATEWAY_MARKDOWN_INCLUDE_RAW", "false").strip().lower() in {
     "1",
@@ -1219,6 +1221,99 @@ def _resolve_row_by_rid(rid: str, dataset: Optional[str] = None) -> Optional[Dic
     }
 
 
+def _values_equal_for_context(left: Any, right: Any) -> bool:
+    return str(left if left is not None else "").strip() == str(right if right is not None else "").strip()
+
+
+def _resolve_row_by_column_values(
+    table: str,
+    columns: List[str],
+    values: List[Any],
+    dataset: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    if not table or not columns or len(columns) != len(values):
+        return None
+
+    _load_csvs_once(dataset)
+    runtime = _dataset_runtime(dataset)
+    for row in runtime.csv_cache.get(table, []):
+        if all(_values_equal_for_context(row.get(col), value) for col, value in zip(columns, values)):
+            rid = str(row.get("__rid__") or row.get(f"{table}_rownum") or "").strip()
+            if not rid:
+                return None
+            return {
+                "table": table,
+                "rid": rid,
+                "row": row,
+            }
+
+    return None
+
+
+def _resolve_linked_context_row(
+    linked: Dict[str, Any],
+    dataset: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    rid = str(linked.get("rid") or linked.get("row_id") or linked.get("rownum_value") or "").strip()
+    if rid:
+        resolved = _resolve_row_by_rid(rid, dataset)
+        if resolved is not None:
+            return resolved
+
+    return _resolve_row_by_column_values(
+        table=str(linked.get("to_table") or ""),
+        columns=[str(col) for col in (linked.get("to_columns") or [])],
+        values=list(linked.get("from_values") or linked.get("to_values") or []),
+        dataset=dataset,
+    )
+
+
+def _add_correlated_rows_from_metadata(
+    ctx: Dict[str, Any],
+    metadata: Dict[str, Any],
+    dataset: Optional[str] = None,
+    remaining: Optional[int] = None,
+) -> Tuple[int, List[Dict[str, str]]]:
+    if not INCLUDE_CORRELATED_CONTEXT_ROWS:
+        return 0, []
+    if remaining is not None and remaining <= 0:
+        return 0, []
+
+    linked_rows = metadata.get("linked_rows") or []
+    if not isinstance(linked_rows, list):
+        return 0, []
+
+    added = 0
+    additions: List[Dict[str, str]] = []
+    for linked in linked_rows:
+        if remaining is not None and added >= remaining:
+            break
+        if not isinstance(linked, dict):
+            continue
+
+        resolved = _resolve_linked_context_row(linked, dataset)
+        if resolved is None:
+            continue
+
+        table = resolved["table"]
+        rid = resolved["rid"]
+        if table not in ctx and len(ctx) >= MAX_TABLES:
+            continue
+        if rid in ctx[table]:
+            continue
+
+        ctx[table][rid] = resolved["row"]
+        added += 1
+        additions.append({
+            "table": table,
+            "rid": rid,
+            "source_table": str(metadata.get("table") or ""),
+            "source_rid": str(metadata.get("rid") or metadata.get("rownum_value") or ""),
+        })
+
+    return added, additions
+
+
 # =========================
 # Retrieval and indexing
 # ========================
@@ -1266,12 +1361,14 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
 
     ctx: Dict[str, Any] = defaultdict(dict)
     seen_docs = set()
+    correlated_rows_added = 0
     k = RETRIEVER_K
 
     for iteration in range(1, MAX_ITERATIVE_RETRIEVALS + 1):
         docs = vs.similarity_search(question, k=k)
         new_count = 0
         new_rids = []
+        correlated_additions: List[Dict[str, str]] = []
 
         print(f"\n[ITERATION {iteration}] k={k} | docs_returned={len(docs)}", flush=True)
 
@@ -1293,13 +1390,32 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
             if table not in ctx and len(ctx) >= MAX_TABLES:
                 continue
 
+            if rid in ctx[table]:
+                seen_docs.add(rid)
+                continue
+
             row = runtime.csv_cache[table][idx0]
             ctx[table][rid] = row
             seen_docs.add(rid)
             new_count += 1
             new_rids.append((rank, table, rid))
 
+            remaining_correlated = max(MAX_CORRELATED_CONTEXT_ROWS - correlated_rows_added, 0)
+            added, additions = _add_correlated_rows_from_metadata(
+                ctx,
+                meta,
+                dataset=config.name,
+                remaining=remaining_correlated,
+            )
+            correlated_rows_added += added
+            correlated_additions.extend(additions)
+
         print(f"[ITERATION {iteration}] new_rows_added={new_count}", flush=True)
+        if correlated_additions:
+            print(
+                f"[ITERATION {iteration}] correlated_rows_added={len(correlated_additions)}",
+                flush=True,
+            )
 
         for rank, table, rid in new_rids:
             print(f"  + rank={rank:>3} | table={table:<12} | rid={rid}", flush=True)
@@ -1336,6 +1452,8 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
             ],
             "tables": list(ctx.keys()),
             "new_rows": new_rows,
+            "correlated_rows_added": len(correlated_additions),
+            "correlated_rows": correlated_additions,
             "context_data": ctx_snapshot,
             "context_rows_total": sum(len(rows) for rows in ctx_snapshot.values()),
             "question": question,
@@ -1364,6 +1482,7 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
         "tables": list(ctx.keys()),
         "rows_preview": preview,
         "final_rids": final_rids,
+        "correlated_rows_added": correlated_rows_added,
         "context_data": final_context_data,
         "context_rows_total": sum(len(rows) for rows in final_context_data.values()),
         "question": question,
@@ -1380,6 +1499,8 @@ def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict
 
     ctx: Dict[str, Any] = defaultdict(dict)
     used = 0
+    correlated_rows_added = 0
+    correlated_additions: List[Dict[str, str]] = []
 
     for d in docs:
         meta = d.metadata or {}
@@ -1400,6 +1521,17 @@ def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict
 
         ctx[table][rid] = row
         used += 1
+
+        remaining_correlated = max(MAX_CORRELATED_CONTEXT_ROWS - correlated_rows_added, 0)
+        added, additions = _add_correlated_rows_from_metadata(
+            ctx,
+            meta,
+            dataset=config.name,
+            remaining=remaining_correlated,
+        )
+        correlated_rows_added += added
+        correlated_additions.extend(additions)
+
         if used >= MAX_CONTEXT_ROWS:
             break
 
@@ -1414,6 +1546,8 @@ def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict
         "rows_preview": preview,
         "context_data": ctx,
         "n_rows_used": used,
+        "correlated_rows_added": correlated_rows_added,
+        "correlated_rows": correlated_additions,
         "question": question,
     })
 
