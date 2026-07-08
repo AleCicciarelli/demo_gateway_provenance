@@ -8,6 +8,7 @@ const PIPELINES = [
   { id: "planner-only", label: "Planner only" },
   { id: "planner-only-pushdown", label: "Planner only + pushdown" },
   { id: "planner-only-explanation", label: "Planner only + explanation" },
+  { id: "iterative-join-aware", label: "Iterative join-aware" },
   { id: "rag", label: "RAG" },
   { id: "internal-knowledge", label: "Internal knowledge" },
   { id: "manual", label: "Manual review" },
@@ -606,6 +607,10 @@ function pushProgress(event, tone = "info") {
     pipeline: event.pipeline,
     rows: event.rows,
     files: event.files,
+    retrievalQuery: event.retrieval_query,
+    iterativeStep: event.iterative_step,
+    inheritedBindings: event.inherited_bindings,
+    sourceRowIds: event.source_row_ids,
     contextPreview: event.context_preview,
   });
 }
@@ -821,11 +826,43 @@ function renderProgress(progress) {
                 <span>${escapeHtml(item.message)}</span>
                 ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
               </div>
+              ${renderProgressDetails(item)}
               ${renderContextPreview(item.contextPreview)}
             </div>
           `;
         })
         .join("")}
+    </div>
+  `;
+}
+
+function renderProgressDetails(item) {
+  const hasRetrieval = typeof item.retrievalQuery === "string" && item.retrievalQuery.trim();
+  const hasBindings = item.inheritedBindings
+    && typeof item.inheritedBindings === "object"
+    && Object.keys(item.inheritedBindings).length;
+  const hasSources = Array.isArray(item.sourceRowIds) && item.sourceRowIds.length;
+  const hasStep = Number.isFinite(item.iterativeStep);
+
+  if (!hasRetrieval && !hasBindings && !hasSources && !hasStep) {
+    return "";
+  }
+
+  return `
+    <div class="progress-details">
+      ${hasStep ? renderProgressDetail("Step", item.iterativeStep) : ""}
+      ${hasRetrieval ? renderProgressDetail("Retrieval query", item.retrievalQuery) : ""}
+      ${hasBindings ? renderProgressDetail("Inherited bindings", JSON.stringify(item.inheritedBindings)) : ""}
+      ${hasSources ? renderProgressDetail("Source rows", item.sourceRowIds.join(", ")) : ""}
+    </div>
+  `;
+}
+
+function renderProgressDetail(label, value) {
+  return `
+    <div class="progress-detail">
+      <span>${escapeHtml(label)}</span>
+      <code>${escapeHtml(value)}</code>
     </div>
   `;
 }

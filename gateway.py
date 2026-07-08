@@ -20,6 +20,7 @@ from explanation_client import ExplanationClient
 from explanation_pipeline import run_planner_first_explanation_pipeline
 from json_to_csv import clean_bucket, planner_result_to_csv_files
 from faiss_index_manager import FaissIndexManager
+from iterative_join_pipeline import run_iterative_join_pipeline
 from prompt import build_leaf_prompt
 from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE
 from tpch_schema_info import SCHEMA_INFO as TPCH_SCHEMA_INFO
@@ -122,6 +123,7 @@ _EXPLANATION_PIPELINE_LOCK = threading.Lock()
 PLANNER_ONLY_MODEL_ID = "planner-only"
 PLANNER_ONLY_PUSHDOWN_MODEL_ID = "planner-only-pushdown"
 PLANNER_ONLY_EXPLANATION_MODEL_ID = "planner-only-explanation"
+ITERATIVE_PIPELINE_MODEL_ID = "iterative-join-aware"
 PLANNER_ONLY_ALIASES = {
     "planner only": PLANNER_ONLY_MODEL_ID,
     "planner-first": PLANNER_ONLY_MODEL_ID,
@@ -132,6 +134,8 @@ PLANNER_ONLY_ALIASES = {
     "planner only-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "planner-first-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "planner_first_explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
+    "iterative join aware": ITERATIVE_PIPELINE_MODEL_ID,
+    "iterative-join-aware": ITERATIVE_PIPELINE_MODEL_ID,
 }
 
 
@@ -160,6 +164,7 @@ MODEL_ROUTING: Dict[str, str] = {
     if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
     else os.getenv("OLLAMA_MODEL_PLANNER_FIRST_EXPLANATION", PLANNER_LLM_MODEL),
     "internal-knowledge": os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", "llama3:8b"),
+    ITERATIVE_PIPELINE_MODEL_ID: os.getenv("OLLAMA_MODEL_ITERATIVE_PIPELINE", PLANNER_LLM_MODEL),
 }
 for alias, canonical in PLANNER_ONLY_ALIASES.items():
     MODEL_ROUTING.setdefault(alias, MODEL_ROUTING[canonical])
@@ -173,6 +178,7 @@ EXPOSED_MODEL_IDS = [
     PLANNER_ONLY_PUSHDOWN_MODEL_ID,
     PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "internal-knowledge",
+    ITERATIVE_PIPELINE_MODEL_ID,
 ]
 EXPOSED_MODELS = [{"id": mid, "object": "model"} for mid in EXPOSED_MODEL_IDS]
 
@@ -196,7 +202,6 @@ class DatasetRuntime:
     global_rid_index: Dict[str, Tuple[str, int]]
     embeddings: Optional[EmbeddingStrategies]
     faiss_manager: Optional[FaissIndexManager]
-
 
 def _schema_info_from_profile(profile_path: str) -> Dict[str, Any]:
     path = Path(profile_path)
@@ -1906,6 +1911,46 @@ def _run_ui_leaf_pipeline_with_context(
         retrieval_query=retrieval_query,
     )
 
+def _ui_uses_iterative_join_pipeline(
+    leaf_tasks: List[Dict[str, Any]],
+    leaf_pipeline_choices: Dict[str, str],
+) -> bool:
+    for task in leaf_tasks:
+        if not isinstance(task, dict):
+            continue
+        table_name = str(task.get("table_name") or task.get("table") or "").strip()
+        pipeline = _canonical_pipeline_id(leaf_pipeline_choices.get(table_name))
+        if pipeline == ITERATIVE_PIPELINE_MODEL_ID:
+            return True
+    return False
+
+def _run_ui_iterative_join_pipeline(
+    sql_query: str,
+    plan: Dict[str, Any],
+    temperature: float,
+    dataset: str,
+) -> Dict[str, Any]:
+    def run_leaf(task: Dict[str, Any], retrieval_query: str) -> Dict[str, Any]:
+        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
+        return _run_leaf_task(
+            task=task,
+            ollama_model=MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
+            model_provider=PLANNER_LLM_PROVIDER,
+            temperature=temperature,
+            ctx=ctx,
+            retrieval_query=retrieval_query,
+        )
+
+    return run_iterative_join_pipeline(
+        sql_query=sql_query,
+        plan=plan,
+        dataset=dataset,
+        pipeline_id=ITERATIVE_PIPELINE_MODEL_ID,
+        run_leaf=run_leaf,
+        build_base_retrieval_query=_build_leaf_retrieval_query,
+        log_event=_log_event,
+    )
+
 def _ui_rows_from_leaf_outputs(
     leaf_outputs: List[Dict[str, Any]],
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any], List[str]]:
@@ -2544,29 +2589,46 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
 
     try:
         dataset = _dataset_config(req.dataset).name
-        for task in leaf_tasks:
-            if not isinstance(task, dict):
-                continue
-
-            table_name = str(task.get("table_name") or task.get("table") or "").strip()
-            pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
-            print(
-                f"\n[UI] Running table '{table_name}' with pipeline '{pipeline}'\n",
-                flush=True,
-            )
-            leaf_output = _run_ui_leaf_pipeline(
-                task=task,
-                pipeline=pipeline,
+        if _ui_uses_iterative_join_pipeline(leaf_tasks, req.leaf_pipeline_choices):
+            print("\n[UI] Running iterative join-aware query pipeline\n", flush=True)
+            planner_result = _run_ui_iterative_join_pipeline(
                 sql_query=sql_query,
+                plan=req.plan,
                 temperature=temperature,
                 dataset=dataset,
             )
-            leaf_output["pipeline"] = pipeline
-            leaf_outputs.append(leaf_output)
-            pipeline_choices.append({
-                "table": table_name,
-                "pipeline": pipeline,
-            })
+            leaf_outputs = planner_result.get("leaf_outputs") or []
+            pipeline_choices = [
+                {
+                    "table": str(leaf.get("table_name") or ""),
+                    "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                }
+                for leaf in leaf_outputs
+            ]
+        else:
+            for task in leaf_tasks:
+                if not isinstance(task, dict):
+                    continue
+
+                table_name = str(task.get("table_name") or task.get("table") or "").strip()
+                pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
+                print(
+                    f"\n[UI] Running table '{table_name}' with pipeline '{pipeline}'\n",
+                    flush=True,
+                )
+                leaf_output = _run_ui_leaf_pipeline(
+                    task=task,
+                    pipeline=pipeline,
+                    sql_query=sql_query,
+                    temperature=temperature,
+                    dataset=dataset,
+                )
+                leaf_output["pipeline"] = pipeline
+                leaf_outputs.append(leaf_output)
+                pipeline_choices.append({
+                    "table": table_name,
+                    "pipeline": pipeline,
+                })
 
         _leaf_answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
         explanations: List[Dict[str, Any]] = []
@@ -2665,70 +2727,115 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 "leaf_count": len(leaf_tasks),
             })
 
-            for index, task in enumerate(leaf_tasks):
-                if not isinstance(task, dict):
-                    continue
-
-                table_name = str(task.get("table_name") or task.get("table") or "").strip()
-                pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
-                pipeline_choices.append({
-                    "table": table_name,
-                    "pipeline": pipeline,
-                })
+            if _ui_uses_iterative_join_pipeline(leaf_tasks, req.leaf_pipeline_choices):
                 yield encode_event("leaf_start", {
-                    "table": table_name,
-                    "pipeline": pipeline,
-                    "index": index + 1,
-                    "message": f"Running {table_name} with {pipeline}.",
+                    "table": "",
+                    "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                    "index": 1,
+                    "message": "Running iterative join-aware query pipeline.",
                 })
-
-                if pipeline == "internal-knowledge":
-                    yield encode_event("leaf_context", {
+                planner_result = _run_ui_iterative_join_pipeline(
+                    sql_query=sql_query,
+                    plan=req.plan,
+                    temperature=temperature,
+                    dataset=dataset,
+                )
+                leaf_outputs = planner_result.get("leaf_outputs") or []
+                for index, leaf_output in enumerate(leaf_outputs):
+                    table_name = str(leaf_output.get("table_name") or "")
+                    iterative_meta = leaf_output.get("iterative_join") or {}
+                    pipeline_choices.append({
                         "table": table_name,
-                        "pipeline": pipeline,
-                        "message": "No context retrieval needed for internal knowledge.",
-                        "rows": 0,
+                        "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
                     })
-                    leaf_output = _run_ui_leaf_pipeline(
-                        task=task,
-                        pipeline=pipeline,
-                        sql_query=sql_query,
-                        temperature=temperature,
-                        dataset=dataset,
-                    )
-                else:
-                    retrieval_query = _build_leaf_retrieval_query(
-                        task,
-                        include_pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
-                    )
-                    ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
+                    ctx = leaf_output.get("context_data") or {}
+                    parsed_rows = leaf_output.get("parsed_output") or []
                     yield encode_event("leaf_context", {
                         "table": table_name,
-                        "pipeline": pipeline,
-                        "message": f"Context retrieved for {table_name}.",
+                        "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                        "message": f"Iterative context retrieved for {table_name}.",
                         "rows": _context_row_count(ctx),
                         "tables": sorted(ctx.keys()),
-                        "retrieval_query": retrieval_query,
+                        "retrieval_query": leaf_output.get("retrieval_query", ""),
+                        "iterative_step": iterative_meta.get("step", index + 1),
+                        "inherited_bindings": iterative_meta.get("inherited_bindings") or {},
+                        "source_row_ids": iterative_meta.get("source_row_ids") or [],
                         "context_preview": _context_preview(ctx),
                     })
-                    leaf_output = _run_ui_leaf_pipeline_with_context(
-                        task=task,
-                        pipeline=pipeline,
-                        sql_query=sql_query,
-                        temperature=temperature,
-                        retrieval_query=retrieval_query,
-                        ctx=ctx,
-                    )
+                    yield encode_event("leaf_done", {
+                        "table": table_name,
+                        "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                        "iterative_step": iterative_meta.get("step", index + 1),
+                        "inherited_bindings": iterative_meta.get("inherited_bindings") or {},
+                        "source_row_ids": iterative_meta.get("source_row_ids") or [],
+                        "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
+                        "message": f"{table_name} iterative leaf step completed.",
+                    })
+            else:
+                for index, task in enumerate(leaf_tasks):
+                    if not isinstance(task, dict):
+                        continue
 
-                leaf_output["pipeline"] = pipeline
-                leaf_outputs.append(leaf_output)
-                parsed_rows = leaf_output.get("parsed_output") or []
-                yield encode_event("leaf_done", {
-                    "table": table_name,
-                    "pipeline": pipeline,
-                    "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
-                    "message": f"{table_name} leaf pipeline completed.",
-                })
+                    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+                    pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
+                    pipeline_choices.append({
+                        "table": table_name,
+                        "pipeline": pipeline,
+                    })
+                    yield encode_event("leaf_start", {
+                        "table": table_name,
+                        "pipeline": pipeline,
+                        "index": index + 1,
+                        "message": f"Running {table_name} with {pipeline}.",
+                    })
+
+                    if pipeline == "internal-knowledge":
+                        yield encode_event("leaf_context", {
+                            "table": table_name,
+                            "pipeline": pipeline,
+                            "message": "No context retrieval needed for internal knowledge.",
+                            "rows": 0,
+                        })
+                        leaf_output = _run_ui_leaf_pipeline(
+                            task=task,
+                            pipeline=pipeline,
+                            sql_query=sql_query,
+                            temperature=temperature,
+                            dataset=dataset,
+                        )
+                    else:
+                        retrieval_query = _build_leaf_retrieval_query(
+                            task,
+                            include_pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
+                        )
+                        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
+                        yield encode_event("leaf_context", {
+                            "table": table_name,
+                            "pipeline": pipeline,
+                            "message": f"Context retrieved for {table_name}.",
+                            "rows": _context_row_count(ctx),
+                            "tables": sorted(ctx.keys()),
+                            "retrieval_query": retrieval_query,
+                            "context_preview": _context_preview(ctx),
+                        })
+                        leaf_output = _run_ui_leaf_pipeline_with_context(
+                            task=task,
+                            pipeline=pipeline,
+                            sql_query=sql_query,
+                            temperature=temperature,
+                            retrieval_query=retrieval_query,
+                            ctx=ctx,
+                        )
+
+                    leaf_output["pipeline"] = pipeline
+                    leaf_outputs.append(leaf_output)
+                    parsed_rows = leaf_output.get("parsed_output") or []
+                    yield encode_event("leaf_done", {
+                        "table": table_name,
+                        "pipeline": pipeline,
+                        "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
+                        "message": f"{table_name} leaf pipeline completed.",
+                    })
 
             leaf_answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
 
@@ -2995,6 +3102,81 @@ def chat_completions(
                 status_code=500,
                 detail=f"planner only explanation pipeline failed: {e}",
             )
+
+    if ui_model == ITERATIVE_PIPELINE_MODEL_ID:
+        try:
+            plan = build_query_plan(question)
+            if plan is None:
+                raise RuntimeError("build_query_plan returned None")
+            planner_result = _run_ui_iterative_join_pipeline(
+                sql_query=question,
+                plan=plan.to_dict(),
+                temperature=temperature,
+                dataset=dataset,
+            )
+
+            with _EXPLANATION_PIPELINE_LOCK:
+                explanation_client = ExplanationClient(
+                    base_url=EXPLANATION_URL,
+                    post_endpoint=EXPLANATION_ENDPOINT,
+                    timeout=EXPLANATION_REQUEST_TIMEOUT,
+                )
+                pipeline_result = run_planner_first_explanation_pipeline(
+                    sql_query=question,
+                    planner_result=planner_result,
+                    bucket_dir=EXPLANATION_BUCKET_DIR,
+                    explanation_client=explanation_client,
+                    delimiter=EXPLANATION_CSV_DELIMITER,
+                    keep_rownum=EXPLANATION_KEEP_ROWNUM,
+                    service_sql_query=_service_sql_for_dataset(question, dataset),
+                )
+
+            response_text = pipeline_result["response_text"]
+            _log_event({
+                "type": "iterative_join_explanation_request",
+                "dataset": dataset,
+                "ui_model": ui_model,
+                "requested_model": req.model,
+                "request_id": request_id,
+                "ollama_model": ollama_model,
+                "model_provider": PLANNER_LLM_PROVIDER,
+                "temperature": temperature,
+                "sql_query": question,
+                "generated_csv_files": pipeline_result["generated_csv_files"],
+                "explanation_output": pipeline_result["explanation_output"],
+                "planner_result": planner_result,
+            })
+
+            created = _now()
+            return {
+                "id": f"chatcmpl-{created}",
+                "object": "chat.completion",
+                "created": created,
+                "model": ui_model,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": response_text,
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                },
+            }
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail=f"iterative join-aware pipeline failed: {e}",
+            )
+
     if req.model == "internal-knowledge":
         base_prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)
         out_text = _call_model_with_retry(ollama_model, base_prompt, temperature, max_tries=2)

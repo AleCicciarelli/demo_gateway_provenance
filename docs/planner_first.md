@@ -19,6 +19,8 @@ At the current stage, planner-only is an extraction pipeline. The gateway builds
 Related notes:
 
 - `docs/planner_first_results.md`: current planner-only result discussion.
+- `docs/iterative_join_aware_pipeline.md`: join-guided retrieval pipeline built
+  on top of planner leaf tasks.
 - `docs/internal_knowledge_logic_and_results.md`: internal-knowledge baseline logic and result discussion.
 
 ## Runtime Flow

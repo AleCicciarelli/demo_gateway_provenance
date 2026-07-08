@@ -559,6 +559,30 @@ select {
   text-align: right;
 }
 
+.progress-details {
+  display: grid;
+  gap: 6px;
+}
+
+.progress-detail {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.18fr) 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.progress-detail span {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.progress-detail code {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+}
+
 .context-preview {
   border-top: 1px solid rgba(15, 118, 110, 0.18);
   padding-top: 8px;
