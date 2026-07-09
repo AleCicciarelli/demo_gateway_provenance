@@ -1350,7 +1350,12 @@ def _get_or_build_faiss(dataset: Optional[str] = None):
 
     return runtime.faiss_manager.get_or_build()
 
-def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None) -> Dict[str, Any]:
+def retrieve_context_data_iterative(
+    question: str,
+    dataset: Optional[str] = None,
+    target_tables: Optional[List[str]] = None,
+    include_correlated_rows: bool = True,
+) -> Dict[str, Any]:
     """
     Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K
     in each iteration, until no new rows are retrieved or MAX_ITERATIVE_RETRIEVALS is reached.
@@ -1361,6 +1366,13 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
     print("\n[ITERATIVE RETRIEVAL] START", flush=True)
     print(f"[ITERATIVE RETRIEVAL] dataset={config.name}", flush=True)
     print(f"[ITERATIVE RETRIEVAL] question={question}", flush=True)
+    target_table_set = {
+        str(table).strip()
+        for table in (target_tables or [])
+        if str(table).strip()
+    }
+    if target_table_set:
+        print(f"[ITERATIVE RETRIEVAL] target_tables={sorted(target_table_set)}", flush=True)
 
     vs = _get_or_build_faiss(config.name)
 
@@ -1385,6 +1397,9 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
             if not table or not rid:
                 continue
 
+            if target_table_set and table not in target_table_set:
+                continue
+
             if rid in seen_docs:
                 continue
 
@@ -1405,15 +1420,16 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
             new_count += 1
             new_rids.append((rank, table, rid))
 
-            remaining_correlated = max(MAX_CORRELATED_CONTEXT_ROWS - correlated_rows_added, 0)
-            added, additions = _add_correlated_rows_from_metadata(
-                ctx,
-                meta,
-                dataset=config.name,
-                remaining=remaining_correlated,
-            )
-            correlated_rows_added += added
-            correlated_additions.extend(additions)
+            if include_correlated_rows:
+                remaining_correlated = max(MAX_CORRELATED_CONTEXT_ROWS - correlated_rows_added, 0)
+                added, additions = _add_correlated_rows_from_metadata(
+                    ctx,
+                    meta,
+                    dataset=config.name,
+                    remaining=remaining_correlated,
+                )
+                correlated_rows_added += added
+                correlated_additions.extend(additions)
 
         print(f"[ITERATION {iteration}] new_rows_added={new_count}", flush=True)
         if correlated_additions:
@@ -1462,6 +1478,7 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
             "context_data": ctx_snapshot,
             "context_rows_total": sum(len(rows) for rows in ctx_snapshot.values()),
             "question": question,
+            "target_tables": sorted(target_table_set),
         })
 
         if new_count == 0:
@@ -1491,6 +1508,7 @@ def retrieve_context_data_iterative(question: str, dataset: Optional[str] = None
         "context_data": final_context_data,
         "context_rows_total": sum(len(rows) for rows in final_context_data.values()),
         "question": question,
+        "target_tables": sorted(target_table_set),
     })
 
     return dict(ctx)

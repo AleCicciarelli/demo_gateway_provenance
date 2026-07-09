@@ -224,20 +224,28 @@ def run_leaf(task, retrieval_query):
 This means each iterative leaf still uses the existing:
 
 - FAISS row retrieval;
+- mixed-table row context;
 - correlated-row context expansion;
 - guided iterative leaf prompt from `prompt.py`;
 - model call and retry logic;
 - strict JSON validation and partial parsing.
 
+The retrieval query may include source-row values from previous leaves, such as
+race name and date, because those values can help FAISS find linked `results`
+documents. Rows from non-target tables can remain in `CONTEXT_DATA` and can be
+used by the model as evidence. The prompt still requires the output rows to come
+only from the target table.
+
 ### 7. Row Selection Happens in the Leaf Prompt
 
 The iterative controller does not filter `parsed_output` after the leaf model
-returns it. Instead, the iterative leaf prompt asks the model to select rows from
-the retrieved target-table context using:
+returns it. Instead, the iterative leaf prompt asks the model to inspect the full
+retrieved context and select target-table rows using:
 
 - local predicates from the leaf task;
 - inherited join bindings from earlier leaves;
-- source row ids that produced those bindings.
+- source row ids that produced those bindings;
+- other retrieved tables as supporting evidence.
 
 This is intentional. The pipeline uses retrieval plus model-side selection to
 collect candidate evidence rows, but it does not silently remove rows after the

@@ -232,14 +232,13 @@ You are a JSON extraction engine for one iterative join step.
 TARGET_TABLE:
 {table}
 
-Read only:
-CONTEXT_DATA["{table}"]
-
-Ignore every other table in CONTEXT_DATA.
+CONTEXT_DATA may contain several tables.
+You may inspect every table in CONTEXT_DATA to understand links, source rows, and nearby evidence.
+However, your output rows must come only from the TARGET_TABLE.
 If CONTEXT_DATA does not contain "{table}", return [].
 
 Your job is to select candidate source rows from the target table that are useful for this leaf step.
-Use the constraints below to choose rows from the retrieved context.
+Use the constraints below, the inherited bindings, and the other retrieved tables as evidence to choose rows from the target table.
 
 CONSTRAINTS:
 {constraints_block}
@@ -248,16 +247,19 @@ Selection rules:
 - Prefer rows that satisfy all LOCAL_PREDICATES.
 - Prefer rows whose columns match the INHERITED_JOIN_BINDINGS.
 - If a listed inherited binding column is present in a row, the row should match one of the listed values.
+- Use rows from other tables only as evidence for finding the right target-table rows.
+- It is valid and useful to compare target-table rows with linked/source rows from other tables.
 - If no row clearly satisfies the constraints, return [].
 - Do not compute the final SQL answer.
 - Do not execute joins, aggregation, grouping, ordering, limit, or projection.
-- Do not invent rows outside CONTEXT_DATA["{table}"].
+- Do not invent rows outside CONTEXT_DATA.
+- Do not output rows from non-target tables.
 
 Output rules:
 - Return ONLY valid JSON.
 - The output must be a JSON array.
 - Each output item must have exactly "row_id" and "values".
-- "row_id" must be the row dictionary key, such as "{table}_123".
+- "row_id" must be a row dictionary key from CONTEXT_DATA["{table}"], such as "{table}_123".
 - "values" must be the full row object copied exactly.
 - Copy strings exactly, including spaces.
 - Do not remove, rename, trim, or modify columns.
