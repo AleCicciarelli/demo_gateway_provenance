@@ -225,18 +225,23 @@ This means each iterative leaf still uses the existing:
 
 - FAISS row retrieval;
 - correlated-row context expansion;
-- leaf prompt from `prompt.py`;
+- guided iterative leaf prompt from `prompt.py`;
 - model call and retry logic;
 - strict JSON validation and partial parsing.
 
-### 7. No Post-Filtering Is Applied
+### 7. Row Selection Happens in the Leaf Prompt
 
 The iterative controller does not filter `parsed_output` after the leaf model
-returns it.
+returns it. Instead, the iterative leaf prompt asks the model to select rows from
+the retrieved target-table context using:
 
-This is intentional. The pipeline uses retrieval and the leaf model to collect
-candidate evidence rows. It does not silently remove rows based on local
-predicates or inherited join bindings.
+- local predicates from the leaf task;
+- inherited join bindings from earlier leaves;
+- source row ids that produced those bindings.
+
+This is intentional. The pipeline uses retrieval plus model-side selection to
+collect candidate evidence rows, but it does not silently remove rows after the
+model has returned them.
 
 If a leaf returns multiple candidate rows, all of those rows remain in
 `parsed_output`, and all eligible join-key values are propagated forward.
@@ -491,7 +496,7 @@ AP explanation service after CSV generation.
 
 - Join edge extraction assumes join columns appear in pairs in `on_columns`.
 - The controller propagates bindings from every row returned by the leaf model.
-- There is no post-filtering inside the controller.
+- There is no post-filtering inside the controller; row selection is prompt-side.
 - Broad leaves can therefore produce many bindings and widen later retrieval.
 - Complex join predicates beyond simple equality may need richer join-edge
   extraction.

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 
-LeafRunner = Callable[[Dict[str, Any], str], Dict[str, Any]]
+LeafRunner = Callable[[Dict[str, Any], str, Dict[str, List[str]], List[str]], Dict[str, Any]]
 BaseQueryBuilder = Callable[[Dict[str, Any], bool], str]
 LogEvent = Callable[[Dict[str, Any]], None]
 
@@ -60,10 +60,12 @@ def run_iterative_join_pipeline(
         table = _task_table(task)
         inherited = _bindings_for_table(state, table)
         source_row_ids = _source_row_ids_for_table(state, table)
+        source_row_summaries = _source_row_summaries_for_table(state, table)
         retrieval_query = _build_join_step_retrieval_query(
             task=task,
             inherited_bindings=inherited,
             source_row_ids=source_row_ids,
+            source_row_summaries=source_row_summaries,
             base_query=build_base_retrieval_query(task, True),
         )
 
@@ -78,14 +80,16 @@ def run_iterative_join_pipeline(
                 "retrieval_query": retrieval_query,
                 "bindings": inherited,
                 "source_row_ids": source_row_ids,
+                "source_row_summaries": source_row_summaries,
             })
 
-        leaf_output = run_leaf(task, retrieval_query)
+        leaf_output = run_leaf(task, retrieval_query, inherited, source_row_ids)
         leaf_output["pipeline"] = pipeline_id
         leaf_output["iterative_join"] = {
             "step": step,
             "inherited_bindings": inherited,
             "source_row_ids": source_row_ids,
+            "source_row_summaries": source_row_summaries,
         }
 
         leaf_outputs.append(leaf_output)
@@ -186,14 +190,59 @@ def _source_row_ids_for_table(state: IterativeJoinState, table: str) -> List[str
     return sorted(row_ids)
 
 
+def _source_row_summaries_for_table(
+    state: IterativeJoinState,
+    table: str,
+    max_rows: int = 4,
+    max_columns: int = 8,
+) -> List[str]:
+    source_ids = _source_row_ids_for_table(state, table)
+    if not source_ids:
+        return []
+
+    summaries: List[str] = []
+    for source_id in source_ids:
+        found = _find_selected_row_by_id(state, source_id)
+        if found is None:
+            continue
+        source_table, row = found
+        pieces = []
+        for column, value in row.items():
+            if column == "__rid__" or str(column).endswith("_rownum"):
+                continue
+            text = str(value).strip()
+            if not text:
+                continue
+            pieces.append(f"{source_table}.{column} = {text}")
+            if len(pieces) >= max_columns:
+                break
+        if pieces:
+            summaries.append(f"{source_id}: " + "; ".join(pieces))
+        if len(summaries) >= max_rows:
+            break
+    return summaries
+
+
+def _find_selected_row_by_id(
+    state: IterativeJoinState,
+    row_id: str,
+) -> Optional[Tuple[str, Dict[str, Any]]]:
+    for table, rows in state.selected_rows_by_table.items():
+        row = rows.get(row_id)
+        if row is not None:
+            return table, row
+    return None
+
+
 def _build_join_step_retrieval_query(
     task: Dict[str, Any],
     inherited_bindings: Dict[str, List[str]],
     source_row_ids: List[str],
+    source_row_summaries: List[str],
     base_query: str,
 ) -> str:
     table = _task_table(task)
-    parts = [base_query]
+    parts = [_clean_retrieval_query(base_query)]
 
     binding_fragments = []
     for column, values in inherited_bindings.items():
@@ -206,6 +255,8 @@ def _build_join_step_retrieval_query(
         parts.append("join bindings: " + " and ".join(binding_fragments))
     if source_row_ids:
         parts.append("linked to source rows: " + ", ".join(source_row_ids))
+    if source_row_summaries:
+        parts.append("source row values: " + " | ".join(source_row_summaries))
 
     columns = _dedupe_strings(
         [
@@ -222,6 +273,14 @@ def _build_join_step_retrieval_query(
     if table:
         parts.append(f"target table: {table}")
     return ". ".join(part for part in parts if part)
+
+
+def _clean_retrieval_query(query: str) -> str:
+    return (
+        str(query or "").strip()
+        .replace(". where ", " where ")
+        .replace(". needed columns:", "; needed columns:")
+    )
 
 
 def _record_selected_rows(

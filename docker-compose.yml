@@ -49,6 +49,8 @@ services:
         condition: service_started
       ollama-init:
         condition: service_completed_successfully
+      explanation_app:
+        condition: service_started
     ports:
       - "127.0.0.1:9006:9000"
     env_file:
@@ -77,6 +79,7 @@ services:
     volumes:
       - ./gateway.py:/app/gateway.py:ro
       - ./iterative_join_pipeline.py:/app/iterative_join_pipeline.py:ro
+      - ./prompt.py:/app/prompt.py:ro
       - ./ui:/app/ui:ro
       - ./logs:/app/logs
       - ./faiss_index_tpch:/app/faiss_index_tpch

@@ -189,3 +189,92 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
     CONTEXT_DATA:
 {context_json}
     """.strip()
+
+
+def build_iterative_join_leaf_prompt(
+    task: Dict[str, Any],
+    ctx: Dict[str, Any],
+    inherited_bindings: Dict[str, Any] | None = None,
+    source_row_ids: list[str] | None = None,
+) -> str:
+    table = task["table_name"]
+    id_col = f"{table}_rownum"
+    context_json = json.dumps(ctx, ensure_ascii=False, indent=2)
+    predicates = [
+        str(predicate).strip()
+        for predicate in task.get("local_predicates") or []
+        if str(predicate).strip()
+    ]
+    bindings = inherited_bindings or {}
+    sources = source_row_ids or []
+
+    constraints = []
+    if predicates:
+        constraints.append("LOCAL_PREDICATES:")
+        constraints.extend(f"- {predicate}" for predicate in predicates)
+    if bindings:
+        constraints.append("INHERITED_JOIN_BINDINGS:")
+        for column, values in bindings.items():
+            if isinstance(values, list):
+                values_text = ", ".join(str(value) for value in values)
+            else:
+                values_text = str(values)
+            constraints.append(f"- {column}: {values_text}")
+    if sources:
+        constraints.append("SOURCE_ROWS_THAT_PRODUCED_BINDINGS:")
+        constraints.append("- " + ", ".join(sources))
+
+    constraints_block = "\n".join(constraints) if constraints else "No local predicates or inherited bindings."
+
+    return f"""
+You are a JSON extraction engine for one iterative join step.
+
+TARGET_TABLE:
+{table}
+
+Read only:
+CONTEXT_DATA["{table}"]
+
+Ignore every other table in CONTEXT_DATA.
+If CONTEXT_DATA does not contain "{table}", return [].
+
+Your job is to select candidate source rows from the target table that are useful for this leaf step.
+Use the constraints below to choose rows from the retrieved context.
+
+CONSTRAINTS:
+{constraints_block}
+
+Selection rules:
+- Prefer rows that satisfy all LOCAL_PREDICATES.
+- Prefer rows whose columns match the INHERITED_JOIN_BINDINGS.
+- If a listed inherited binding column is present in a row, the row should match one of the listed values.
+- If no row clearly satisfies the constraints, return [].
+- Do not compute the final SQL answer.
+- Do not execute joins, aggregation, grouping, ordering, limit, or projection.
+- Do not invent rows outside CONTEXT_DATA["{table}"].
+
+Output rules:
+- Return ONLY valid JSON.
+- The output must be a JSON array.
+- Each output item must have exactly "row_id" and "values".
+- "row_id" must be the row dictionary key, such as "{table}_123".
+- "values" must be the full row object copied exactly.
+- Copy strings exactly, including spaces.
+- Do not remove, rename, trim, or modify columns.
+- Do not add explanations, markdown, comments, or extra keys.
+
+Example item:
+{{
+  "row_id": "{table}_22",
+  "values": {{
+    "{id_col}": "{table}_22",
+    "some_column": "some value",
+    "__rid__": "{table}_22"
+  }}
+}}
+
+Now select matching candidate rows.
+
+CONTEXT_DATA:
+{context_json}
+    """.strip()

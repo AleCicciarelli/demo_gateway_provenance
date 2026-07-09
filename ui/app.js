@@ -611,6 +611,7 @@ function pushProgress(event, tone = "info") {
     iterativeStep: event.iterative_step,
     inheritedBindings: event.inherited_bindings,
     sourceRowIds: event.source_row_ids,
+    sourceRowSummaries: event.source_row_summaries,
     contextPreview: event.context_preview,
   });
 }
@@ -842,9 +843,10 @@ function renderProgressDetails(item) {
     && typeof item.inheritedBindings === "object"
     && Object.keys(item.inheritedBindings).length;
   const hasSources = Array.isArray(item.sourceRowIds) && item.sourceRowIds.length;
+  const hasSourceSummaries = Array.isArray(item.sourceRowSummaries) && item.sourceRowSummaries.length;
   const hasStep = Number.isFinite(item.iterativeStep);
 
-  if (!hasRetrieval && !hasBindings && !hasSources && !hasStep) {
+  if (!hasRetrieval && !hasBindings && !hasSources && !hasSourceSummaries && !hasStep) {
     return "";
   }
 
@@ -854,6 +856,7 @@ function renderProgressDetails(item) {
       ${hasRetrieval ? renderProgressDetail("Retrieval query", item.retrievalQuery) : ""}
       ${hasBindings ? renderProgressDetail("Inherited bindings", JSON.stringify(item.inheritedBindings)) : ""}
       ${hasSources ? renderProgressDetail("Source rows", item.sourceRowIds.join(", ")) : ""}
+      ${hasSourceSummaries ? renderProgressDetail("Source values", item.sourceRowSummaries.join(" | ")) : ""}
     </div>
   `;
 }

@@ -21,7 +21,7 @@ from explanation_pipeline import run_planner_first_explanation_pipeline
 from json_to_csv import clean_bucket, planner_result_to_csv_files
 from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
-from prompt import build_leaf_prompt
+from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt
 from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE
 from tpch_schema_info import SCHEMA_INFO as TPCH_SCHEMA_INFO
 from planner import  build_query_plan
@@ -1668,6 +1668,51 @@ def _run_leaf_task(
         "parse_error": parse_error,
         "valid_leaf_output": valid_leaf_output,
     }
+
+def _run_iterative_join_leaf_task(
+    task: Dict[str, Any],
+    ollama_model: str,
+    model_provider: str,
+    temperature: float,
+    ctx: Dict[str, Any],
+    retrieval_query: str,
+    inherited_bindings: Dict[str, List[str]],
+    source_row_ids: List[str],
+) -> Dict[str, Any]:
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
+    prompt = build_iterative_join_leaf_prompt(
+        task=task,
+        ctx=ctx,
+        inherited_bindings=inherited_bindings,
+        source_row_ids=source_row_ids,
+    )
+    out_text = _call_model_with_retry(
+        ollama_model,
+        prompt,
+        temperature,
+        provider=model_provider,
+        max_tries=2,
+        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
+        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id)[2] or []),
+    )
+    valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
+        out_text,
+        expected_rows_by_id,
+    )
+    parse_error = None if valid_leaf_output else validation_error
+
+    return {
+        "table_name": table_name,
+        "task": task,
+        "retrieval_query": retrieval_query,
+        "context_data": ctx,
+        "prompt": prompt,
+        "output_text": out_text,
+        "parsed_output": parsed_output,
+        "parse_error": parse_error,
+        "valid_leaf_output": valid_leaf_output,
+    }
 def _run_planner_first(
     sql_query: str,
     ollama_model: str,
@@ -1930,15 +1975,22 @@ def _run_ui_iterative_join_pipeline(
     temperature: float,
     dataset: str,
 ) -> Dict[str, Any]:
-    def run_leaf(task: Dict[str, Any], retrieval_query: str) -> Dict[str, Any]:
+    def run_leaf(
+        task: Dict[str, Any],
+        retrieval_query: str,
+        inherited_bindings: Dict[str, List[str]],
+        source_row_ids: List[str],
+    ) -> Dict[str, Any]:
         ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
-        return _run_leaf_task(
+        return _run_iterative_join_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
             model_provider=PLANNER_LLM_PROVIDER,
             temperature=temperature,
             ctx=ctx,
             retrieval_query=retrieval_query,
+            inherited_bindings=inherited_bindings,
+            source_row_ids=source_row_ids,
         )
 
     return run_iterative_join_pipeline(
@@ -2760,6 +2812,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         "iterative_step": iterative_meta.get("step", index + 1),
                         "inherited_bindings": iterative_meta.get("inherited_bindings") or {},
                         "source_row_ids": iterative_meta.get("source_row_ids") or [],
+                        "source_row_summaries": iterative_meta.get("source_row_summaries") or [],
                         "context_preview": _context_preview(ctx),
                     })
                     yield encode_event("leaf_done", {
@@ -2768,6 +2821,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         "iterative_step": iterative_meta.get("step", index + 1),
                         "inherited_bindings": iterative_meta.get("inherited_bindings") or {},
                         "source_row_ids": iterative_meta.get("source_row_ids") or [],
+                        "source_row_summaries": iterative_meta.get("source_row_summaries") or [],
                         "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
                         "message": f"{table_name} iterative leaf step completed.",
                     })
