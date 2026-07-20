@@ -59,6 +59,77 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function renderMarkdown(markdown) {
+  const renderInline = (value) => escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_]+)_/g, "<em>$1</em>");
+
+  const lines = String(markdown ?? "").trim().split(/\r?\n/);
+  const html = [];
+  let paragraph = [];
+  let listOpen = false;
+
+  const flushParagraph = () => {
+    if (paragraph.length) {
+      html.push(`<p>${renderInline(paragraph.join(" "))}</p>`);
+      paragraph = [];
+    }
+  };
+  const closeList = () => {
+    if (listOpen) {
+      html.push("</ul>");
+      listOpen = false;
+    }
+  };
+
+  lines.forEach((line) => {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    const listItem = line.match(/^\s*[-*]\s+(.+)$/);
+
+    if (!line.trim()) {
+      flushParagraph();
+      closeList();
+    } else if (/^\s*(---+|___+|\*\*\*+)\s*$/.test(line)) {
+      flushParagraph();
+      closeList();
+      html.push("<hr>");
+    } else if (heading) {
+      flushParagraph();
+      closeList();
+      const level = Math.min(heading[1].length + 1, 6);
+      html.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
+    } else if (listItem) {
+      flushParagraph();
+      if (!listOpen) {
+        html.push("<ul>");
+        listOpen = true;
+      }
+      html.push(`<li>${renderInline(listItem[1])}</li>`);
+    } else {
+      closeList();
+      paragraph.push(line.trim());
+    }
+  });
+
+  flushParagraph();
+  closeList();
+  return html.join("");
+}
+
+function explanationMarkdown(explanation) {
+  const output = explanation?.explanation_output;
+  const candidates = [
+    output?.result?.explanation,
+    output?.result?.markdown,
+    output?.explanation,
+    explanation?.explanation,
+  ];
+  return candidates.find((value) => typeof value === "string" && value.trim()) ?? "";
+}
+
 function compactList(values) {
   if (!Array.isArray(values) || values.length === 0) {
     return "none";
@@ -923,7 +994,13 @@ function renderExplanationOutput(output) {
               <strong>AP explanation ${index + 1}: ${escapeHtml(explanation.scope ?? "query")}</strong>
               ${explanation.query_sql ? `<code>${escapeHtml(explanation.query_sql)}</code>` : ""}
               ${explanation.question_sql ? `<code>${escapeHtml(explanation.question_sql)}</code>` : ""}
-              <pre>${escapeHtml(explanation.response_text ?? "")}</pre>
+              <div class="explanation-markdown">
+                ${
+                  explanationMarkdown(explanation)
+                    ? renderMarkdown(explanationMarkdown(explanation))
+                    : "<p>No written explanation was returned by the AP explanation service.</p>"
+                }
+              </div>
             </div>
           `,
         )

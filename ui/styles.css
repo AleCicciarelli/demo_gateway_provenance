@@ -674,6 +674,53 @@ tr:last-child td {
   color: var(--text);
 }
 
+.explanation-markdown {
+  margin-top: 14px;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.explanation-markdown h2,
+.explanation-markdown h3,
+.explanation-markdown h4,
+.explanation-markdown h5,
+.explanation-markdown h6 {
+  margin: 16px 0 6px;
+  color: var(--text);
+}
+
+.explanation-markdown h2:first-child,
+.explanation-markdown h3:first-child {
+  margin-top: 0;
+}
+
+.explanation-markdown p {
+  margin: 6px 0 12px;
+}
+
+.explanation-markdown ul {
+  margin: 6px 0 14px;
+  padding-left: 22px;
+}
+
+.explanation-markdown li + li {
+  margin-top: 6px;
+}
+
+.explanation-markdown hr {
+  margin: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+
+.explanation-markdown code {
+  display: inline;
+  margin: 0;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--panel-soft);
+}
+
 .notice {
   border: 1px solid #fed7aa;
   border-radius: var(--radius);

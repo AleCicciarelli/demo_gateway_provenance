@@ -16,3 +16,4 @@ faiss_index_relf1_*
 evaluation_relf1/
 evaluation_tpch/
 bucket/
+docs/unstructured_data_ingestion.md
