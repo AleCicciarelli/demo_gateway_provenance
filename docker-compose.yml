@@ -74,8 +74,6 @@ services:
       # Explanation service 
       EXPLANATION_URL: http://explanation_app:5000
       EXPLANATION_ENDPOINT: /api/v1/aps/explanation
-      # ProvSQL-only path used when the planner had to fall back to Ollama.
-      EXPLANATION_PROVENANCE_ENDPOINT: /api/v1/aps/explanation/why
       EXPLANATION_BUCKET_DIR: /shared_bucket
       EXPLANATION_CSV_DELIMITER: ","
       EXPLANATION_KEEP_ROWNUM: "true"
@@ -124,10 +122,8 @@ services:
     - CELERY_BROKER_URL=redis://redis:6379/0
     - CELERY_RESULT_BACKEND=redis://redis:6379/0
     - UV_OFFLINE=1
-    - LLM_API_BASE=https://172.16.59.5:32443/api
-    - LLM_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZjNWM2NmZhLTA1ZTYtNGQyMS1iMjc2LWUxNWFjMzRiODUzOSIsImp0aSI6ImZkM2NmYWRmLTRmOTEtNDA1NS1iZTk1LTEzZjg2NTllZDc3MSJ9.Df6Esb9c1FrwIrHfBoQqb6LwMxBweVQ6myCAyjDWVeU
-    - LLM_API_MODEL=openai/kimi-k2.6
-    - LLM_SSL_VERIFY=false   
+    # Intentionally omit LLM_API_BASE and LLM_API_MODEL. The AP service then
+    # uses NoOpExplainer while still returning PostgreSQL/ProvSQL derivations.
 
   postgres-provsql:
     image: sotrx/postgres-provsql:v0.10.0
