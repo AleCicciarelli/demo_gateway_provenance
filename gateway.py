@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import csv
 from pathlib import Path
 from collections import defaultdict
+from contextvars import ContextVar
 import requests
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -56,6 +57,8 @@ LLM_API_MODEL_ALIASES = [
 LLM_SSL_VERIFY = _env_bool("LLM_SSL_VERIFY", True)
 LLM_REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", str(OLLAMA_REQUEST_TIMEOUT)))
 PLANNER_LLM_PROVIDER = os.getenv("PLANNER_LLM_PROVIDER", "ollama").strip().lower()
+PLANNER_LLM_FALLBACK_ENABLED = _env_bool("PLANNER_LLM_FALLBACK_ENABLED", True)
+PLANNER_LLM_FALLBACK_MODEL = os.getenv("PLANNER_LLM_FALLBACK_MODEL", "llama3:8b")
 PLANNER_LLM_MODEL = os.getenv(
     "PLANNER_LLM_MODEL",
     LLM_API_MODEL if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"} and LLM_API_MODEL else "llama3:8b",
@@ -105,6 +108,9 @@ MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "2"))
 # For ap-explanation service:
 EXPLANATION_URL = os.getenv("EXPLANATION_URL", "http://explanation_app:5000")
 EXPLANATION_ENDPOINT = os.getenv("EXPLANATION_ENDPOINT", "/api/v1/aps/explanation/why",)
+EXPLANATION_PROVENANCE_ENDPOINT = os.getenv(
+    "EXPLANATION_PROVENANCE_ENDPOINT", "/api/v1/aps/explanation/why"
+)
 
 EXPLANATION_BUCKET_DIR = Path(os.getenv("EXPLANATION_BUCKET_DIR", "/shared_bucket"))
 EXPLANATION_REQUEST_TIMEOUT = float(os.getenv("EXPLANATION_REQUEST_TIMEOUT", "300"))
@@ -120,6 +126,16 @@ EXPLANATION_POSTGRES_PASSWORD = os.getenv("EXPLANATION_POSTGRES_PASSWORD", "prov
 
 # una pipeline explanation alla volta per evitare che due pipeline concorrenti scrivano i csv nella stessa cartella del bucket
 _EXPLANATION_PIPELINE_LOCK = threading.Lock()
+_LLM_FALLBACK_USED: ContextVar[bool] = ContextVar("llm_fallback_used", default=False)
+
+
+def _active_explanation_endpoint() -> str:
+    """Use the ProvSQL-only AP route after a request falls back to Ollama."""
+    if _LLM_FALLBACK_USED.get():
+        return EXPLANATION_PROVENANCE_ENDPOINT
+    return EXPLANATION_ENDPOINT
+
+
 PLANNER_ONLY_MODEL_ID = "planner-only"
 PLANNER_ONLY_PUSHDOWN_MODEL_ID = "planner-only-pushdown"
 PLANNER_ONLY_EXPLANATION_MODEL_ID = "planner-only-explanation"
@@ -969,7 +985,20 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
 def _generate_model(provider: str, model: str, prompt: str, temperature: float) -> str:
     provider = provider.strip().lower()
     if provider in {"openai", "openai-compatible"}:
-        return _openai_compatible_generate(model, prompt, temperature)
+        try:
+            return _openai_compatible_generate(model, prompt, temperature)
+        except Exception as primary_error:
+            if not PLANNER_LLM_FALLBACK_ENABLED:
+                raise
+            try:
+                output = _ollama_generate(PLANNER_LLM_FALLBACK_MODEL, prompt, temperature)
+            except Exception as fallback_error:
+                raise RuntimeError(
+                    f"Primary LLM failed ({primary_error}); Ollama fallback "
+                    f"'{PLANNER_LLM_FALLBACK_MODEL}' also failed ({fallback_error})"
+                ) from fallback_error
+            _LLM_FALLBACK_USED.set(True)
+            return output
     if provider == "ollama":
         return _ollama_generate(model, prompt, temperature)
     raise RuntimeError(f"Unsupported model provider: {provider}")
@@ -2097,7 +2126,7 @@ def _run_ui_ap_explanation(
     with _EXPLANATION_PIPELINE_LOCK:
         explanation_client = ExplanationClient(
             base_url=EXPLANATION_URL,
-            post_endpoint=EXPLANATION_ENDPOINT,
+            post_endpoint=_active_explanation_endpoint(),
             timeout=EXPLANATION_REQUEST_TIMEOUT,
         )
 
@@ -2152,7 +2181,7 @@ def _run_ui_ap_explanation_for_csv_files(
     service_sql_query = _service_sql_for_dataset(sql_query, dataset)
     explanation_client = ExplanationClient(
         base_url=EXPLANATION_URL,
-        post_endpoint=EXPLANATION_ENDPOINT,
+        post_endpoint=_active_explanation_endpoint(),
         timeout=EXPLANATION_REQUEST_TIMEOUT,
     )
     explanation_output = explanation_client.run_explanation(
@@ -2645,6 +2674,7 @@ def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
 
 @app.post("/ui/run")
 def ui_run(req: UiRunRequest) -> Dict[str, Any]:
+    _LLM_FALLBACK_USED.set(False)
     sql_query = req.sql.strip() or req.question.strip()
     if not sql_query:
         raise HTTPException(status_code=400, detail="Empty SQL query")
@@ -2755,6 +2785,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
 
 @app.post("/ui/run/stream")
 def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
+    _LLM_FALLBACK_USED.set(False)
     sql_query = req.sql.strip() or req.question.strip()
     if not sql_query:
         raise HTTPException(status_code=400, detail="Empty SQL query")
@@ -3010,6 +3041,7 @@ def chat_completions(
     authorization: Optional[str] = Header(default=None),
 ) -> Dict[str, Any]:
     
+    _LLM_FALLBACK_USED.set(False)
     request_id = str(uuid.uuid4())[:8]
     global _LAST_EXPLAIN_DEBUG
     question = _extract_user_question(req.messages)
@@ -3112,7 +3144,7 @@ def chat_completions(
 
                 explanation_client = ExplanationClient(
                     base_url=EXPLANATION_URL,
-                    post_endpoint=EXPLANATION_ENDPOINT,
+                    post_endpoint=_active_explanation_endpoint(),
                     timeout=EXPLANATION_REQUEST_TIMEOUT,
                 )
 
@@ -3190,7 +3222,7 @@ def chat_completions(
             with _EXPLANATION_PIPELINE_LOCK:
                 explanation_client = ExplanationClient(
                     base_url=EXPLANATION_URL,
-                    post_endpoint=EXPLANATION_ENDPOINT,
+                    post_endpoint=_active_explanation_endpoint(),
                     timeout=EXPLANATION_REQUEST_TIMEOUT,
                 )
                 pipeline_result = run_planner_first_explanation_pipeline(
