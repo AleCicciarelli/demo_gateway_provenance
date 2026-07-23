@@ -17,3 +17,11 @@ evaluation_relf1/
 evaluation_tpch/
 bucket/
 docs/unstructured_data_ingestion.md
+
+# LaTeX build artifacts
+docs/*.aux
+docs/*.bbl
+docs/*.blg
+docs/*.log
+docs/*.out
+docs/*.toc

@@ -54,6 +54,10 @@
 
 \section*{Abstract}
 
+This document presents a demo of provenance-aware question answering over
+relational data. The demo lets a user inspect a query plan, choose how each
+source table is processed, run the resulting pipeline, and trace every answer
+tuple back to its supporting rows. 
 
 \section{Motivation and Objectives}
 
@@ -69,10 +73,152 @@ This demo has the following objectives:
   \item preserve stable row identifiers from source data through retrieval and generation;
   \item compute or explain provenance using the records that contributed to an answer;
   \item expose plans, retrieved context, prompts, model output, validation results,
-        generated CSV files, and service responses for inspection; and
-  \item provide a common OpenAI-compatible interface for comparing base,
+        generated CSV files, and service responses for inspection; 
+  \item provide an interface for comparing base,
         fine-tuned, planner-based, and internal-knowledge configurations.
 \end{itemize}
+
+\section{Demo Use Case}
+
+Consider a motorsport analyst exploring the RELF1 dataset who asks which 2009
+Formula 1 races took place in Australia and at which circuits:
+
+\begin{lstlisting}[style=codestyle]
+SELECT r.name AS race_name,
+       c.name AS circuit_name,
+       c.location
+FROM races r
+JOIN circuits c ON r.circuitId = c.circuitId
+WHERE r.year = 2009 AND c.country = 'Australia'
+ORDER BY r.date
+LIMIT 5;
+\end{lstlisting}
+
+The analyst does not only want the race and circuit names. They also want to
+verify how the answer was obtained: which race record was joined with which
+circuit record, how the year and country filters were applied, which execution
+pipeline handled each table, and which exact source rows support each result.
+
+This scenario demonstrates the full use of the gateway. Before executing the
+query, it shows a relational plan split into tables leaf tasks. The user
+can accept the default planner-only pipeline or select a different strategy for
+each leaf. During execution, the interface reports retrieval and processing
+progress.
+For the explanation part, the gateway exports the selected rows as
+CSV files and invokes the AP Explanation service. This executes the query on ProvSQL, creating a new d
+postgres database on which the query is run and the provenance is computed, also a written
+explanation for the provenance.
+It presents three  result views:
+
+\begin{itemize}
+  \item \textbf{Answer}: the final tuples returned by the query;
+  \item \textbf{Provenance}: the witness sets that explain which row identifiers
+       support each tuple; 
+  \item \textbf{Supporting rows}: the source records referenced by those
+        identifiers, including their table and values.
+\end{itemize}
+
+
+\section{Step-by-Step UI Walkthrough}
+
+After starting the container, open \url{http://127.0.0.1:9006/ui/}. The root URL
+redirects to the same interface. The following sequence is suitable for a live
+demo.
+
+\begin{enumerate}
+  \item \textbf{Select a dataset.} In the \textit{Dataset} menu, choose
+        \code{RELF1} or \code{TPCH}. Changing the dataset clears any existing plan, so generate
+        a new plan after switching.
+
+  \item \textbf{Enter the demo query.} Replace the filled query with the SQL
+        query.
+
+  \item \textbf{Generate the plan.} Select \textit{Generate plan}. In the
+        \textit{Query plan} panel, point out the dataset and query summary, then
+        follow the displayed flow from reading source tables,
+        through the join, ordering, and projection, to the final tuples with
+        provenance.
+
+  \item \textbf{Inspect the leaf tasks.} Each leaf card shows the
+        scan type, local predicate, join keys, selected columns, and leaf SQL.
+
+  \item \textbf{Choose a pipeline for each leaf.} Leave \code{Planner only} for
+        a short baseline run, or select \code{Planner only + explanation} to
+        include the AP explanation stage. Other choices support comparisons with
+        predicate pushdown, iterative join-aware retrieval, standard RAG,
+        internal knowledge, or manual review. Pipeline choices are made per
+        table, so a single run can combine strategies.
+
+  \item \textbf{Run the selection.} Select \textit{Run selected pipelines}. The
+        status badge changes from \textit{Waiting} to \textit{Running}, and the
+        Answer view receives progress events for each leaf, retrieved context,
+        CSV generation, answer construction, and explanation. The first run can
+        take longer if a FAISS index must be built.
+
+  \item \textbf{Read the answer.} When the status becomes \textit{Complete}, use
+        the \textit{Answer} tab to show the answer produced.
+        If CSVs were generated, \textit{View generated CSVs} opens the exact
+        csv files passed to the explanation service. If an AP explanation
+        was requested, \textit{Show AP explanation} shows it.
+
+  \item \textbf{Trace provenance.} Open the \textit{Provenance} tab. This is the
+      explanation of why the result exists.
+
+  \item \textbf{Verify the evidence.} Open \textit{Supporting rows} and match the
+        row identifiers from the provenance formula to the original table names
+        and values.
+\end{enumerate}
+
+If a run reports an error, retain the visible partial progress and inspect
+\code{docker compose logs -f gateway}. This is especially useful during a live
+demo because it shows a planning, retrieval, model, or explanation
+service failure.
+
+\section{System Architecture}
+
+The browser sends planning and execution requests to the FastAPI gateway. The
+gateway parses the SQL into a query plan, dispatches each leaf task through its
+selected pipeline, validates row identifiers, combines the leaf results, and
+returns answer tuples with provenance. Ollama serves the local base and
+fine-tuned models, while FAISS provides row-level retrieval over the selected
+dataset.
+
+When explanation is selected, the gateway writes one CSV per contributing table
+to a shared bucket and submits an explanation task. The AP Explanation service
+reads those files, uses PostgreSQL with ProvSQL for provenance-aware relational
+execution, and uses Redis for asynchronous task coordination. Its response is
+streamed back through the gateway and displayed in the UI.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{architecture.pdf}
+  \caption{Demo gateway architecture and the main request path.}
+  \label{fig:gateway-architecture}
+\end{figure}
+
+The key architectural boundary is between orchestration and evidence. The
+gateway may use different LLM and retrieval strategies to obtain candidate
+rows, but all successful leaf outputs must satisfy the same validated row-level
+contract. Stable row identifiers then connect final answers, provenance
+formulas, supporting-row views, exported CSVs, and the external explanation
+service.
+
+\section{Running the Demo}
+
+The demo requires Docker with Compose support, Git, and Git LFS. From the
+repository root, run:
+
+\begin{lstlisting}[style=codestyle]
+git lfs pull
+docker compose up -d --build
+docker compose ps
+\end{lstlisting}
+
+Open \url{http://127.0.0.1:9006/ui/} when the services are ready. Model loading
+and first-time index creation can delay the first request; their progress is
+visible with \code{docker compose logs -f gateway}. The current Compose stack
+exposes the explanation service on host port \code{5002} and keeps Ollama on the
+internal network.
 
 \section{Related Work}
 
@@ -116,7 +262,66 @@ Our demo system takes inspiration from this operator-oriented view, but adapts i
 
 This distinction is central to our use of the idea. While Galois studies how SQL execution can be optimized when the LLM itself is queried as a data source, our system studies how LLM calls can be organized around a planner when answering questions over existing tabular data. 
 
-\section{System Architecture}
+\section{Pipeline Modes}
+
+\subsection{Standard RAG}
+
+The model identifiers \code{base-llama3-8b}, \code{best-ft-llama3-8b-nl}, and
+\code{best-ft-llama3-8b-sql} use the standard path. The gateway retrieves rows
+using the complete question, serializes the exact source rows into a prompt, and
+asks the selected model to return the answer and provenance. This provides a
+useful end-to-end baseline, although reasoning, row selection, and provenance
+generation remain largely model-controlled.
+
+\subsection{Internal-Knowledge Baseline}
+
+The \code{internal-knowledge} mode performs no source-row retrieval. It asks the
+model to answer from its internal parameters, so its provenance must not be
+treated as verified source provenance unless it is separately resolved and
+validated.
+
+\subsection{Planner-Only}
+
+The \code{planner-only} mode accepts SQL and decomposes it into table-level leaf
+tasks. The plan identifies tables, aliases, predicates, join keys, selected and
+grouping columns, aggregates, ordering, limits, and deterministic post-operations.
+Each leaf retrieves candidate rows and asks the model to copy relevant rows under
+a strict output contract. The UI exposes the plan and leaf traces so the user can
+inspect the retrieval query, context, model output, parsed rows, and validation
+status.
+
+\subsection{Planner-Only with Predicate Pushdown}
+
+\code{planner-only-pushdown} adds the leaf's predicates and required columns to
+its retrieval query. Exposing values such as year, country, driver, or circuit
+names to FAISS can improve candidate recall for selective RELF1 questions. This
+mode is selected per leaf through the UI.
+
+\subsection{Iterative Join-Aware Pipeline}
+
+\code{iterative-join-aware} coordinates retrieval across joined tables. It
+starts with a leaf that has useful predicates or join keys, extracts validated
+rows, propagates join-key values to connected leaves, and enriches subsequent
+retrieval queries with those bindings. This makes the evidence discovery process
+follow the join structure, although its result still depends on the recall of
+the starting leaf and the correctness of the extracted join edges.
+
+\subsection{Planner-Only Explanation}
+
+\code{planner-only-explanation} extends planner-only extraction by writing the
+validated rows to per-table CSV files and submitting them with the SQL query to
+the AP Explanation service. The service executes the relational and provenance
+workflow, and the UI displays its written explanation alongside the answer,
+provenance formula, and supporting rows.
+
+The modes are deliberately exposed side by side in the demo. A presenter can
+use one strategy for every leaf or mix them per table to compare a baseline,
+predicate-aware retrieval, join-guided retrieval, and external provenance
+explanation under the same query plan.
+
+\appendix
+
+\section{Detailed Component Architecture}
 
 The deployed system contains the following services.
 
@@ -143,13 +348,6 @@ Shared bucket & File exchange area for generated per-table CSV files. \\
 The gateway and explanation service share \code{./bucket} through different
 container mount points. A process-wide lock serializes explanation pipelines
 because each run cleans and rewrites this shared directory.
-
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=\textwidth]{architecture.pdf}
-  \caption{Demo gateway architecture.}
-  \label{fig:gateway-architecture}
-\end{figure}
 
 \subsection{Main Implementation Files}
 
@@ -373,111 +571,6 @@ When enabled, linked-row metadata may add correlated records up to
 proof of relevance. Exact row validation prevents a model from fabricating row
 contents, but it does not guarantee that all rows required for a query were retrieved.
 
-\section{Pipeline Modes}
-
-\subsection{Standard RAG}
-
-The model identifiers \code{base-llama3-8b}, \code{best-ft-llama3-8b-nl}, and
-\code{best-ft-llama3-8b-sql} use the standard path:
-
-\begin{enumerate}
-  \item The gateway takes the most recent user message as a natural-language question.
-  \item It retrieves candidate rows using the complete question.
-  \item Exact source rows are serialized into the prompt.
-  \item The selected model produces the answer and provenance in a JSON array.
-  \item The gateway retries once if the output is not a valid JSON array.
-  \item Depending on \code{GATEWAY\_RESPONSE\_FORMAT}, the content is returned as
-        raw JSON or rendered Markdown.
-\end{enumerate}
-
-This is a useful end-to-end baseline, but answer construction, reasoning, row
-selection, and provenance generation remain largely model-controlled.
-
-\subsection{Internal-Knowledge Baseline}
-
-The \code{internal-knowledge} mode does not retrieve source rows. It formats the
-question with a dataset-oriented prompt and asks the model to answer from its
-internal parameters. Its provenance should not be interpreted as verified source
-provenance unless separately resolved and validated.
-
-\subsection{Planner-Only}
-
-The canonical identifier is \code{planner-only}; \code{planner-first} and related
-spellings remain compatibility aliases. The input is SQL, not a natural-language
-question. \code{build\_query\_plan} parses a \code{SELECT} statement and extracts:
-
-\begin{itemize}
-  \item base tables and aliases;
-  \item selected columns and local predicates;
-  \item join conditions and keys;
-  \item grouping columns and aggregates;
-  \item ordering and limit;
-  \item table-level \code{LeafExtractionTask} objects; and
-  \item intended deterministic \code{post\_ops}.
-\end{itemize}
-
-For each leaf, the default retrieval query is deliberately broad:
-
-\begin{lstlisting}[style=codestyle]
-Retrieve relevant rows for table 'nation'
-\end{lstlisting}
-
-The model is instructed to copy rows from the retrieved target-table context. The
-gateway returns the plan and complete leaf trace: retrieval query, context, prompt,
-raw output, parsed rows, parse error, and validation status.
-
-In the direct \code{planner-only} chat path, the gateway does not execute the
-plan's joins, filters, grouping, aggregation, projection, ordering, or limit. A
-valid leaf result means that rows were copied faithfully; it does not mean that
-the final SQL result was computed.
-
-\subsection{Planner-Only with Predicate Pushdown}
-
-\code{planner-only-pushdown} uses the same planner and leaf contract, but includes
-local predicate text and required columns in each retrieval query. This exposes
-entity names and filter values to FAISS and can improve candidate recall for
-selective predicates.
-
-This mode is selectable per leaf through the UI workflow. The chat endpoint does
-not have a separate top-level planner branch for this identifier; a direct chat
-request falls through to standard RAG behavior. Clients requiring planner
-pushdown should therefore use the UI run API unless that routing is changed.
-
-\subsection{Iterative Join-Aware Pipeline}
-
-\code{iterative-join-aware} uses the SQL plan to coordinate retrieval across joined tables:
-
-\begin{enumerate}
-  \item select a starting leaf, preferring tasks with useful local predicates or join keys;
-  \item extract validated rows for that table;
-  \item propagate join-key values as bindings to connected tables;
-  \item enrich the next retrieval query with inherited values and source-row information;
-  \item repeat until every planned table has been processed; and
-  \item write the extracted relations to CSV and call the AP Explanation service.
-\end{enumerate}
-
-Each leaf output records its step number, inherited bindings, and source row
-identifiers. The algorithm improves join-aware candidate discovery but remains
-dependent on the first leaf's recall and on correctly extracted join edges.
-
-\subsection{Planner-Only Explanation}
-
-\code{planner-only-explanation} extends planner-only extraction with an external
-deterministic stage:
-
-\begin{enumerate}
-  \item run the planner-only leaf pipeline;
-  \item retain validated, parsed rows;
-  \item remove \code{\_\_rid\_\_} and write one CSV per table;
-  \item submit the SQL query and CSV file list to the AP Explanation service;
-  \item poll asynchronous jobs until success, failure, or timeout; and
-  \item return the service output as Markdown.
-\end{enumerate}
-
-The row-number column is retained by default so provenance can be mapped back to
-the original rows. Empty or invalid leaf outputs may cause missing CSV relations
-and an incomplete or failed downstream query.
-
 \section{Leaf Output Contract and Validation}
 
 A leaf model must return a JSON array containing objects with exactly two keys:
@@ -666,7 +759,6 @@ Explicitly handled client errors return HTTP 400. Pipeline and provider failures
 generally return HTTP 500. The UI streaming endpoint instead emits structured
 \code{error} or \code{fatal\_error} events so the browser can show partial progress.
 
-\
 \bibliographystyle{plain}
 \bibliography{bibfile}
 
