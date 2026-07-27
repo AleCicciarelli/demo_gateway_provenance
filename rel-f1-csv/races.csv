@@ -1,0 +1,1102 @@
+raceId,year,round,circuitId,name,date,time,races_rownum
+1,2009,1,1,Australian Grand Prix,2009-03-29 06:00:00,06:00:00,races_1
+2,2009,2,2,Malaysian Grand Prix,2009-04-05 09:00:00,09:00:00,races_2
+3,2009,3,17,Chinese Grand Prix,2009-04-19 07:00:00,07:00:00,races_3
+4,2009,4,3,Bahrain Grand Prix,2009-04-26 12:00:00,12:00:00,races_4
+5,2009,5,4,Spanish Grand Prix,2009-05-10 12:00:00,12:00:00,races_5
+6,2009,6,6,Monaco Grand Prix,2009-05-24 12:00:00,12:00:00,races_6
+7,2009,7,5,Turkish Grand Prix,2009-06-07 12:00:00,12:00:00,races_7
+8,2009,8,9,British Grand Prix,2009-06-21 12:00:00,12:00:00,races_8
+9,2009,9,20,German Grand Prix,2009-07-12 12:00:00,12:00:00,races_9
+10,2009,10,11,Hungarian Grand Prix,2009-07-26 12:00:00,12:00:00,races_10
+11,2009,11,12,European Grand Prix,2009-08-23 12:00:00,12:00:00,races_11
+12,2009,12,13,Belgian Grand Prix,2009-08-30 12:00:00,12:00:00,races_12
+13,2009,13,14,Italian Grand Prix,2009-09-13 12:00:00,12:00:00,races_13
+14,2009,14,15,Singapore Grand Prix,2009-09-27 12:00:00,12:00:00,races_14
+15,2009,15,22,Japanese Grand Prix,2009-10-04 05:00:00,05:00:00,races_15
+16,2009,16,18,Brazilian Grand Prix,2009-10-18 16:00:00,16:00:00,races_16
+17,2009,17,24,Abu Dhabi Grand Prix,2009-11-01 11:00:00,11:00:00,races_17
+18,2008,1,1,Australian Grand Prix,2008-03-16 04:30:00,04:30:00,races_18
+19,2008,2,2,Malaysian Grand Prix,2008-03-23 07:00:00,07:00:00,races_19
+20,2008,3,3,Bahrain Grand Prix,2008-04-06 11:30:00,11:30:00,races_20
+21,2008,4,4,Spanish Grand Prix,2008-04-27 12:00:00,12:00:00,races_21
+22,2008,5,5,Turkish Grand Prix,2008-05-11 12:00:00,12:00:00,races_22
+23,2008,6,6,Monaco Grand Prix,2008-05-25 12:00:00,12:00:00,races_23
+24,2008,7,7,Canadian Grand Prix,2008-06-08 17:00:00,17:00:00,races_24
+25,2008,8,8,French Grand Prix,2008-06-22 12:00:00,12:00:00,races_25
+26,2008,9,9,British Grand Prix,2008-07-06 12:00:00,12:00:00,races_26
+27,2008,10,10,German Grand Prix,2008-07-20 12:00:00,12:00:00,races_27
+28,2008,11,11,Hungarian Grand Prix,2008-08-03 12:00:00,12:00:00,races_28
+29,2008,12,12,European Grand Prix,2008-08-24 12:00:00,12:00:00,races_29
+30,2008,13,13,Belgian Grand Prix,2008-09-07 12:00:00,12:00:00,races_30
+31,2008,14,14,Italian Grand Prix,2008-09-14 12:00:00,12:00:00,races_31
+32,2008,15,15,Singapore Grand Prix,2008-09-28 12:00:00,12:00:00,races_32
+33,2008,16,16,Japanese Grand Prix,2008-10-12 04:30:00,04:30:00,races_33
+34,2008,17,17,Chinese Grand Prix,2008-10-19 07:00:00,07:00:00,races_34
+35,2008,18,18,Brazilian Grand Prix,2008-11-02 17:00:00,17:00:00,races_35
+36,2007,1,1,Australian Grand Prix,2007-03-18 03:00:00,03:00:00,races_36
+37,2007,2,2,Malaysian Grand Prix,2007-04-08 07:00:00,07:00:00,races_37
+38,2007,3,3,Bahrain Grand Prix,2007-04-15 11:30:00,11:30:00,races_38
+39,2007,4,4,Spanish Grand Prix,2007-05-13 12:00:00,12:00:00,races_39
+40,2007,5,6,Monaco Grand Prix,2007-05-27 12:00:00,12:00:00,races_40
+41,2007,6,7,Canadian Grand Prix,2007-06-10 17:00:00,17:00:00,races_41
+42,2007,7,19,United States Grand Prix,2007-06-17 17:00:00,17:00:00,races_42
+43,2007,8,8,French Grand Prix,2007-07-01 12:00:00,12:00:00,races_43
+44,2007,9,9,British Grand Prix,2007-07-08 12:00:00,12:00:00,races_44
+45,2007,10,20,European Grand Prix,2007-07-22 12:00:00,12:00:00,races_45
+46,2007,11,11,Hungarian Grand Prix,2007-08-05 12:00:00,12:00:00,races_46
+47,2007,12,5,Turkish Grand Prix,2007-08-26 12:00:00,12:00:00,races_47
+48,2007,13,14,Italian Grand Prix,2007-09-09 12:00:00,12:00:00,races_48
+49,2007,14,13,Belgian Grand Prix,2007-09-16 12:00:00,12:00:00,races_49
+50,2007,15,16,Japanese Grand Prix,2007-09-30 04:30:00,04:30:00,races_50
+51,2007,16,17,Chinese Grand Prix,2007-10-07 06:00:00,06:00:00,races_51
+52,2007,17,18,Brazilian Grand Prix,2007-10-21 16:00:00,16:00:00,races_52
+53,2006,1,3,Bahrain Grand Prix,2006-03-12 14:30:00,14:30:00,races_53
+54,2006,2,2,Malaysian Grand Prix,2006-03-19 15:00:00,15:00:00,races_54
+55,2006,3,1,Australian Grand Prix,2006-04-02 14:00:00,14:00:00,races_55
+56,2006,4,21,San Marino Grand Prix,2006-04-23 14:00:00,14:00:00,races_56
+57,2006,5,20,European Grand Prix,2006-05-07 14:00:00,14:00:00,races_57
+58,2006,6,4,Spanish Grand Prix,2006-05-14 14:00:00,14:00:00,races_58
+59,2006,7,6,Monaco Grand Prix,2006-05-28 14:00:00,14:00:00,races_59
+60,2006,8,9,British Grand Prix,2006-06-11 12:00:00,12:00:00,races_60
+61,2006,9,7,Canadian Grand Prix,2006-06-25 13:00:00,13:00:00,races_61
+62,2006,10,19,United States Grand Prix,2006-07-02 14:00:00,14:00:00,races_62
+63,2006,11,8,French Grand Prix,2006-07-16 14:00:00,14:00:00,races_63
+64,2006,12,10,German Grand Prix,2006-07-30 14:00:00,14:00:00,races_64
+65,2006,13,11,Hungarian Grand Prix,2006-08-06 14:00:00,14:00:00,races_65
+66,2006,14,5,Turkish Grand Prix,2006-08-27 15:00:00,15:00:00,races_66
+67,2006,15,14,Italian Grand Prix,2006-09-10 14:00:00,14:00:00,races_67
+68,2006,16,17,Chinese Grand Prix,2006-10-01 14:00:00,14:00:00,races_68
+69,2006,17,22,Japanese Grand Prix,2006-10-08 14:00:00,14:00:00,races_69
+70,2006,18,18,Brazilian Grand Prix,2006-10-22 14:00:00,14:00:00,races_70
+71,2005,1,1,Australian Grand Prix,2005-03-06 14:00:00,14:00:00,races_71
+72,2005,2,2,Malaysian Grand Prix,2005-03-20 15:00:00,15:00:00,races_72
+73,2005,3,3,Bahrain Grand Prix,2005-04-03 14:30:00,14:30:00,races_73
+74,2005,4,21,San Marino Grand Prix,2005-04-24 14:00:00,14:00:00,races_74
+75,2005,5,4,Spanish Grand Prix,2005-05-08 14:00:00,14:00:00,races_75
+76,2005,6,6,Monaco Grand Prix,2005-05-22 14:00:00,14:00:00,races_76
+77,2005,7,20,European Grand Prix,2005-05-29 14:00:00,14:00:00,races_77
+78,2005,8,7,Canadian Grand Prix,2005-06-12 13:00:00,13:00:00,races_78
+79,2005,9,19,United States Grand Prix,2005-06-19 14:00:00,14:00:00,races_79
+80,2005,10,8,French Grand Prix,2005-07-03 14:00:00,14:00:00,races_80
+81,2005,11,9,British Grand Prix,2005-07-10 14:00:00,14:00:00,races_81
+82,2005,12,10,German Grand Prix,2005-07-24 14:00:00,14:00:00,races_82
+83,2005,13,11,Hungarian Grand Prix,2005-07-31 14:00:00,14:00:00,races_83
+84,2005,14,5,Turkish Grand Prix,2005-08-21 15:00:00,15:00:00,races_84
+85,2005,15,14,Italian Grand Prix,2005-09-04 14:00:00,14:00:00,races_85
+86,2005,16,13,Belgian Grand Prix,2005-09-11 14:00:00,14:00:00,races_86
+87,2005,17,18,Brazilian Grand Prix,2005-09-25 14:00:00,14:00:00,races_87
+88,2005,18,22,Japanese Grand Prix,2005-10-09 14:00:00,14:00:00,races_88
+89,2005,19,17,Chinese Grand Prix,2005-10-16 14:00:00,14:00:00,races_89
+90,2004,1,1,Australian Grand Prix,2004-03-07 00:00:00,00:00:00,races_90
+91,2004,2,2,Malaysian Grand Prix,2004-03-21 00:00:00,00:00:00,races_91
+92,2004,3,3,Bahrain Grand Prix,2004-04-04 00:00:00,00:00:00,races_92
+93,2004,4,21,San Marino Grand Prix,2004-04-25 00:00:00,00:00:00,races_93
+94,2004,5,4,Spanish Grand Prix,2004-05-09 00:00:00,00:00:00,races_94
+95,2004,6,6,Monaco Grand Prix,2004-05-23 00:00:00,00:00:00,races_95
+96,2004,7,20,European Grand Prix,2004-05-30 00:00:00,00:00:00,races_96
+97,2004,8,7,Canadian Grand Prix,2004-06-13 00:00:00,00:00:00,races_97
+98,2004,9,19,United States Grand Prix,2004-06-20 00:00:00,00:00:00,races_98
+99,2004,10,8,French Grand Prix,2004-07-04 00:00:00,00:00:00,races_99
+100,2004,11,9,British Grand Prix,2004-07-11 00:00:00,00:00:00,races_100
+101,2004,12,10,German Grand Prix,2004-07-25 00:00:00,00:00:00,races_101
+102,2004,13,11,Hungarian Grand Prix,2004-08-15 00:00:00,00:00:00,races_102
+103,2004,14,13,Belgian Grand Prix,2004-08-29 00:00:00,00:00:00,races_103
+104,2004,15,14,Italian Grand Prix,2004-09-12 00:00:00,00:00:00,races_104
+105,2004,16,17,Chinese Grand Prix,2004-09-26 00:00:00,00:00:00,races_105
+106,2004,17,22,Japanese Grand Prix,2004-10-10 00:00:00,00:00:00,races_106
+107,2004,18,18,Brazilian Grand Prix,2004-10-24 00:00:00,00:00:00,races_107
+108,2003,1,1,Australian Grand Prix,2003-03-09 00:00:00,00:00:00,races_108
+109,2003,2,2,Malaysian Grand Prix,2003-03-23 00:00:00,00:00:00,races_109
+110,2003,3,18,Brazilian Grand Prix,2003-04-06 00:00:00,00:00:00,races_110
+111,2003,4,21,San Marino Grand Prix,2003-04-20 00:00:00,00:00:00,races_111
+112,2003,5,4,Spanish Grand Prix,2003-05-04 00:00:00,00:00:00,races_112
+113,2003,6,70,Austrian Grand Prix,2003-05-18 00:00:00,00:00:00,races_113
+114,2003,7,6,Monaco Grand Prix,2003-06-01 00:00:00,00:00:00,races_114
+115,2003,8,7,Canadian Grand Prix,2003-06-15 00:00:00,00:00:00,races_115
+116,2003,9,20,European Grand Prix,2003-06-29 00:00:00,00:00:00,races_116
+117,2003,10,8,French Grand Prix,2003-07-06 00:00:00,00:00:00,races_117
+118,2003,11,9,British Grand Prix,2003-07-20 00:00:00,00:00:00,races_118
+119,2003,12,10,German Grand Prix,2003-08-03 00:00:00,00:00:00,races_119
+120,2003,13,11,Hungarian Grand Prix,2003-08-24 00:00:00,00:00:00,races_120
+121,2003,14,14,Italian Grand Prix,2003-09-14 00:00:00,00:00:00,races_121
+122,2003,15,19,United States Grand Prix,2003-09-28 00:00:00,00:00:00,races_122
+123,2003,16,22,Japanese Grand Prix,2003-10-12 00:00:00,00:00:00,races_123
+124,2002,1,1,Australian Grand Prix,2002-03-03 00:00:00,00:00:00,races_124
+125,2002,2,2,Malaysian Grand Prix,2002-03-17 00:00:00,00:00:00,races_125
+126,2002,3,18,Brazilian Grand Prix,2002-03-31 00:00:00,00:00:00,races_126
+127,2002,4,21,San Marino Grand Prix,2002-04-14 00:00:00,00:00:00,races_127
+128,2002,5,4,Spanish Grand Prix,2002-04-28 00:00:00,00:00:00,races_128
+129,2002,6,70,Austrian Grand Prix,2002-05-12 00:00:00,00:00:00,races_129
+130,2002,7,6,Monaco Grand Prix,2002-05-26 00:00:00,00:00:00,races_130
+131,2002,8,7,Canadian Grand Prix,2002-06-09 00:00:00,00:00:00,races_131
+132,2002,9,20,European Grand Prix,2002-06-23 00:00:00,00:00:00,races_132
+133,2002,10,9,British Grand Prix,2002-07-07 00:00:00,00:00:00,races_133
+134,2002,11,8,French Grand Prix,2002-07-21 00:00:00,00:00:00,races_134
+135,2002,12,10,German Grand Prix,2002-07-28 00:00:00,00:00:00,races_135
+136,2002,13,11,Hungarian Grand Prix,2002-08-18 00:00:00,00:00:00,races_136
+137,2002,14,13,Belgian Grand Prix,2002-09-01 00:00:00,00:00:00,races_137
+138,2002,15,14,Italian Grand Prix,2002-09-15 00:00:00,00:00:00,races_138
+139,2002,16,19,United States Grand Prix,2002-09-29 00:00:00,00:00:00,races_139
+140,2002,17,22,Japanese Grand Prix,2002-10-13 00:00:00,00:00:00,races_140
+141,2001,1,1,Australian Grand Prix,2001-03-04 00:00:00,00:00:00,races_141
+142,2001,2,2,Malaysian Grand Prix,2001-03-18 00:00:00,00:00:00,races_142
+143,2001,3,18,Brazilian Grand Prix,2001-04-01 00:00:00,00:00:00,races_143
+144,2001,4,21,San Marino Grand Prix,2001-04-15 00:00:00,00:00:00,races_144
+145,2001,5,4,Spanish Grand Prix,2001-04-29 00:00:00,00:00:00,races_145
+146,2001,6,70,Austrian Grand Prix,2001-05-13 00:00:00,00:00:00,races_146
+147,2001,7,6,Monaco Grand Prix,2001-05-27 00:00:00,00:00:00,races_147
+148,2001,8,7,Canadian Grand Prix,2001-06-10 00:00:00,00:00:00,races_148
+149,2001,9,20,European Grand Prix,2001-06-24 00:00:00,00:00:00,races_149
+150,2001,10,8,French Grand Prix,2001-07-01 00:00:00,00:00:00,races_150
+151,2001,11,9,British Grand Prix,2001-07-15 00:00:00,00:00:00,races_151
+152,2001,12,10,German Grand Prix,2001-07-29 00:00:00,00:00:00,races_152
+153,2001,13,11,Hungarian Grand Prix,2001-08-19 00:00:00,00:00:00,races_153
+154,2001,14,13,Belgian Grand Prix,2001-09-02 00:00:00,00:00:00,races_154
+155,2001,15,14,Italian Grand Prix,2001-09-16 00:00:00,00:00:00,races_155
+156,2001,16,19,United States Grand Prix,2001-09-30 00:00:00,00:00:00,races_156
+157,2001,17,22,Japanese Grand Prix,2001-10-14 00:00:00,00:00:00,races_157
+158,2000,1,1,Australian Grand Prix,2000-03-12 00:00:00,00:00:00,races_158
+159,2000,2,18,Brazilian Grand Prix,2000-03-26 00:00:00,00:00:00,races_159
+160,2000,3,21,San Marino Grand Prix,2000-04-09 00:00:00,00:00:00,races_160
+161,2000,4,9,British Grand Prix,2000-04-23 00:00:00,00:00:00,races_161
+162,2000,5,4,Spanish Grand Prix,2000-05-07 00:00:00,00:00:00,races_162
+163,2000,6,20,European Grand Prix,2000-05-21 00:00:00,00:00:00,races_163
+164,2000,7,6,Monaco Grand Prix,2000-06-04 00:00:00,00:00:00,races_164
+165,2000,8,7,Canadian Grand Prix,2000-06-18 00:00:00,00:00:00,races_165
+166,2000,9,8,French Grand Prix,2000-07-02 00:00:00,00:00:00,races_166
+167,2000,10,70,Austrian Grand Prix,2000-07-16 00:00:00,00:00:00,races_167
+168,2000,11,10,German Grand Prix,2000-07-30 00:00:00,00:00:00,races_168
+169,2000,12,11,Hungarian Grand Prix,2000-08-13 00:00:00,00:00:00,races_169
+170,2000,13,13,Belgian Grand Prix,2000-08-27 00:00:00,00:00:00,races_170
+171,2000,14,14,Italian Grand Prix,2000-09-10 00:00:00,00:00:00,races_171
+172,2000,15,19,United States Grand Prix,2000-09-24 00:00:00,00:00:00,races_172
+173,2000,16,22,Japanese Grand Prix,2000-10-08 00:00:00,00:00:00,races_173
+174,2000,17,2,Malaysian Grand Prix,2000-10-22 00:00:00,00:00:00,races_174
+175,1999,1,1,Australian Grand Prix,1999-03-07 00:00:00,00:00:00,races_175
+176,1999,2,18,Brazilian Grand Prix,1999-04-11 00:00:00,00:00:00,races_176
+177,1999,3,21,San Marino Grand Prix,1999-05-02 00:00:00,00:00:00,races_177
+178,1999,4,6,Monaco Grand Prix,1999-05-16 00:00:00,00:00:00,races_178
+179,1999,5,4,Spanish Grand Prix,1999-05-30 00:00:00,00:00:00,races_179
+180,1999,6,7,Canadian Grand Prix,1999-06-13 00:00:00,00:00:00,races_180
+181,1999,7,8,French Grand Prix,1999-06-27 00:00:00,00:00:00,races_181
+182,1999,8,9,British Grand Prix,1999-07-11 00:00:00,00:00:00,races_182
+183,1999,9,70,Austrian Grand Prix,1999-07-25 00:00:00,00:00:00,races_183
+184,1999,10,10,German Grand Prix,1999-08-01 00:00:00,00:00:00,races_184
+185,1999,11,11,Hungarian Grand Prix,1999-08-15 00:00:00,00:00:00,races_185
+186,1999,12,13,Belgian Grand Prix,1999-08-29 00:00:00,00:00:00,races_186
+187,1999,13,14,Italian Grand Prix,1999-09-12 00:00:00,00:00:00,races_187
+188,1999,14,20,European Grand Prix,1999-09-26 00:00:00,00:00:00,races_188
+189,1999,15,2,Malaysian Grand Prix,1999-10-17 00:00:00,00:00:00,races_189
+190,1999,16,22,Japanese Grand Prix,1999-10-31 00:00:00,00:00:00,races_190
+191,1998,1,1,Australian Grand Prix,1998-03-08 00:00:00,00:00:00,races_191
+192,1998,2,18,Brazilian Grand Prix,1998-03-29 00:00:00,00:00:00,races_192
+193,1998,3,25,Argentine Grand Prix,1998-04-12 00:00:00,00:00:00,races_193
+194,1998,4,21,San Marino Grand Prix,1998-04-26 00:00:00,00:00:00,races_194
+195,1998,5,4,Spanish Grand Prix,1998-05-10 00:00:00,00:00:00,races_195
+196,1998,6,6,Monaco Grand Prix,1998-05-24 00:00:00,00:00:00,races_196
+197,1998,7,7,Canadian Grand Prix,1998-06-07 00:00:00,00:00:00,races_197
+198,1998,8,8,French Grand Prix,1998-06-28 00:00:00,00:00:00,races_198
+199,1998,9,9,British Grand Prix,1998-07-12 00:00:00,00:00:00,races_199
+200,1998,10,70,Austrian Grand Prix,1998-07-26 00:00:00,00:00:00,races_200
+201,1998,11,10,German Grand Prix,1998-08-02 00:00:00,00:00:00,races_201
+202,1998,12,11,Hungarian Grand Prix,1998-08-16 00:00:00,00:00:00,races_202
+203,1998,13,13,Belgian Grand Prix,1998-08-30 00:00:00,00:00:00,races_203
+204,1998,14,14,Italian Grand Prix,1998-09-13 00:00:00,00:00:00,races_204
+205,1998,15,20,Luxembourg Grand Prix,1998-09-27 00:00:00,00:00:00,races_205
+206,1998,16,22,Japanese Grand Prix,1998-11-01 00:00:00,00:00:00,races_206
+207,1997,1,1,Australian Grand Prix,1997-03-09 00:00:00,00:00:00,races_207
+208,1997,2,18,Brazilian Grand Prix,1997-03-30 00:00:00,00:00:00,races_208
+209,1997,3,25,Argentine Grand Prix,1997-04-13 00:00:00,00:00:00,races_209
+210,1997,4,21,San Marino Grand Prix,1997-04-27 00:00:00,00:00:00,races_210
+211,1997,5,6,Monaco Grand Prix,1997-05-11 00:00:00,00:00:00,races_211
+212,1997,6,4,Spanish Grand Prix,1997-05-25 00:00:00,00:00:00,races_212
+213,1997,7,7,Canadian Grand Prix,1997-06-15 00:00:00,00:00:00,races_213
+214,1997,8,8,French Grand Prix,1997-06-29 00:00:00,00:00:00,races_214
+215,1997,9,9,British Grand Prix,1997-07-13 00:00:00,00:00:00,races_215
+216,1997,10,10,German Grand Prix,1997-07-27 00:00:00,00:00:00,races_216
+217,1997,11,11,Hungarian Grand Prix,1997-08-10 00:00:00,00:00:00,races_217
+218,1997,12,13,Belgian Grand Prix,1997-08-24 00:00:00,00:00:00,races_218
+219,1997,13,14,Italian Grand Prix,1997-09-07 00:00:00,00:00:00,races_219
+220,1997,14,70,Austrian Grand Prix,1997-09-21 00:00:00,00:00:00,races_220
+221,1997,15,20,Luxembourg Grand Prix,1997-09-28 00:00:00,00:00:00,races_221
+222,1997,16,22,Japanese Grand Prix,1997-10-12 00:00:00,00:00:00,races_222
+223,1997,17,26,European Grand Prix,1997-10-26 00:00:00,00:00:00,races_223
+224,1996,1,1,Australian Grand Prix,1996-03-10 00:00:00,00:00:00,races_224
+225,1996,2,18,Brazilian Grand Prix,1996-03-31 00:00:00,00:00:00,races_225
+226,1996,3,25,Argentine Grand Prix,1996-04-07 00:00:00,00:00:00,races_226
+227,1996,4,20,European Grand Prix,1996-04-28 00:00:00,00:00:00,races_227
+228,1996,5,21,San Marino Grand Prix,1996-05-05 00:00:00,00:00:00,races_228
+229,1996,6,6,Monaco Grand Prix,1996-05-19 00:00:00,00:00:00,races_229
+230,1996,7,4,Spanish Grand Prix,1996-06-02 00:00:00,00:00:00,races_230
+231,1996,8,7,Canadian Grand Prix,1996-06-16 00:00:00,00:00:00,races_231
+232,1996,9,8,French Grand Prix,1996-06-30 00:00:00,00:00:00,races_232
+233,1996,10,9,British Grand Prix,1996-07-14 00:00:00,00:00:00,races_233
+234,1996,11,10,German Grand Prix,1996-07-28 00:00:00,00:00:00,races_234
+235,1996,12,11,Hungarian Grand Prix,1996-08-11 00:00:00,00:00:00,races_235
+236,1996,13,13,Belgian Grand Prix,1996-08-25 00:00:00,00:00:00,races_236
+237,1996,14,14,Italian Grand Prix,1996-09-08 00:00:00,00:00:00,races_237
+238,1996,15,27,Portuguese Grand Prix,1996-09-22 00:00:00,00:00:00,races_238
+239,1996,16,22,Japanese Grand Prix,1996-10-13 00:00:00,00:00:00,races_239
+240,1995,1,18,Brazilian Grand Prix,1995-03-26 00:00:00,00:00:00,races_240
+241,1995,2,25,Argentine Grand Prix,1995-04-09 00:00:00,00:00:00,races_241
+242,1995,3,21,San Marino Grand Prix,1995-04-30 00:00:00,00:00:00,races_242
+243,1995,4,4,Spanish Grand Prix,1995-05-14 00:00:00,00:00:00,races_243
+244,1995,5,6,Monaco Grand Prix,1995-05-28 00:00:00,00:00:00,races_244
+245,1995,6,7,Canadian Grand Prix,1995-06-11 00:00:00,00:00:00,races_245
+246,1995,7,8,French Grand Prix,1995-07-02 00:00:00,00:00:00,races_246
+247,1995,8,9,British Grand Prix,1995-07-16 00:00:00,00:00:00,races_247
+248,1995,9,10,German Grand Prix,1995-07-30 00:00:00,00:00:00,races_248
+249,1995,10,11,Hungarian Grand Prix,1995-08-13 00:00:00,00:00:00,races_249
+250,1995,11,13,Belgian Grand Prix,1995-08-27 00:00:00,00:00:00,races_250
+251,1995,12,14,Italian Grand Prix,1995-09-10 00:00:00,00:00:00,races_251
+252,1995,13,27,Portuguese Grand Prix,1995-09-24 00:00:00,00:00:00,races_252
+253,1995,14,20,European Grand Prix,1995-10-01 00:00:00,00:00:00,races_253
+254,1995,15,28,Pacific Grand Prix,1995-10-22 00:00:00,00:00:00,races_254
+255,1995,16,22,Japanese Grand Prix,1995-10-29 00:00:00,00:00:00,races_255
+256,1995,17,29,Australian Grand Prix,1995-11-12 00:00:00,00:00:00,races_256
+257,1994,1,18,Brazilian Grand Prix,1994-03-27 00:00:00,00:00:00,races_257
+258,1994,2,28,Pacific Grand Prix,1994-04-17 00:00:00,00:00:00,races_258
+259,1994,3,21,San Marino Grand Prix,1994-05-01 00:00:00,00:00:00,races_259
+260,1994,4,6,Monaco Grand Prix,1994-05-15 00:00:00,00:00:00,races_260
+261,1994,5,4,Spanish Grand Prix,1994-05-29 00:00:00,00:00:00,races_261
+262,1994,6,7,Canadian Grand Prix,1994-06-12 00:00:00,00:00:00,races_262
+263,1994,7,8,French Grand Prix,1994-07-03 00:00:00,00:00:00,races_263
+264,1994,8,9,British Grand Prix,1994-07-10 00:00:00,00:00:00,races_264
+265,1994,9,10,German Grand Prix,1994-07-31 00:00:00,00:00:00,races_265
+266,1994,10,11,Hungarian Grand Prix,1994-08-14 00:00:00,00:00:00,races_266
+267,1994,11,13,Belgian Grand Prix,1994-08-28 00:00:00,00:00:00,races_267
+268,1994,12,14,Italian Grand Prix,1994-09-11 00:00:00,00:00:00,races_268
+269,1994,13,27,Portuguese Grand Prix,1994-09-25 00:00:00,00:00:00,races_269
+270,1994,14,26,European Grand Prix,1994-10-16 00:00:00,00:00:00,races_270
+271,1994,15,22,Japanese Grand Prix,1994-11-06 00:00:00,00:00:00,races_271
+272,1994,16,29,Australian Grand Prix,1994-11-13 00:00:00,00:00:00,races_272
+273,1993,1,30,South African Grand Prix,1993-03-14 00:00:00,00:00:00,races_273
+274,1993,2,18,Brazilian Grand Prix,1993-03-28 00:00:00,00:00:00,races_274
+275,1993,3,31,European Grand Prix,1993-04-11 00:00:00,00:00:00,races_275
+276,1993,4,21,San Marino Grand Prix,1993-04-25 00:00:00,00:00:00,races_276
+277,1993,5,4,Spanish Grand Prix,1993-05-09 00:00:00,00:00:00,races_277
+278,1993,6,6,Monaco Grand Prix,1993-05-23 00:00:00,00:00:00,races_278
+279,1993,7,7,Canadian Grand Prix,1993-06-13 00:00:00,00:00:00,races_279
+280,1993,8,8,French Grand Prix,1993-07-04 00:00:00,00:00:00,races_280
+281,1993,9,9,British Grand Prix,1993-07-11 00:00:00,00:00:00,races_281
+282,1993,10,10,German Grand Prix,1993-07-25 00:00:00,00:00:00,races_282
+283,1993,11,11,Hungarian Grand Prix,1993-08-15 00:00:00,00:00:00,races_283
+284,1993,12,13,Belgian Grand Prix,1993-08-29 00:00:00,00:00:00,races_284
+285,1993,13,14,Italian Grand Prix,1993-09-12 00:00:00,00:00:00,races_285
+286,1993,14,27,Portuguese Grand Prix,1993-09-26 00:00:00,00:00:00,races_286
+287,1993,15,22,Japanese Grand Prix,1993-10-24 00:00:00,00:00:00,races_287
+288,1993,16,29,Australian Grand Prix,1993-11-07 00:00:00,00:00:00,races_288
+289,1992,1,30,South African Grand Prix,1992-03-01 00:00:00,00:00:00,races_289
+290,1992,2,32,Mexican Grand Prix,1992-03-22 00:00:00,00:00:00,races_290
+291,1992,3,18,Brazilian Grand Prix,1992-04-05 00:00:00,00:00:00,races_291
+292,1992,4,4,Spanish Grand Prix,1992-05-03 00:00:00,00:00:00,races_292
+293,1992,5,21,San Marino Grand Prix,1992-05-17 00:00:00,00:00:00,races_293
+294,1992,6,6,Monaco Grand Prix,1992-05-31 00:00:00,00:00:00,races_294
+295,1992,7,7,Canadian Grand Prix,1992-06-14 00:00:00,00:00:00,races_295
+296,1992,8,8,French Grand Prix,1992-07-05 00:00:00,00:00:00,races_296
+297,1992,9,9,British Grand Prix,1992-07-12 00:00:00,00:00:00,races_297
+298,1992,10,10,German Grand Prix,1992-07-26 00:00:00,00:00:00,races_298
+299,1992,11,11,Hungarian Grand Prix,1992-08-16 00:00:00,00:00:00,races_299
+300,1992,12,13,Belgian Grand Prix,1992-08-30 00:00:00,00:00:00,races_300
+301,1992,13,14,Italian Grand Prix,1992-09-13 00:00:00,00:00:00,races_301
+302,1992,14,27,Portuguese Grand Prix,1992-09-27 00:00:00,00:00:00,races_302
+303,1992,15,22,Japanese Grand Prix,1992-10-25 00:00:00,00:00:00,races_303
+304,1992,16,29,Australian Grand Prix,1992-11-08 00:00:00,00:00:00,races_304
+305,1991,1,33,United States Grand Prix,1991-03-10 00:00:00,00:00:00,races_305
+306,1991,2,18,Brazilian Grand Prix,1991-03-24 00:00:00,00:00:00,races_306
+307,1991,3,21,San Marino Grand Prix,1991-04-28 00:00:00,00:00:00,races_307
+308,1991,4,6,Monaco Grand Prix,1991-05-12 00:00:00,00:00:00,races_308
+309,1991,5,7,Canadian Grand Prix,1991-06-02 00:00:00,00:00:00,races_309
+310,1991,6,32,Mexican Grand Prix,1991-06-16 00:00:00,00:00:00,races_310
+311,1991,7,8,French Grand Prix,1991-07-07 00:00:00,00:00:00,races_311
+312,1991,8,9,British Grand Prix,1991-07-14 00:00:00,00:00:00,races_312
+313,1991,9,10,German Grand Prix,1991-07-28 00:00:00,00:00:00,races_313
+314,1991,10,11,Hungarian Grand Prix,1991-08-11 00:00:00,00:00:00,races_314
+315,1991,11,13,Belgian Grand Prix,1991-08-25 00:00:00,00:00:00,races_315
+316,1991,12,14,Italian Grand Prix,1991-09-08 00:00:00,00:00:00,races_316
+317,1991,13,27,Portuguese Grand Prix,1991-09-22 00:00:00,00:00:00,races_317
+318,1991,14,4,Spanish Grand Prix,1991-09-29 00:00:00,00:00:00,races_318
+319,1991,15,22,Japanese Grand Prix,1991-10-20 00:00:00,00:00:00,races_319
+320,1991,16,29,Australian Grand Prix,1991-11-03 00:00:00,00:00:00,races_320
+321,1990,1,33,United States Grand Prix,1990-03-11 00:00:00,00:00:00,races_321
+322,1990,2,18,Brazilian Grand Prix,1990-03-25 00:00:00,00:00:00,races_322
+323,1990,3,21,San Marino Grand Prix,1990-05-13 00:00:00,00:00:00,races_323
+324,1990,4,6,Monaco Grand Prix,1990-05-27 00:00:00,00:00:00,races_324
+325,1990,5,7,Canadian Grand Prix,1990-06-10 00:00:00,00:00:00,races_325
+326,1990,6,32,Mexican Grand Prix,1990-06-24 00:00:00,00:00:00,races_326
+327,1990,7,34,French Grand Prix,1990-07-08 00:00:00,00:00:00,races_327
+328,1990,8,9,British Grand Prix,1990-07-15 00:00:00,00:00:00,races_328
+329,1990,9,10,German Grand Prix,1990-07-29 00:00:00,00:00:00,races_329
+330,1990,10,11,Hungarian Grand Prix,1990-08-12 00:00:00,00:00:00,races_330
+331,1990,11,13,Belgian Grand Prix,1990-08-26 00:00:00,00:00:00,races_331
+332,1990,12,14,Italian Grand Prix,1990-09-09 00:00:00,00:00:00,races_332
+333,1990,13,27,Portuguese Grand Prix,1990-09-23 00:00:00,00:00:00,races_333
+334,1990,14,26,Spanish Grand Prix,1990-09-30 00:00:00,00:00:00,races_334
+335,1990,15,22,Japanese Grand Prix,1990-10-21 00:00:00,00:00:00,races_335
+336,1990,16,29,Australian Grand Prix,1990-11-04 00:00:00,00:00:00,races_336
+337,2010,1,3,Bahrain Grand Prix,2010-03-14 12:00:00,12:00:00,races_337
+338,2010,2,1,Australian Grand Prix,2010-03-28 06:00:00,06:00:00,races_338
+339,2010,3,2,Malaysian Grand Prix,2010-04-04 08:00:00,08:00:00,races_339
+340,2010,4,17,Chinese Grand Prix,2010-04-18 06:00:00,06:00:00,races_340
+341,2010,5,4,Spanish Grand Prix,2010-05-09 12:00:00,12:00:00,races_341
+342,2010,6,6,Monaco Grand Prix,2010-05-16 12:00:00,12:00:00,races_342
+343,2010,7,5,Turkish Grand Prix,2010-05-30 11:00:00,11:00:00,races_343
+344,2010,8,7,Canadian Grand Prix,2010-06-13 16:00:00,16:00:00,races_344
+345,2010,9,12,European Grand Prix,2010-06-27 12:00:00,12:00:00,races_345
+346,2010,10,9,British Grand Prix,2010-07-11 12:00:00,12:00:00,races_346
+347,2010,11,10,German Grand Prix,2010-07-25 12:00:00,12:00:00,races_347
+348,2010,12,11,Hungarian Grand Prix,2010-08-01 12:00:00,12:00:00,races_348
+349,2010,13,13,Belgian Grand Prix,2010-08-29 12:00:00,12:00:00,races_349
+350,2010,14,14,Italian Grand Prix,2010-09-12 12:00:00,12:00:00,races_350
+351,2010,15,15,Singapore Grand Prix,2010-09-26 12:00:00,12:00:00,races_351
+352,2010,16,22,Japanese Grand Prix,2010-10-10 06:00:00,06:00:00,races_352
+353,2010,17,35,Korean Grand Prix,2010-10-24 05:00:00,05:00:00,races_353
+354,2010,18,18,Brazilian Grand Prix,2010-11-07 16:00:00,16:00:00,races_354
+355,2010,19,24,Abu Dhabi Grand Prix,2010-11-14 13:00:00,13:00:00,races_355
+356,1989,1,36,Brazilian Grand Prix,1989-03-26 00:00:00,00:00:00,races_356
+357,1989,2,21,San Marino Grand Prix,1989-04-23 00:00:00,00:00:00,races_357
+358,1989,3,6,Monaco Grand Prix,1989-05-07 00:00:00,00:00:00,races_358
+359,1989,4,32,Mexican Grand Prix,1989-05-28 00:00:00,00:00:00,races_359
+360,1989,5,33,United States Grand Prix,1989-06-04 00:00:00,00:00:00,races_360
+361,1989,6,7,Canadian Grand Prix,1989-06-18 00:00:00,00:00:00,races_361
+362,1989,7,34,French Grand Prix,1989-07-09 00:00:00,00:00:00,races_362
+363,1989,8,9,British Grand Prix,1989-07-16 00:00:00,00:00:00,races_363
+364,1989,9,10,German Grand Prix,1989-07-30 00:00:00,00:00:00,races_364
+365,1989,10,11,Hungarian Grand Prix,1989-08-13 00:00:00,00:00:00,races_365
+366,1989,11,13,Belgian Grand Prix,1989-08-27 00:00:00,00:00:00,races_366
+367,1989,12,14,Italian Grand Prix,1989-09-10 00:00:00,00:00:00,races_367
+368,1989,13,27,Portuguese Grand Prix,1989-09-24 00:00:00,00:00:00,races_368
+369,1989,14,26,Spanish Grand Prix,1989-10-01 00:00:00,00:00:00,races_369
+370,1989,15,22,Japanese Grand Prix,1989-10-22 00:00:00,00:00:00,races_370
+371,1989,16,29,Australian Grand Prix,1989-11-05 00:00:00,00:00:00,races_371
+372,1988,1,36,Brazilian Grand Prix,1988-04-03 00:00:00,00:00:00,races_372
+373,1988,2,21,San Marino Grand Prix,1988-05-01 00:00:00,00:00:00,races_373
+374,1988,3,6,Monaco Grand Prix,1988-05-15 00:00:00,00:00:00,races_374
+375,1988,4,32,Mexican Grand Prix,1988-05-29 00:00:00,00:00:00,races_375
+376,1988,5,7,Canadian Grand Prix,1988-06-12 00:00:00,00:00:00,races_376
+377,1988,6,37,Detroit Grand Prix,1988-06-19 00:00:00,00:00:00,races_377
+378,1988,7,34,French Grand Prix,1988-07-03 00:00:00,00:00:00,races_378
+379,1988,8,9,British Grand Prix,1988-07-10 00:00:00,00:00:00,races_379
+380,1988,9,10,German Grand Prix,1988-07-24 00:00:00,00:00:00,races_380
+381,1988,10,11,Hungarian Grand Prix,1988-08-07 00:00:00,00:00:00,races_381
+382,1988,11,13,Belgian Grand Prix,1988-08-28 00:00:00,00:00:00,races_382
+383,1988,12,14,Italian Grand Prix,1988-09-11 00:00:00,00:00:00,races_383
+384,1988,13,27,Portuguese Grand Prix,1988-09-25 00:00:00,00:00:00,races_384
+385,1988,14,26,Spanish Grand Prix,1988-10-02 00:00:00,00:00:00,races_385
+386,1988,15,22,Japanese Grand Prix,1988-10-30 00:00:00,00:00:00,races_386
+387,1988,16,29,Australian Grand Prix,1988-11-13 00:00:00,00:00:00,races_387
+388,1987,1,36,Brazilian Grand Prix,1987-04-12 00:00:00,00:00:00,races_388
+389,1987,2,21,San Marino Grand Prix,1987-05-03 00:00:00,00:00:00,races_389
+390,1987,3,13,Belgian Grand Prix,1987-05-17 00:00:00,00:00:00,races_390
+391,1987,4,6,Monaco Grand Prix,1987-05-31 00:00:00,00:00:00,races_391
+392,1987,5,37,Detroit Grand Prix,1987-06-21 00:00:00,00:00:00,races_392
+393,1987,6,34,French Grand Prix,1987-07-05 00:00:00,00:00:00,races_393
+394,1987,7,9,British Grand Prix,1987-07-12 00:00:00,00:00:00,races_394
+395,1987,8,10,German Grand Prix,1987-07-26 00:00:00,00:00:00,races_395
+396,1987,9,11,Hungarian Grand Prix,1987-08-09 00:00:00,00:00:00,races_396
+397,1987,10,70,Austrian Grand Prix,1987-08-16 00:00:00,00:00:00,races_397
+398,1987,11,14,Italian Grand Prix,1987-09-06 00:00:00,00:00:00,races_398
+399,1987,12,27,Portuguese Grand Prix,1987-09-20 00:00:00,00:00:00,races_399
+400,1987,13,26,Spanish Grand Prix,1987-09-27 00:00:00,00:00:00,races_400
+401,1987,14,32,Mexican Grand Prix,1987-10-18 00:00:00,00:00:00,races_401
+402,1987,15,22,Japanese Grand Prix,1987-11-01 00:00:00,00:00:00,races_402
+403,1987,16,29,Australian Grand Prix,1987-11-15 00:00:00,00:00:00,races_403
+404,1986,1,36,Brazilian Grand Prix,1986-03-23 00:00:00,00:00:00,races_404
+405,1986,2,26,Spanish Grand Prix,1986-04-13 00:00:00,00:00:00,races_405
+406,1986,3,21,San Marino Grand Prix,1986-04-27 00:00:00,00:00:00,races_406
+407,1986,4,6,Monaco Grand Prix,1986-05-11 00:00:00,00:00:00,races_407
+408,1986,5,13,Belgian Grand Prix,1986-05-25 00:00:00,00:00:00,races_408
+409,1986,6,7,Canadian Grand Prix,1986-06-15 00:00:00,00:00:00,races_409
+410,1986,7,37,Detroit Grand Prix,1986-06-22 00:00:00,00:00:00,races_410
+411,1986,8,34,French Grand Prix,1986-07-06 00:00:00,00:00:00,races_411
+412,1986,9,38,British Grand Prix,1986-07-13 00:00:00,00:00:00,races_412
+413,1986,10,10,German Grand Prix,1986-07-27 00:00:00,00:00:00,races_413
+414,1986,11,11,Hungarian Grand Prix,1986-08-10 00:00:00,00:00:00,races_414
+415,1986,12,70,Austrian Grand Prix,1986-08-17 00:00:00,00:00:00,races_415
+416,1986,13,14,Italian Grand Prix,1986-09-07 00:00:00,00:00:00,races_416
+417,1986,14,27,Portuguese Grand Prix,1986-09-21 00:00:00,00:00:00,races_417
+418,1986,15,32,Mexican Grand Prix,1986-10-12 00:00:00,00:00:00,races_418
+419,1986,16,29,Australian Grand Prix,1986-10-26 00:00:00,00:00:00,races_419
+420,1985,1,36,Brazilian Grand Prix,1985-04-07 00:00:00,00:00:00,races_420
+421,1985,2,27,Portuguese Grand Prix,1985-04-21 00:00:00,00:00:00,races_421
+422,1985,3,21,San Marino Grand Prix,1985-05-05 00:00:00,00:00:00,races_422
+423,1985,4,6,Monaco Grand Prix,1985-05-19 00:00:00,00:00:00,races_423
+424,1985,5,7,Canadian Grand Prix,1985-06-16 00:00:00,00:00:00,races_424
+425,1985,6,37,Detroit Grand Prix,1985-06-23 00:00:00,00:00:00,races_425
+426,1985,7,34,French Grand Prix,1985-07-07 00:00:00,00:00:00,races_426
+427,1985,8,9,British Grand Prix,1985-07-21 00:00:00,00:00:00,races_427
+428,1985,9,20,German Grand Prix,1985-08-04 00:00:00,00:00:00,races_428
+429,1985,10,70,Austrian Grand Prix,1985-08-18 00:00:00,00:00:00,races_429
+430,1985,11,39,Dutch Grand Prix,1985-08-25 00:00:00,00:00:00,races_430
+431,1985,12,14,Italian Grand Prix,1985-09-08 00:00:00,00:00:00,races_431
+432,1985,13,13,Belgian Grand Prix,1985-09-15 00:00:00,00:00:00,races_432
+433,1985,14,38,European Grand Prix,1985-10-06 00:00:00,00:00:00,races_433
+434,1985,15,30,South African Grand Prix,1985-10-19 00:00:00,00:00:00,races_434
+435,1985,16,29,Australian Grand Prix,1985-11-03 00:00:00,00:00:00,races_435
+436,1984,1,36,Brazilian Grand Prix,1984-03-25 00:00:00,00:00:00,races_436
+437,1984,2,30,South African Grand Prix,1984-04-07 00:00:00,00:00:00,races_437
+438,1984,3,40,Belgian Grand Prix,1984-04-29 00:00:00,00:00:00,races_438
+439,1984,4,21,San Marino Grand Prix,1984-05-06 00:00:00,00:00:00,races_439
+440,1984,5,41,French Grand Prix,1984-05-20 00:00:00,00:00:00,races_440
+441,1984,6,6,Monaco Grand Prix,1984-06-03 00:00:00,00:00:00,races_441
+442,1984,7,7,Canadian Grand Prix,1984-06-17 00:00:00,00:00:00,races_442
+443,1984,8,37,Detroit Grand Prix,1984-06-24 00:00:00,00:00:00,races_443
+444,1984,9,42,Dallas Grand Prix,1984-07-08 00:00:00,00:00:00,races_444
+445,1984,10,38,British Grand Prix,1984-07-22 00:00:00,00:00:00,races_445
+446,1984,11,10,German Grand Prix,1984-08-05 00:00:00,00:00:00,races_446
+447,1984,12,70,Austrian Grand Prix,1984-08-19 00:00:00,00:00:00,races_447
+448,1984,13,39,Dutch Grand Prix,1984-08-26 00:00:00,00:00:00,races_448
+449,1984,14,14,Italian Grand Prix,1984-09-09 00:00:00,00:00:00,races_449
+450,1984,15,20,European Grand Prix,1984-10-07 00:00:00,00:00:00,races_450
+451,1984,16,27,Portuguese Grand Prix,1984-10-21 00:00:00,00:00:00,races_451
+452,1983,1,36,Brazilian Grand Prix,1983-03-13 00:00:00,00:00:00,races_452
+453,1983,2,43,United States Grand Prix West,1983-03-27 00:00:00,00:00:00,races_453
+454,1983,3,34,French Grand Prix,1983-04-17 00:00:00,00:00:00,races_454
+455,1983,4,21,San Marino Grand Prix,1983-05-01 00:00:00,00:00:00,races_455
+456,1983,5,6,Monaco Grand Prix,1983-05-15 00:00:00,00:00:00,races_456
+457,1983,6,13,Belgian Grand Prix,1983-05-22 00:00:00,00:00:00,races_457
+458,1983,7,37,Detroit Grand Prix,1983-06-05 00:00:00,00:00:00,races_458
+459,1983,8,7,Canadian Grand Prix,1983-06-12 00:00:00,00:00:00,races_459
+460,1983,9,9,British Grand Prix,1983-07-16 00:00:00,00:00:00,races_460
+461,1983,10,10,German Grand Prix,1983-08-07 00:00:00,00:00:00,races_461
+462,1983,11,70,Austrian Grand Prix,1983-08-14 00:00:00,00:00:00,races_462
+463,1983,12,39,Dutch Grand Prix,1983-08-28 00:00:00,00:00:00,races_463
+464,1983,13,14,Italian Grand Prix,1983-09-11 00:00:00,00:00:00,races_464
+465,1983,14,38,European Grand Prix,1983-09-25 00:00:00,00:00:00,races_465
+466,1983,15,30,South African Grand Prix,1983-10-15 00:00:00,00:00:00,races_466
+467,1982,1,30,South African Grand Prix,1982-01-23 00:00:00,00:00:00,races_467
+468,1982,2,36,Brazilian Grand Prix,1982-03-21 00:00:00,00:00:00,races_468
+469,1982,3,43,United States Grand Prix West,1982-04-04 00:00:00,00:00:00,races_469
+470,1982,4,21,San Marino Grand Prix,1982-04-25 00:00:00,00:00:00,races_470
+471,1982,5,40,Belgian Grand Prix,1982-05-09 00:00:00,00:00:00,races_471
+472,1982,6,6,Monaco Grand Prix,1982-05-23 00:00:00,00:00:00,races_472
+473,1982,7,37,Detroit Grand Prix,1982-06-06 00:00:00,00:00:00,races_473
+474,1982,8,7,Canadian Grand Prix,1982-06-13 00:00:00,00:00:00,races_474
+475,1982,9,39,Dutch Grand Prix,1982-07-03 00:00:00,00:00:00,races_475
+476,1982,10,38,British Grand Prix,1982-07-18 00:00:00,00:00:00,races_476
+477,1982,11,34,French Grand Prix,1982-07-25 00:00:00,00:00:00,races_477
+478,1982,12,10,German Grand Prix,1982-08-08 00:00:00,00:00:00,races_478
+479,1982,13,70,Austrian Grand Prix,1982-08-15 00:00:00,00:00:00,races_479
+480,1982,14,41,Swiss Grand Prix,1982-08-29 00:00:00,00:00:00,races_480
+481,1982,15,14,Italian Grand Prix,1982-09-12 00:00:00,00:00:00,races_481
+482,1982,16,44,Caesars Palace Grand Prix,1982-09-25 00:00:00,00:00:00,races_482
+483,1981,1,43,United States Grand Prix West,1981-03-15 00:00:00,00:00:00,races_483
+484,1981,2,36,Brazilian Grand Prix,1981-03-29 00:00:00,00:00:00,races_484
+485,1981,3,25,Argentine Grand Prix,1981-04-12 00:00:00,00:00:00,races_485
+486,1981,4,21,San Marino Grand Prix,1981-05-03 00:00:00,00:00:00,races_486
+487,1981,5,40,Belgian Grand Prix,1981-05-17 00:00:00,00:00:00,races_487
+488,1981,6,6,Monaco Grand Prix,1981-05-31 00:00:00,00:00:00,races_488
+489,1981,7,45,Spanish Grand Prix,1981-06-21 00:00:00,00:00:00,races_489
+490,1981,8,41,French Grand Prix,1981-07-05 00:00:00,00:00:00,races_490
+491,1981,9,9,British Grand Prix,1981-07-18 00:00:00,00:00:00,races_491
+492,1981,10,10,German Grand Prix,1981-08-02 00:00:00,00:00:00,races_492
+493,1981,11,70,Austrian Grand Prix,1981-08-16 00:00:00,00:00:00,races_493
+494,1981,12,39,Dutch Grand Prix,1981-08-30 00:00:00,00:00:00,races_494
+495,1981,13,14,Italian Grand Prix,1981-09-13 00:00:00,00:00:00,races_495
+496,1981,14,7,Canadian Grand Prix,1981-09-27 00:00:00,00:00:00,races_496
+497,1981,15,44,Caesars Palace Grand Prix,1981-10-17 00:00:00,00:00:00,races_497
+498,1980,1,25,Argentine Grand Prix,1980-01-13 00:00:00,00:00:00,races_498
+499,1980,2,18,Brazilian Grand Prix,1980-01-27 00:00:00,00:00:00,races_499
+500,1980,3,30,South African Grand Prix,1980-03-01 00:00:00,00:00:00,races_500
+501,1980,4,43,United States Grand Prix West,1980-03-30 00:00:00,00:00:00,races_501
+502,1980,5,40,Belgian Grand Prix,1980-05-04 00:00:00,00:00:00,races_502
+503,1980,6,6,Monaco Grand Prix,1980-05-18 00:00:00,00:00:00,races_503
+504,1980,7,34,French Grand Prix,1980-06-29 00:00:00,00:00:00,races_504
+505,1980,8,38,British Grand Prix,1980-07-13 00:00:00,00:00:00,races_505
+506,1980,9,10,German Grand Prix,1980-08-10 00:00:00,00:00:00,races_506
+507,1980,10,70,Austrian Grand Prix,1980-08-17 00:00:00,00:00:00,races_507
+508,1980,11,39,Dutch Grand Prix,1980-08-31 00:00:00,00:00:00,races_508
+509,1980,12,21,Italian Grand Prix,1980-09-14 00:00:00,00:00:00,races_509
+510,1980,13,7,Canadian Grand Prix,1980-09-28 00:00:00,00:00:00,races_510
+511,1980,14,46,United States Grand Prix,1980-10-05 00:00:00,00:00:00,races_511
+512,1979,1,25,Argentine Grand Prix,1979-01-21 00:00:00,00:00:00,races_512
+513,1979,2,18,Brazilian Grand Prix,1979-02-04 00:00:00,00:00:00,races_513
+514,1979,3,30,South African Grand Prix,1979-03-03 00:00:00,00:00:00,races_514
+515,1979,4,43,United States Grand Prix West,1979-04-08 00:00:00,00:00:00,races_515
+516,1979,5,45,Spanish Grand Prix,1979-04-29 00:00:00,00:00:00,races_516
+517,1979,6,40,Belgian Grand Prix,1979-05-13 00:00:00,00:00:00,races_517
+518,1979,7,6,Monaco Grand Prix,1979-05-27 00:00:00,00:00:00,races_518
+519,1979,8,41,French Grand Prix,1979-07-01 00:00:00,00:00:00,races_519
+520,1979,9,9,British Grand Prix,1979-07-14 00:00:00,00:00:00,races_520
+521,1979,10,10,German Grand Prix,1979-07-29 00:00:00,00:00:00,races_521
+522,1979,11,70,Austrian Grand Prix,1979-08-12 00:00:00,00:00:00,races_522
+523,1979,12,39,Dutch Grand Prix,1979-08-26 00:00:00,00:00:00,races_523
+524,1979,13,14,Italian Grand Prix,1979-09-09 00:00:00,00:00:00,races_524
+525,1979,14,7,Canadian Grand Prix,1979-09-30 00:00:00,00:00:00,races_525
+526,1979,15,46,United States Grand Prix,1979-10-07 00:00:00,00:00:00,races_526
+527,1978,1,25,Argentine Grand Prix,1978-01-15 00:00:00,00:00:00,races_527
+528,1978,2,36,Brazilian Grand Prix,1978-01-29 00:00:00,00:00:00,races_528
+529,1978,3,30,South African Grand Prix,1978-03-04 00:00:00,00:00:00,races_529
+530,1978,4,43,United States Grand Prix West,1978-04-02 00:00:00,00:00:00,races_530
+531,1978,5,6,Monaco Grand Prix,1978-05-07 00:00:00,00:00:00,races_531
+532,1978,6,40,Belgian Grand Prix,1978-05-21 00:00:00,00:00:00,races_532
+533,1978,7,45,Spanish Grand Prix,1978-06-04 00:00:00,00:00:00,races_533
+534,1978,8,47,Swedish Grand Prix,1978-06-17 00:00:00,00:00:00,races_534
+535,1978,9,34,French Grand Prix,1978-07-02 00:00:00,00:00:00,races_535
+536,1978,10,38,British Grand Prix,1978-07-16 00:00:00,00:00:00,races_536
+537,1978,11,10,German Grand Prix,1978-07-30 00:00:00,00:00:00,races_537
+538,1978,12,70,Austrian Grand Prix,1978-08-13 00:00:00,00:00:00,races_538
+539,1978,13,39,Dutch Grand Prix,1978-08-27 00:00:00,00:00:00,races_539
+540,1978,14,14,Italian Grand Prix,1978-09-10 00:00:00,00:00:00,races_540
+541,1978,15,46,United States Grand Prix,1978-10-01 00:00:00,00:00:00,races_541
+542,1978,16,7,Canadian Grand Prix,1978-10-08 00:00:00,00:00:00,races_542
+543,1977,1,25,Argentine Grand Prix,1977-01-09 00:00:00,00:00:00,races_543
+544,1977,2,18,Brazilian Grand Prix,1977-01-23 00:00:00,00:00:00,races_544
+545,1977,3,30,South African Grand Prix,1977-03-05 00:00:00,00:00:00,races_545
+546,1977,4,43,United States Grand Prix West,1977-04-03 00:00:00,00:00:00,races_546
+547,1977,5,45,Spanish Grand Prix,1977-05-08 00:00:00,00:00:00,races_547
+548,1977,6,6,Monaco Grand Prix,1977-05-22 00:00:00,00:00:00,races_548
+549,1977,7,40,Belgian Grand Prix,1977-06-05 00:00:00,00:00:00,races_549
+550,1977,8,47,Swedish Grand Prix,1977-06-19 00:00:00,00:00:00,races_550
+551,1977,9,41,French Grand Prix,1977-07-03 00:00:00,00:00:00,races_551
+552,1977,10,9,British Grand Prix,1977-07-16 00:00:00,00:00:00,races_552
+553,1977,11,10,German Grand Prix,1977-07-31 00:00:00,00:00:00,races_553
+554,1977,12,70,Austrian Grand Prix,1977-08-14 00:00:00,00:00:00,races_554
+555,1977,13,39,Dutch Grand Prix,1977-08-28 00:00:00,00:00:00,races_555
+556,1977,14,14,Italian Grand Prix,1977-09-11 00:00:00,00:00:00,races_556
+557,1977,15,46,United States Grand Prix,1977-10-02 00:00:00,00:00:00,races_557
+558,1977,16,48,Canadian Grand Prix,1977-10-09 00:00:00,00:00:00,races_558
+559,1977,17,16,Japanese Grand Prix,1977-10-23 00:00:00,00:00:00,races_559
+560,1976,1,18,Brazilian Grand Prix,1976-01-25 00:00:00,00:00:00,races_560
+561,1976,2,30,South African Grand Prix,1976-03-06 00:00:00,00:00:00,races_561
+562,1976,3,43,United States Grand Prix West,1976-03-28 00:00:00,00:00:00,races_562
+563,1976,4,45,Spanish Grand Prix,1976-05-02 00:00:00,00:00:00,races_563
+564,1976,5,40,Belgian Grand Prix,1976-05-16 00:00:00,00:00:00,races_564
+565,1976,6,6,Monaco Grand Prix,1976-05-30 00:00:00,00:00:00,races_565
+566,1976,7,47,Swedish Grand Prix,1976-06-13 00:00:00,00:00:00,races_566
+567,1976,8,34,French Grand Prix,1976-07-04 00:00:00,00:00:00,races_567
+568,1976,9,38,British Grand Prix,1976-07-18 00:00:00,00:00:00,races_568
+569,1976,10,20,German Grand Prix,1976-08-01 00:00:00,00:00:00,races_569
+570,1976,11,70,Austrian Grand Prix,1976-08-15 00:00:00,00:00:00,races_570
+571,1976,12,39,Dutch Grand Prix,1976-08-29 00:00:00,00:00:00,races_571
+572,1976,13,14,Italian Grand Prix,1976-09-12 00:00:00,00:00:00,races_572
+573,1976,14,48,Canadian Grand Prix,1976-10-03 00:00:00,00:00:00,races_573
+574,1976,15,46,United States Grand Prix,1976-10-10 00:00:00,00:00:00,races_574
+575,1976,16,16,Japanese Grand Prix,1976-10-24 00:00:00,00:00:00,races_575
+576,1975,1,25,Argentine Grand Prix,1975-01-12 00:00:00,00:00:00,races_576
+577,1975,2,18,Brazilian Grand Prix,1975-01-26 00:00:00,00:00:00,races_577
+578,1975,3,30,South African Grand Prix,1975-03-01 00:00:00,00:00:00,races_578
+579,1975,4,49,Spanish Grand Prix,1975-04-27 00:00:00,00:00:00,races_579
+580,1975,5,6,Monaco Grand Prix,1975-05-11 00:00:00,00:00:00,races_580
+581,1975,6,40,Belgian Grand Prix,1975-05-25 00:00:00,00:00:00,races_581
+582,1975,7,47,Swedish Grand Prix,1975-06-08 00:00:00,00:00:00,races_582
+583,1975,8,39,Dutch Grand Prix,1975-06-22 00:00:00,00:00:00,races_583
+584,1975,9,34,French Grand Prix,1975-07-06 00:00:00,00:00:00,races_584
+585,1975,10,9,British Grand Prix,1975-07-19 00:00:00,00:00:00,races_585
+586,1975,11,20,German Grand Prix,1975-08-03 00:00:00,00:00:00,races_586
+587,1975,12,70,Austrian Grand Prix,1975-08-17 00:00:00,00:00:00,races_587
+588,1975,13,14,Italian Grand Prix,1975-09-07 00:00:00,00:00:00,races_588
+589,1975,14,46,United States Grand Prix,1975-10-05 00:00:00,00:00:00,races_589
+590,1974,1,25,Argentine Grand Prix,1974-01-13 00:00:00,00:00:00,races_590
+591,1974,2,18,Brazilian Grand Prix,1974-01-27 00:00:00,00:00:00,races_591
+592,1974,3,30,South African Grand Prix,1974-03-30 00:00:00,00:00:00,races_592
+593,1974,4,45,Spanish Grand Prix,1974-04-28 00:00:00,00:00:00,races_593
+594,1974,5,50,Belgian Grand Prix,1974-05-12 00:00:00,00:00:00,races_594
+595,1974,6,6,Monaco Grand Prix,1974-05-26 00:00:00,00:00:00,races_595
+596,1974,7,47,Swedish Grand Prix,1974-06-09 00:00:00,00:00:00,races_596
+597,1974,8,39,Dutch Grand Prix,1974-06-23 00:00:00,00:00:00,races_597
+598,1974,9,41,French Grand Prix,1974-07-07 00:00:00,00:00:00,races_598
+599,1974,10,38,British Grand Prix,1974-07-20 00:00:00,00:00:00,races_599
+600,1974,11,20,German Grand Prix,1974-08-04 00:00:00,00:00:00,races_600
+601,1974,12,70,Austrian Grand Prix,1974-08-18 00:00:00,00:00:00,races_601
+602,1974,13,14,Italian Grand Prix,1974-09-08 00:00:00,00:00:00,races_602
+603,1974,14,48,Canadian Grand Prix,1974-09-22 00:00:00,00:00:00,races_603
+604,1974,15,46,United States Grand Prix,1974-10-06 00:00:00,00:00:00,races_604
+605,1973,1,25,Argentine Grand Prix,1973-01-28 00:00:00,00:00:00,races_605
+606,1973,2,18,Brazilian Grand Prix,1973-02-11 00:00:00,00:00:00,races_606
+607,1973,3,30,South African Grand Prix,1973-03-03 00:00:00,00:00:00,races_607
+608,1973,4,49,Spanish Grand Prix,1973-04-29 00:00:00,00:00:00,races_608
+609,1973,5,40,Belgian Grand Prix,1973-05-20 00:00:00,00:00:00,races_609
+610,1973,6,6,Monaco Grand Prix,1973-06-03 00:00:00,00:00:00,races_610
+611,1973,7,47,Swedish Grand Prix,1973-06-17 00:00:00,00:00:00,races_611
+612,1973,8,34,French Grand Prix,1973-07-01 00:00:00,00:00:00,races_612
+613,1973,9,9,British Grand Prix,1973-07-14 00:00:00,00:00:00,races_613
+614,1973,10,39,Dutch Grand Prix,1973-07-29 00:00:00,00:00:00,races_614
+615,1973,11,20,German Grand Prix,1973-08-05 00:00:00,00:00:00,races_615
+616,1973,12,70,Austrian Grand Prix,1973-08-19 00:00:00,00:00:00,races_616
+617,1973,13,14,Italian Grand Prix,1973-09-09 00:00:00,00:00:00,races_617
+618,1973,14,48,Canadian Grand Prix,1973-09-23 00:00:00,00:00:00,races_618
+619,1973,15,46,United States Grand Prix,1973-10-07 00:00:00,00:00:00,races_619
+620,1972,1,25,Argentine Grand Prix,1972-01-23 00:00:00,00:00:00,races_620
+621,1972,2,30,South African Grand Prix,1972-03-04 00:00:00,00:00:00,races_621
+622,1972,3,45,Spanish Grand Prix,1972-05-01 00:00:00,00:00:00,races_622
+623,1972,4,6,Monaco Grand Prix,1972-05-14 00:00:00,00:00:00,races_623
+624,1972,5,50,Belgian Grand Prix,1972-06-04 00:00:00,00:00:00,races_624
+625,1972,6,51,French Grand Prix,1972-07-02 00:00:00,00:00:00,races_625
+626,1972,7,38,British Grand Prix,1972-07-15 00:00:00,00:00:00,races_626
+627,1972,8,20,German Grand Prix,1972-07-30 00:00:00,00:00:00,races_627
+628,1972,9,70,Austrian Grand Prix,1972-08-13 00:00:00,00:00:00,races_628
+629,1972,10,14,Italian Grand Prix,1972-09-10 00:00:00,00:00:00,races_629
+630,1972,11,48,Canadian Grand Prix,1972-09-24 00:00:00,00:00:00,races_630
+631,1972,12,46,United States Grand Prix,1972-10-08 00:00:00,00:00:00,races_631
+632,1971,1,30,South African Grand Prix,1971-03-06 00:00:00,00:00:00,races_632
+633,1971,2,49,Spanish Grand Prix,1971-04-18 00:00:00,00:00:00,races_633
+634,1971,3,6,Monaco Grand Prix,1971-05-23 00:00:00,00:00:00,races_634
+635,1971,4,39,Dutch Grand Prix,1971-06-20 00:00:00,00:00:00,races_635
+636,1971,5,34,French Grand Prix,1971-07-04 00:00:00,00:00:00,races_636
+637,1971,6,9,British Grand Prix,1971-07-17 00:00:00,00:00:00,races_637
+638,1971,7,20,German Grand Prix,1971-08-01 00:00:00,00:00:00,races_638
+639,1971,8,70,Austrian Grand Prix,1971-08-15 00:00:00,00:00:00,races_639
+640,1971,9,14,Italian Grand Prix,1971-09-05 00:00:00,00:00:00,races_640
+641,1971,10,48,Canadian Grand Prix,1971-09-19 00:00:00,00:00:00,races_641
+642,1971,11,46,United States Grand Prix,1971-10-03 00:00:00,00:00:00,races_642
+643,1970,1,30,South African Grand Prix,1970-03-07 00:00:00,00:00:00,races_643
+644,1970,2,45,Spanish Grand Prix,1970-04-19 00:00:00,00:00:00,races_644
+645,1970,3,6,Monaco Grand Prix,1970-05-10 00:00:00,00:00:00,races_645
+646,1970,4,13,Belgian Grand Prix,1970-06-07 00:00:00,00:00:00,races_646
+647,1970,5,39,Dutch Grand Prix,1970-06-21 00:00:00,00:00:00,races_647
+648,1970,6,51,French Grand Prix,1970-07-05 00:00:00,00:00:00,races_648
+649,1970,7,38,British Grand Prix,1970-07-18 00:00:00,00:00:00,races_649
+650,1970,8,10,German Grand Prix,1970-08-02 00:00:00,00:00:00,races_650
+651,1970,9,70,Austrian Grand Prix,1970-08-16 00:00:00,00:00:00,races_651
+652,1970,10,14,Italian Grand Prix,1970-09-06 00:00:00,00:00:00,races_652
+653,1970,11,52,Canadian Grand Prix,1970-09-20 00:00:00,00:00:00,races_653
+654,1970,12,46,United States Grand Prix,1970-10-04 00:00:00,00:00:00,races_654
+655,1970,13,32,Mexican Grand Prix,1970-10-25 00:00:00,00:00:00,races_655
+656,1969,1,30,South African Grand Prix,1969-03-01 00:00:00,00:00:00,races_656
+657,1969,2,49,Spanish Grand Prix,1969-05-04 00:00:00,00:00:00,races_657
+658,1969,3,6,Monaco Grand Prix,1969-05-18 00:00:00,00:00:00,races_658
+659,1969,4,39,Dutch Grand Prix,1969-06-21 00:00:00,00:00:00,races_659
+660,1969,5,51,French Grand Prix,1969-07-06 00:00:00,00:00:00,races_660
+661,1969,6,9,British Grand Prix,1969-07-19 00:00:00,00:00:00,races_661
+662,1969,7,20,German Grand Prix,1969-08-03 00:00:00,00:00:00,races_662
+663,1969,8,14,Italian Grand Prix,1969-09-07 00:00:00,00:00:00,races_663
+664,1969,9,48,Canadian Grand Prix,1969-09-20 00:00:00,00:00:00,races_664
+665,1969,10,46,United States Grand Prix,1969-10-05 00:00:00,00:00:00,races_665
+666,1969,11,32,Mexican Grand Prix,1969-10-19 00:00:00,00:00:00,races_666
+667,1968,1,30,South African Grand Prix,1968-01-01 00:00:00,00:00:00,races_667
+668,1968,2,45,Spanish Grand Prix,1968-05-12 00:00:00,00:00:00,races_668
+669,1968,3,6,Monaco Grand Prix,1968-05-26 00:00:00,00:00:00,races_669
+670,1968,4,13,Belgian Grand Prix,1968-06-09 00:00:00,00:00:00,races_670
+671,1968,5,39,Dutch Grand Prix,1968-06-23 00:00:00,00:00:00,races_671
+672,1968,6,53,French Grand Prix,1968-07-07 00:00:00,00:00:00,races_672
+673,1968,7,38,British Grand Prix,1968-07-20 00:00:00,00:00:00,races_673
+674,1968,8,20,German Grand Prix,1968-08-04 00:00:00,00:00:00,races_674
+675,1968,9,14,Italian Grand Prix,1968-09-08 00:00:00,00:00:00,races_675
+676,1968,10,52,Canadian Grand Prix,1968-09-22 00:00:00,00:00:00,races_676
+677,1968,11,46,United States Grand Prix,1968-10-06 00:00:00,00:00:00,races_677
+678,1968,12,32,Mexican Grand Prix,1968-11-03 00:00:00,00:00:00,races_678
+679,1967,1,30,South African Grand Prix,1967-01-02 00:00:00,00:00:00,races_679
+680,1967,2,6,Monaco Grand Prix,1967-05-07 00:00:00,00:00:00,races_680
+681,1967,3,39,Dutch Grand Prix,1967-06-04 00:00:00,00:00:00,races_681
+682,1967,4,13,Belgian Grand Prix,1967-06-18 00:00:00,00:00:00,races_682
+683,1967,5,54,French Grand Prix,1967-07-02 00:00:00,00:00:00,races_683
+684,1967,6,9,British Grand Prix,1967-07-15 00:00:00,00:00:00,races_684
+685,1967,7,20,German Grand Prix,1967-08-06 00:00:00,00:00:00,races_685
+686,1967,8,48,Canadian Grand Prix,1967-08-27 00:00:00,00:00:00,races_686
+687,1967,9,14,Italian Grand Prix,1967-09-10 00:00:00,00:00:00,races_687
+688,1967,10,46,United States Grand Prix,1967-10-01 00:00:00,00:00:00,races_688
+689,1967,11,32,Mexican Grand Prix,1967-10-22 00:00:00,00:00:00,races_689
+690,1966,1,6,Monaco Grand Prix,1966-05-22 00:00:00,00:00:00,races_690
+691,1966,2,13,Belgian Grand Prix,1966-06-12 00:00:00,00:00:00,races_691
+692,1966,3,55,French Grand Prix,1966-07-03 00:00:00,00:00:00,races_692
+693,1966,4,38,British Grand Prix,1966-07-16 00:00:00,00:00:00,races_693
+694,1966,5,39,Dutch Grand Prix,1966-07-24 00:00:00,00:00:00,races_694
+695,1966,6,20,German Grand Prix,1966-08-07 00:00:00,00:00:00,races_695
+696,1966,7,14,Italian Grand Prix,1966-09-04 00:00:00,00:00:00,races_696
+697,1966,8,46,United States Grand Prix,1966-10-02 00:00:00,00:00:00,races_697
+698,1966,9,32,Mexican Grand Prix,1966-10-23 00:00:00,00:00:00,races_698
+699,1965,1,56,South African Grand Prix,1965-01-01 00:00:00,00:00:00,races_699
+700,1965,2,6,Monaco Grand Prix,1965-05-30 00:00:00,00:00:00,races_700
+701,1965,3,13,Belgian Grand Prix,1965-06-13 00:00:00,00:00:00,races_701
+702,1965,4,51,French Grand Prix,1965-06-27 00:00:00,00:00:00,races_702
+703,1965,5,9,British Grand Prix,1965-07-10 00:00:00,00:00:00,races_703
+704,1965,6,39,Dutch Grand Prix,1965-07-18 00:00:00,00:00:00,races_704
+705,1965,7,20,German Grand Prix,1965-08-01 00:00:00,00:00:00,races_705
+706,1965,8,14,Italian Grand Prix,1965-09-12 00:00:00,00:00:00,races_706
+707,1965,9,46,United States Grand Prix,1965-10-03 00:00:00,00:00:00,races_707
+708,1965,10,32,Mexican Grand Prix,1965-10-24 00:00:00,00:00:00,races_708
+709,1964,1,6,Monaco Grand Prix,1964-05-10 00:00:00,00:00:00,races_709
+710,1964,2,39,Dutch Grand Prix,1964-05-24 00:00:00,00:00:00,races_710
+711,1964,3,13,Belgian Grand Prix,1964-06-14 00:00:00,00:00:00,races_711
+712,1964,4,53,French Grand Prix,1964-06-28 00:00:00,00:00:00,races_712
+713,1964,5,38,British Grand Prix,1964-07-11 00:00:00,00:00:00,races_713
+714,1964,6,20,German Grand Prix,1964-08-02 00:00:00,00:00:00,races_714
+715,1964,7,57,Austrian Grand Prix,1964-08-23 00:00:00,00:00:00,races_715
+716,1964,8,14,Italian Grand Prix,1964-09-06 00:00:00,00:00:00,races_716
+717,1964,9,46,United States Grand Prix,1964-10-04 00:00:00,00:00:00,races_717
+718,1964,10,32,Mexican Grand Prix,1964-10-25 00:00:00,00:00:00,races_718
+719,1963,1,6,Monaco Grand Prix,1963-05-26 00:00:00,00:00:00,races_719
+720,1963,2,13,Belgian Grand Prix,1963-06-09 00:00:00,00:00:00,races_720
+721,1963,3,39,Dutch Grand Prix,1963-06-23 00:00:00,00:00:00,races_721
+722,1963,4,55,French Grand Prix,1963-06-30 00:00:00,00:00:00,races_722
+723,1963,5,9,British Grand Prix,1963-07-20 00:00:00,00:00:00,races_723
+724,1963,6,20,German Grand Prix,1963-08-04 00:00:00,00:00:00,races_724
+725,1963,7,14,Italian Grand Prix,1963-09-08 00:00:00,00:00:00,races_725
+726,1963,8,46,United States Grand Prix,1963-10-06 00:00:00,00:00:00,races_726
+727,1963,9,32,Mexican Grand Prix,1963-10-27 00:00:00,00:00:00,races_727
+728,1963,10,56,South African Grand Prix,1963-12-28 00:00:00,00:00:00,races_728
+729,1962,1,39,Dutch Grand Prix,1962-05-20 00:00:00,00:00:00,races_729
+730,1962,2,6,Monaco Grand Prix,1962-06-03 00:00:00,00:00:00,races_730
+731,1962,3,13,Belgian Grand Prix,1962-06-17 00:00:00,00:00:00,races_731
+732,1962,4,53,French Grand Prix,1962-07-08 00:00:00,00:00:00,races_732
+733,1962,5,58,British Grand Prix,1962-07-21 00:00:00,00:00:00,races_733
+734,1962,6,20,German Grand Prix,1962-08-05 00:00:00,00:00:00,races_734
+735,1962,7,14,Italian Grand Prix,1962-09-16 00:00:00,00:00:00,races_735
+736,1962,8,46,United States Grand Prix,1962-10-07 00:00:00,00:00:00,races_736
+737,1962,9,56,South African Grand Prix,1962-12-29 00:00:00,00:00:00,races_737
+738,1961,1,6,Monaco Grand Prix,1961-05-14 00:00:00,00:00:00,races_738
+739,1961,2,39,Dutch Grand Prix,1961-05-22 00:00:00,00:00:00,races_739
+740,1961,3,13,Belgian Grand Prix,1961-06-18 00:00:00,00:00:00,races_740
+741,1961,4,55,French Grand Prix,1961-07-02 00:00:00,00:00:00,races_741
+742,1961,5,58,British Grand Prix,1961-07-15 00:00:00,00:00:00,races_742
+743,1961,6,20,German Grand Prix,1961-08-06 00:00:00,00:00:00,races_743
+744,1961,7,14,Italian Grand Prix,1961-09-10 00:00:00,00:00:00,races_744
+745,1961,8,46,United States Grand Prix,1961-10-08 00:00:00,00:00:00,races_745
+746,1960,1,25,Argentine Grand Prix,1960-02-07 00:00:00,00:00:00,races_746
+747,1960,2,6,Monaco Grand Prix,1960-05-29 00:00:00,00:00:00,races_747
+748,1960,3,19,Indianapolis 500,1960-05-30 00:00:00,00:00:00,races_748
+749,1960,4,39,Dutch Grand Prix,1960-06-06 00:00:00,00:00:00,races_749
+750,1960,5,13,Belgian Grand Prix,1960-06-19 00:00:00,00:00:00,races_750
+751,1960,6,55,French Grand Prix,1960-07-03 00:00:00,00:00:00,races_751
+752,1960,7,9,British Grand Prix,1960-07-16 00:00:00,00:00:00,races_752
+753,1960,8,59,Portuguese Grand Prix,1960-08-14 00:00:00,00:00:00,races_753
+754,1960,9,14,Italian Grand Prix,1960-09-04 00:00:00,00:00:00,races_754
+755,1960,10,60,United States Grand Prix,1960-11-20 00:00:00,00:00:00,races_755
+756,1959,1,6,Monaco Grand Prix,1959-05-10 00:00:00,00:00:00,races_756
+757,1959,2,19,Indianapolis 500,1959-05-30 00:00:00,00:00:00,races_757
+758,1959,3,39,Dutch Grand Prix,1959-05-31 00:00:00,00:00:00,races_758
+759,1959,4,55,French Grand Prix,1959-07-05 00:00:00,00:00:00,races_759
+760,1959,5,58,British Grand Prix,1959-07-18 00:00:00,00:00:00,races_760
+761,1959,6,61,German Grand Prix,1959-08-02 00:00:00,00:00:00,races_761
+762,1959,7,62,Portuguese Grand Prix,1959-08-23 00:00:00,00:00:00,races_762
+763,1959,8,14,Italian Grand Prix,1959-09-13 00:00:00,00:00:00,races_763
+764,1959,9,63,United States Grand Prix,1959-12-12 00:00:00,00:00:00,races_764
+765,1958,1,25,Argentine Grand Prix,1958-01-19 00:00:00,00:00:00,races_765
+766,1958,2,6,Monaco Grand Prix,1958-05-18 00:00:00,00:00:00,races_766
+767,1958,3,39,Dutch Grand Prix,1958-05-26 00:00:00,00:00:00,races_767
+768,1958,4,19,Indianapolis 500,1958-05-30 00:00:00,00:00:00,races_768
+769,1958,5,13,Belgian Grand Prix,1958-06-15 00:00:00,00:00:00,races_769
+770,1958,6,55,French Grand Prix,1958-07-06 00:00:00,00:00:00,races_770
+771,1958,7,9,British Grand Prix,1958-07-19 00:00:00,00:00:00,races_771
+772,1958,8,20,German Grand Prix,1958-08-03 00:00:00,00:00:00,races_772
+773,1958,9,59,Portuguese Grand Prix,1958-08-24 00:00:00,00:00:00,races_773
+774,1958,10,14,Italian Grand Prix,1958-09-07 00:00:00,00:00:00,races_774
+775,1958,11,64,Moroccan Grand Prix,1958-10-19 00:00:00,00:00:00,races_775
+776,1957,1,25,Argentine Grand Prix,1957-01-13 00:00:00,00:00:00,races_776
+777,1957,2,6,Monaco Grand Prix,1957-05-19 00:00:00,00:00:00,races_777
+778,1957,3,19,Indianapolis 500,1957-05-30 00:00:00,00:00:00,races_778
+779,1957,4,53,French Grand Prix,1957-07-07 00:00:00,00:00:00,races_779
+780,1957,5,58,British Grand Prix,1957-07-20 00:00:00,00:00:00,races_780
+781,1957,6,20,German Grand Prix,1957-08-04 00:00:00,00:00:00,races_781
+782,1957,7,65,Pescara Grand Prix,1957-08-18 00:00:00,00:00:00,races_782
+783,1957,8,14,Italian Grand Prix,1957-09-08 00:00:00,00:00:00,races_783
+784,1956,1,25,Argentine Grand Prix,1956-01-22 00:00:00,00:00:00,races_784
+785,1956,2,6,Monaco Grand Prix,1956-05-13 00:00:00,00:00:00,races_785
+786,1956,3,19,Indianapolis 500,1956-05-30 00:00:00,00:00:00,races_786
+787,1956,4,13,Belgian Grand Prix,1956-06-03 00:00:00,00:00:00,races_787
+788,1956,5,55,French Grand Prix,1956-07-01 00:00:00,00:00:00,races_788
+789,1956,6,9,British Grand Prix,1956-07-14 00:00:00,00:00:00,races_789
+790,1956,7,20,German Grand Prix,1956-08-05 00:00:00,00:00:00,races_790
+791,1956,8,14,Italian Grand Prix,1956-09-02 00:00:00,00:00:00,races_791
+792,1955,1,25,Argentine Grand Prix,1955-01-16 00:00:00,00:00:00,races_792
+793,1955,2,6,Monaco Grand Prix,1955-05-22 00:00:00,00:00:00,races_793
+794,1955,3,19,Indianapolis 500,1955-05-30 00:00:00,00:00:00,races_794
+795,1955,4,13,Belgian Grand Prix,1955-06-05 00:00:00,00:00:00,races_795
+796,1955,5,39,Dutch Grand Prix,1955-06-19 00:00:00,00:00:00,races_796
+797,1955,6,58,British Grand Prix,1955-07-16 00:00:00,00:00:00,races_797
+798,1955,7,14,Italian Grand Prix,1955-09-11 00:00:00,00:00:00,races_798
+799,1954,1,25,Argentine Grand Prix,1954-01-17 00:00:00,00:00:00,races_799
+800,1954,2,19,Indianapolis 500,1954-05-31 00:00:00,00:00:00,races_800
+801,1954,3,13,Belgian Grand Prix,1954-06-20 00:00:00,00:00:00,races_801
+802,1954,4,55,French Grand Prix,1954-07-04 00:00:00,00:00:00,races_802
+803,1954,5,9,British Grand Prix,1954-07-17 00:00:00,00:00:00,races_803
+804,1954,6,20,German Grand Prix,1954-08-01 00:00:00,00:00:00,races_804
+805,1954,7,66,Swiss Grand Prix,1954-08-22 00:00:00,00:00:00,races_805
+806,1954,8,14,Italian Grand Prix,1954-09-05 00:00:00,00:00:00,races_806
+807,1954,9,67,Spanish Grand Prix,1954-10-24 00:00:00,00:00:00,races_807
+808,1953,1,25,Argentine Grand Prix,1953-01-18 00:00:00,00:00:00,races_808
+809,1953,2,19,Indianapolis 500,1953-05-30 00:00:00,00:00:00,races_809
+810,1953,3,39,Dutch Grand Prix,1953-06-07 00:00:00,00:00:00,races_810
+811,1953,4,13,Belgian Grand Prix,1953-06-21 00:00:00,00:00:00,races_811
+812,1953,5,55,French Grand Prix,1953-07-05 00:00:00,00:00:00,races_812
+813,1953,6,9,British Grand Prix,1953-07-18 00:00:00,00:00:00,races_813
+814,1953,7,20,German Grand Prix,1953-08-02 00:00:00,00:00:00,races_814
+815,1953,8,66,Swiss Grand Prix,1953-08-23 00:00:00,00:00:00,races_815
+816,1953,9,14,Italian Grand Prix,1953-09-13 00:00:00,00:00:00,races_816
+817,1952,1,66,Swiss Grand Prix,1952-05-18 00:00:00,00:00:00,races_817
+818,1952,2,19,Indianapolis 500,1952-05-30 00:00:00,00:00:00,races_818
+819,1952,3,13,Belgian Grand Prix,1952-06-22 00:00:00,00:00:00,races_819
+820,1952,4,53,French Grand Prix,1952-07-06 00:00:00,00:00:00,races_820
+821,1952,5,9,British Grand Prix,1952-07-19 00:00:00,00:00:00,races_821
+822,1952,6,20,German Grand Prix,1952-08-03 00:00:00,00:00:00,races_822
+823,1952,7,39,Dutch Grand Prix,1952-08-17 00:00:00,00:00:00,races_823
+824,1952,8,14,Italian Grand Prix,1952-09-07 00:00:00,00:00:00,races_824
+825,1951,1,66,Swiss Grand Prix,1951-05-27 00:00:00,00:00:00,races_825
+826,1951,2,19,Indianapolis 500,1951-05-30 00:00:00,00:00:00,races_826
+827,1951,3,13,Belgian Grand Prix,1951-06-17 00:00:00,00:00:00,races_827
+828,1951,4,55,French Grand Prix,1951-07-01 00:00:00,00:00:00,races_828
+829,1951,5,9,British Grand Prix,1951-07-14 00:00:00,00:00:00,races_829
+830,1951,6,20,German Grand Prix,1951-07-29 00:00:00,00:00:00,races_830
+831,1951,7,14,Italian Grand Prix,1951-09-16 00:00:00,00:00:00,races_831
+832,1951,8,67,Spanish Grand Prix,1951-10-28 00:00:00,00:00:00,races_832
+833,1950,1,9,British Grand Prix,1950-05-13 00:00:00,00:00:00,races_833
+834,1950,2,6,Monaco Grand Prix,1950-05-21 00:00:00,00:00:00,races_834
+835,1950,3,19,Indianapolis 500,1950-05-30 00:00:00,00:00:00,races_835
+836,1950,4,66,Swiss Grand Prix,1950-06-04 00:00:00,00:00:00,races_836
+837,1950,5,13,Belgian Grand Prix,1950-06-18 00:00:00,00:00:00,races_837
+838,1950,6,55,French Grand Prix,1950-07-02 00:00:00,00:00:00,races_838
+839,1950,7,14,Italian Grand Prix,1950-09-03 00:00:00,00:00:00,races_839
+841,2011,1,1,Australian Grand Prix,2011-03-27 06:00:00,06:00:00,races_840
+842,2011,2,2,Malaysian Grand Prix,2011-04-10 08:00:00,08:00:00,races_841
+843,2011,3,17,Chinese Grand Prix,2011-04-17 07:00:00,07:00:00,races_842
+844,2011,4,5,Turkish Grand Prix,2011-05-08 12:00:00,12:00:00,races_843
+845,2011,5,4,Spanish Grand Prix,2011-05-22 12:00:00,12:00:00,races_844
+846,2011,6,6,Monaco Grand Prix,2011-05-29 12:00:00,12:00:00,races_845
+847,2011,7,7,Canadian Grand Prix,2011-06-12 17:00:00,17:00:00,races_846
+848,2011,8,12,European Grand Prix,2011-06-26 12:00:00,12:00:00,races_847
+849,2011,9,9,British Grand Prix,2011-07-10 12:00:00,12:00:00,races_848
+850,2011,10,20,German Grand Prix,2011-07-24 12:00:00,12:00:00,races_849
+851,2011,11,11,Hungarian Grand Prix,2011-07-31 12:00:00,12:00:00,races_850
+852,2011,12,13,Belgian Grand Prix,2011-08-28 12:00:00,12:00:00,races_851
+853,2011,13,14,Italian Grand Prix,2011-09-11 12:00:00,12:00:00,races_852
+854,2011,14,15,Singapore Grand Prix,2011-09-25 12:00:00,12:00:00,races_853
+855,2011,15,22,Japanese Grand Prix,2011-10-09 06:00:00,06:00:00,races_854
+856,2011,16,35,Korean Grand Prix,2011-10-16 06:00:00,06:00:00,races_855
+857,2011,17,68,Indian Grand Prix,2011-10-30 09:30:00,09:30:00,races_856
+858,2011,18,24,Abu Dhabi Grand Prix,2011-11-13 13:00:00,13:00:00,races_857
+859,2011,19,18,Brazilian Grand Prix,2011-11-27 16:00:00,16:00:00,races_858
+860,2012,1,1,Australian Grand Prix,2012-03-18 06:00:00,06:00:00,races_859
+861,2012,2,2,Malaysian Grand Prix,2012-03-25 08:00:00,08:00:00,races_860
+862,2012,3,17,Chinese Grand Prix,2012-04-15 07:00:00,07:00:00,races_861
+863,2012,4,3,Bahrain Grand Prix,2012-04-22 12:00:00,12:00:00,races_862
+864,2012,5,4,Spanish Grand Prix,2012-05-13 12:00:00,12:00:00,races_863
+865,2012,6,6,Monaco Grand Prix,2012-05-27 12:00:00,12:00:00,races_864
+866,2012,7,7,Canadian Grand Prix,2012-06-10 18:00:00,18:00:00,races_865
+867,2012,8,12,European Grand Prix,2012-06-24 12:00:00,12:00:00,races_866
+868,2012,9,9,British Grand Prix,2012-07-08 12:00:00,12:00:00,races_867
+869,2012,10,10,German Grand Prix,2012-07-22 12:00:00,12:00:00,races_868
+870,2012,11,11,Hungarian Grand Prix,2012-07-29 12:00:00,12:00:00,races_869
+871,2012,12,13,Belgian Grand Prix,2012-09-02 12:00:00,12:00:00,races_870
+872,2012,13,14,Italian Grand Prix,2012-09-09 12:00:00,12:00:00,races_871
+873,2012,14,15,Singapore Grand Prix,2012-09-23 12:00:00,12:00:00,races_872
+874,2012,15,22,Japanese Grand Prix,2012-10-07 06:00:00,06:00:00,races_873
+875,2012,16,35,Korean Grand Prix,2012-10-14 06:00:00,06:00:00,races_874
+876,2012,17,68,Indian Grand Prix,2012-10-28 09:30:00,09:30:00,races_875
+877,2012,18,24,Abu Dhabi Grand Prix,2012-11-04 13:00:00,13:00:00,races_876
+878,2012,19,69,United States Grand Prix,2012-11-18 19:00:00,19:00:00,races_877
+879,2012,20,18,Brazilian Grand Prix,2012-11-25 16:00:00,16:00:00,races_878
+880,2013,1,1,Australian Grand Prix,2013-03-17 06:00:00,06:00:00,races_879
+881,2013,2,2,Malaysian Grand Prix,2013-03-24 08:00:00,08:00:00,races_880
+882,2013,3,17,Chinese Grand Prix,2013-04-14 07:00:00,07:00:00,races_881
+883,2013,4,3,Bahrain Grand Prix,2013-04-21 12:00:00,12:00:00,races_882
+884,2013,5,4,Spanish Grand Prix,2013-05-12 12:00:00,12:00:00,races_883
+885,2013,6,6,Monaco Grand Prix,2013-05-26 12:00:00,12:00:00,races_884
+886,2013,7,7,Canadian Grand Prix,2013-06-09 18:00:00,18:00:00,races_885
+887,2013,8,9,British Grand Prix,2013-06-30 12:00:00,12:00:00,races_886
+888,2013,9,20,German Grand Prix,2013-07-07 12:00:00,12:00:00,races_887
+890,2013,10,11,Hungarian Grand Prix,2013-07-28 12:00:00,12:00:00,races_888
+891,2013,11,13,Belgian Grand Prix,2013-08-25 12:00:00,12:00:00,races_889
+892,2013,12,14,Italian Grand Prix,2013-09-08 12:00:00,12:00:00,races_890
+893,2013,13,15,Singapore Grand Prix,2013-09-22 12:00:00,12:00:00,races_891
+894,2013,14,35,Korean Grand Prix,2013-10-06 06:00:00,06:00:00,races_892
+895,2013,15,22,Japanese Grand Prix,2013-10-13 06:00:00,06:00:00,races_893
+896,2013,16,68,Indian Grand Prix,2013-10-27 09:30:00,09:30:00,races_894
+897,2013,17,24,Abu Dhabi Grand Prix,2013-11-03 13:00:00,13:00:00,races_895
+898,2013,18,69,United States Grand Prix,2013-11-17 19:00:00,19:00:00,races_896
+899,2013,19,18,Brazilian Grand Prix,2013-11-24 16:00:00,16:00:00,races_897
+900,2014,1,1,Australian Grand Prix,2014-03-16 06:00:00,06:00:00,races_898
+901,2014,2,2,Malaysian Grand Prix,2014-03-30 08:00:00,08:00:00,races_899
+902,2014,3,3,Bahrain Grand Prix,2014-04-06 15:00:00,15:00:00,races_900
+903,2014,4,17,Chinese Grand Prix,2014-04-20 07:00:00,07:00:00,races_901
+904,2014,5,4,Spanish Grand Prix,2014-05-11 12:00:00,12:00:00,races_902
+905,2014,6,6,Monaco Grand Prix,2014-05-25 12:00:00,12:00:00,races_903
+906,2014,7,7,Canadian Grand Prix,2014-06-08 18:00:00,18:00:00,races_904
+907,2014,8,70,Austrian Grand Prix,2014-06-22 12:00:00,12:00:00,races_905
+908,2014,9,9,British Grand Prix,2014-07-06 12:00:00,12:00:00,races_906
+909,2014,10,10,German Grand Prix,2014-07-20 12:00:00,12:00:00,races_907
+910,2014,11,11,Hungarian Grand Prix,2014-07-27 12:00:00,12:00:00,races_908
+911,2014,12,13,Belgian Grand Prix,2014-08-24 12:00:00,12:00:00,races_909
+912,2014,13,14,Italian Grand Prix,2014-09-07 12:00:00,12:00:00,races_910
+913,2014,14,15,Singapore Grand Prix,2014-09-21 12:00:00,12:00:00,races_911
+914,2014,15,22,Japanese Grand Prix,2014-10-05 06:00:00,06:00:00,races_912
+915,2014,16,71,Russian Grand Prix,2014-10-12 11:00:00,11:00:00,races_913
+916,2014,17,69,United States Grand Prix,2014-11-02 20:00:00,20:00:00,races_914
+917,2014,18,18,Brazilian Grand Prix,2014-11-09 16:00:00,16:00:00,races_915
+918,2014,19,24,Abu Dhabi Grand Prix,2014-11-23 13:00:00,13:00:00,races_916
+931,2015,6,6,Monaco Grand Prix,2015-05-24 12:00:00,12:00:00,races_917
+932,2015,7,7,Canadian Grand Prix,2015-06-07 18:00:00,18:00:00,races_918
+929,2015,4,3,Bahrain Grand Prix,2015-04-19 15:00:00,15:00:00,races_919
+930,2015,5,4,Spanish Grand Prix,2015-05-10 12:00:00,12:00:00,races_920
+928,2015,3,17,Chinese Grand Prix,2015-04-12 06:00:00,06:00:00,races_921
+926,2015,1,1,Australian Grand Prix,2015-03-15 05:00:00,05:00:00,races_922
+927,2015,2,2,Malaysian Grand Prix,2015-03-29 07:00:00,07:00:00,races_923
+933,2015,8,70,Austrian Grand Prix,2015-06-21 12:00:00,12:00:00,races_924
+934,2015,9,9,British Grand Prix,2015-07-05 12:00:00,12:00:00,races_925
+936,2015,10,11,Hungarian Grand Prix,2015-07-26 12:00:00,12:00:00,races_926
+937,2015,11,13,Belgian Grand Prix,2015-08-23 12:00:00,12:00:00,races_927
+938,2015,12,14,Italian Grand Prix,2015-09-06 12:00:00,12:00:00,races_928
+939,2015,13,15,Singapore Grand Prix,2015-09-20 12:00:00,12:00:00,races_929
+940,2015,14,22,Japanese Grand Prix,2015-09-27 05:00:00,05:00:00,races_930
+941,2015,15,71,Russian Grand Prix,2015-10-11 11:00:00,11:00:00,races_931
+942,2015,16,69,United States Grand Prix,2015-10-25 19:00:00,19:00:00,races_932
+943,2015,17,32,Mexican Grand Prix,2015-11-01 19:00:00,19:00:00,races_933
+944,2015,18,18,Brazilian Grand Prix,2015-11-15 16:00:00,16:00:00,races_934
+945,2015,19,24,Abu Dhabi Grand Prix,2015-11-29 13:00:00,13:00:00,races_935
+948,2016,1,1,Australian Grand Prix,2016-03-20 05:00:00,05:00:00,races_936
+949,2016,2,3,Bahrain Grand Prix,2016-04-03 15:00:00,15:00:00,races_937
+950,2016,3,17,Chinese Grand Prix,2016-04-17 06:00:00,06:00:00,races_938
+951,2016,4,71,Russian Grand Prix,2016-05-01 12:00:00,12:00:00,races_939
+952,2016,5,4,Spanish Grand Prix,2016-05-15 12:00:00,12:00:00,races_940
+953,2016,6,6,Monaco Grand Prix,2016-05-29 12:00:00,12:00:00,races_941
+954,2016,7,7,Canadian Grand Prix,2016-06-12 18:00:00,18:00:00,races_942
+955,2016,8,73,European Grand Prix,2016-06-19 13:00:00,13:00:00,races_943
+956,2016,9,70,Austrian Grand Prix,2016-07-03 12:00:00,12:00:00,races_944
+957,2016,10,9,British Grand Prix,2016-07-10 12:00:00,12:00:00,races_945
+958,2016,11,11,Hungarian Grand Prix,2016-07-24 12:00:00,12:00:00,races_946
+959,2016,12,10,German Grand Prix,2016-07-31 12:00:00,12:00:00,races_947
+960,2016,13,13,Belgian Grand Prix,2016-08-28 12:00:00,12:00:00,races_948
+961,2016,14,14,Italian Grand Prix,2016-09-04 12:00:00,12:00:00,races_949
+962,2016,15,15,Singapore Grand Prix,2016-09-18 12:00:00,12:00:00,races_950
+963,2016,16,2,Malaysian Grand Prix,2016-10-02 07:00:00,07:00:00,races_951
+964,2016,17,22,Japanese Grand Prix,2016-10-09 05:00:00,05:00:00,races_952
+965,2016,18,69,United States Grand Prix,2016-10-23 19:00:00,19:00:00,races_953
+966,2016,19,32,Mexican Grand Prix,2016-10-30 19:00:00,19:00:00,races_954
+967,2016,20,18,Brazilian Grand Prix,2016-11-13 16:00:00,16:00:00,races_955
+968,2016,21,24,Abu Dhabi Grand Prix,2016-11-27 13:00:00,13:00:00,races_956
+969,2017,1,1,Australian Grand Prix,2017-03-26 05:00:00,05:00:00,races_957
+970,2017,2,17,Chinese Grand Prix,2017-04-09 06:00:00,06:00:00,races_958
+971,2017,3,3,Bahrain Grand Prix,2017-04-16 15:00:00,15:00:00,races_959
+972,2017,4,71,Russian Grand Prix,2017-04-30 12:00:00,12:00:00,races_960
+973,2017,5,4,Spanish Grand Prix,2017-05-14 12:00:00,12:00:00,races_961
+974,2017,6,6,Monaco Grand Prix,2017-05-28 12:00:00,12:00:00,races_962
+975,2017,7,7,Canadian Grand Prix,2017-06-11 18:00:00,18:00:00,races_963
+976,2017,8,73,Azerbaijan Grand Prix,2017-06-25 13:00:00,13:00:00,races_964
+977,2017,9,70,Austrian Grand Prix,2017-07-09 12:00:00,12:00:00,races_965
+978,2017,10,9,British Grand Prix,2017-07-16 12:00:00,12:00:00,races_966
+979,2017,11,11,Hungarian Grand Prix,2017-07-30 12:00:00,12:00:00,races_967
+980,2017,12,13,Belgian Grand Prix,2017-08-27 12:00:00,12:00:00,races_968
+981,2017,13,14,Italian Grand Prix,2017-09-03 12:00:00,12:00:00,races_969
+982,2017,14,15,Singapore Grand Prix,2017-09-17 12:00:00,12:00:00,races_970
+983,2017,15,2,Malaysian Grand Prix,2017-10-01 07:00:00,07:00:00,races_971
+984,2017,16,22,Japanese Grand Prix,2017-10-08 05:00:00,05:00:00,races_972
+985,2017,17,69,United States Grand Prix,2017-10-22 19:00:00,19:00:00,races_973
+986,2017,18,32,Mexican Grand Prix,2017-10-29 19:00:00,19:00:00,races_974
+987,2017,19,18,Brazilian Grand Prix,2017-11-12 16:00:00,16:00:00,races_975
+988,2017,20,24,Abu Dhabi Grand Prix,2017-11-26 13:00:00,13:00:00,races_976
+989,2018,1,1,Australian Grand Prix,2018-03-25 05:10:00,05:10:00,races_977
+990,2018,2,3,Bahrain Grand Prix,2018-04-08 15:10:00,15:10:00,races_978
+991,2018,3,17,Chinese Grand Prix,2018-04-15 06:10:00,06:10:00,races_979
+992,2018,4,73,Azerbaijan Grand Prix,2018-04-29 12:10:00,12:10:00,races_980
+993,2018,5,4,Spanish Grand Prix,2018-05-13 13:10:00,13:10:00,races_981
+994,2018,6,6,Monaco Grand Prix,2018-05-27 13:10:00,13:10:00,races_982
+995,2018,7,7,Canadian Grand Prix,2018-06-10 18:10:00,18:10:00,races_983
+996,2018,8,34,French Grand Prix,2018-06-24 14:10:00,14:10:00,races_984
+997,2018,9,70,Austrian Grand Prix,2018-07-01 13:10:00,13:10:00,races_985
+998,2018,10,9,British Grand Prix,2018-07-08 13:10:00,13:10:00,races_986
+999,2018,11,10,German Grand Prix,2018-07-22 13:10:00,13:10:00,races_987
+1000,2018,12,11,Hungarian Grand Prix,2018-07-29 13:10:00,13:10:00,races_988
+1001,2018,13,13,Belgian Grand Prix,2018-08-26 13:10:00,13:10:00,races_989
+1002,2018,14,14,Italian Grand Prix,2018-09-02 13:10:00,13:10:00,races_990
+1003,2018,15,15,Singapore Grand Prix,2018-09-16 12:10:00,12:10:00,races_991
+1004,2018,16,71,Russian Grand Prix,2018-09-30 11:10:00,11:10:00,races_992
+1005,2018,17,22,Japanese Grand Prix,2018-10-07 05:10:00,05:10:00,races_993
+1006,2018,18,69,United States Grand Prix,2018-10-21 18:10:00,18:10:00,races_994
+1007,2018,19,32,Mexican Grand Prix,2018-10-28 19:10:00,19:10:00,races_995
+1008,2018,20,18,Brazilian Grand Prix,2018-11-11 17:10:00,17:10:00,races_996
+1009,2018,21,24,Abu Dhabi Grand Prix,2018-11-25 13:10:00,13:10:00,races_997
+1010,2019,1,1,Australian Grand Prix,2019-03-17 05:10:00,05:10:00,races_998
+1011,2019,2,3,Bahrain Grand Prix,2019-03-31 15:10:00,15:10:00,races_999
+1012,2019,3,17,Chinese Grand Prix,2019-04-14 06:10:00,06:10:00,races_1000
+1013,2019,4,73,Azerbaijan Grand Prix,2019-04-28 12:10:00,12:10:00,races_1001
+1014,2019,5,4,Spanish Grand Prix,2019-05-12 13:10:00,13:10:00,races_1002
+1015,2019,6,6,Monaco Grand Prix,2019-05-26 13:10:00,13:10:00,races_1003
+1016,2019,7,7,Canadian Grand Prix,2019-06-09 18:10:00,18:10:00,races_1004
+1017,2019,8,34,French Grand Prix,2019-06-23 13:10:00,13:10:00,races_1005
+1018,2019,9,70,Austrian Grand Prix,2019-06-30 13:10:00,13:10:00,races_1006
+1019,2019,10,9,British Grand Prix,2019-07-14 13:10:00,13:10:00,races_1007
+1020,2019,11,10,German Grand Prix,2019-07-28 13:10:00,13:10:00,races_1008
+1021,2019,12,11,Hungarian Grand Prix,2019-08-04 13:10:00,13:10:00,races_1009
+1022,2019,13,13,Belgian Grand Prix,2019-09-01 13:10:00,13:10:00,races_1010
+1023,2019,14,14,Italian Grand Prix,2019-09-08 13:10:00,13:10:00,races_1011
+1024,2019,15,15,Singapore Grand Prix,2019-09-22 12:10:00,12:10:00,races_1012
+1025,2019,16,71,Russian Grand Prix,2019-09-29 11:10:00,11:10:00,races_1013
+1026,2019,17,22,Japanese Grand Prix,2019-10-13 05:10:00,05:10:00,races_1014
+1027,2019,18,32,Mexican Grand Prix,2019-10-27 19:10:00,19:10:00,races_1015
+1028,2019,19,69,United States Grand Prix,2019-11-03 19:10:00,19:10:00,races_1016
+1029,2019,20,18,Brazilian Grand Prix,2019-11-17 17:10:00,17:10:00,races_1017
+1030,2019,21,24,Abu Dhabi Grand Prix,2019-12-01 13:10:00,13:10:00,races_1018
+1031,2020,1,70,Austrian Grand Prix,2020-07-05 13:10:00,13:10:00,races_1019
+1032,2020,2,70,Styrian Grand Prix,2020-07-12 13:10:00,13:10:00,races_1020
+1033,2020,3,11,Hungarian Grand Prix,2020-07-19 13:10:00,13:10:00,races_1021
+1034,2020,4,9,British Grand Prix,2020-08-02 13:10:00,13:10:00,races_1022
+1035,2020,5,9,70th Anniversary Grand Prix,2020-08-09 13:10:00,13:10:00,races_1023
+1036,2020,6,4,Spanish Grand Prix,2020-08-16 13:10:00,13:10:00,races_1024
+1037,2020,7,13,Belgian Grand Prix,2020-08-30 13:10:00,13:10:00,races_1025
+1038,2020,8,14,Italian Grand Prix,2020-09-06 13:10:00,13:10:00,races_1026
+1039,2020,9,76,Tuscan Grand Prix,2020-09-13 13:10:00,13:10:00,races_1027
+1040,2020,10,71,Russian Grand Prix,2020-09-27 11:10:00,11:10:00,races_1028
+1041,2020,11,20,Eifel Grand Prix,2020-10-11 13:10:00,13:10:00,races_1029
+1042,2020,12,75,Portuguese Grand Prix,2020-10-25 12:10:00,12:10:00,races_1030
+1043,2020,13,21,Emilia Romagna Grand Prix,2020-11-01 12:10:00,12:10:00,races_1031
+1044,2020,14,5,Turkish Grand Prix,2020-11-15 10:10:00,10:10:00,races_1032
+1045,2020,15,3,Bahrain Grand Prix,2020-11-29 14:10:00,14:10:00,races_1033
+1046,2020,16,3,Sakhir Grand Prix,2020-12-06 17:10:00,17:10:00,races_1034
+1047,2020,17,24,Abu Dhabi Grand Prix,2020-12-13 13:10:00,13:10:00,races_1035
+1053,2021,2,21,Emilia Romagna Grand Prix,2021-04-18 13:00:00,13:00:00,races_1036
+1074,2022,1,3,Bahrain Grand Prix,2022-03-20 15:00:00,15:00:00,races_1037
+1052,2021,1,3,Bahrain Grand Prix,2021-03-28 15:00:00,15:00:00,races_1038
+1051,2021,20,78,Qatar Grand Prix,2021-11-21 14:00:00,14:00:00,races_1039
+1054,2021,3,75,Portuguese Grand Prix,2021-05-02 14:00:00,14:00:00,races_1040
+1055,2021,4,4,Spanish Grand Prix,2021-05-09 13:00:00,13:00:00,races_1041
+1056,2021,5,6,Monaco Grand Prix,2021-05-23 13:00:00,13:00:00,races_1042
+1057,2021,6,73,Azerbaijan Grand Prix,2021-06-06 12:00:00,12:00:00,races_1043
+1058,2021,8,70,Styrian Grand Prix,2021-06-27 13:00:00,13:00:00,races_1044
+1059,2021,7,34,French Grand Prix,2021-06-20 13:00:00,13:00:00,races_1045
+1060,2021,9,70,Austrian Grand Prix,2021-07-04 13:00:00,13:00:00,races_1046
+1061,2021,10,9,British Grand Prix,2021-07-18 14:00:00,14:00:00,races_1047
+1062,2021,11,11,Hungarian Grand Prix,2021-08-01 13:00:00,13:00:00,races_1048
+1063,2021,12,13,Belgian Grand Prix,2021-08-29 13:00:00,13:00:00,races_1049
+1064,2021,13,39,Dutch Grand Prix,2021-09-05 13:00:00,13:00:00,races_1050
+1065,2021,14,14,Italian Grand Prix,2021-09-12 13:00:00,13:00:00,races_1051
+1066,2021,15,71,Russian Grand Prix,2021-09-26 12:00:00,12:00:00,races_1052
+1067,2021,16,5,Turkish Grand Prix,2021-10-10 12:00:00,12:00:00,races_1053
+1069,2021,17,69,United States Grand Prix,2021-10-24 19:00:00,19:00:00,races_1054
+1070,2021,18,32,Mexico City Grand Prix,2021-11-07 19:00:00,19:00:00,races_1055
+1071,2021,19,18,São Paulo Grand Prix,2021-11-14 17:00:00,17:00:00,races_1056
+1072,2021,21,77,Saudi Arabian Grand Prix,2021-12-05 17:30:00,17:30:00,races_1057
+1073,2021,22,24,Abu Dhabi Grand Prix,2021-12-12 13:00:00,13:00:00,races_1058
+1075,2022,2,77,Saudi Arabian Grand Prix,2022-03-27 17:00:00,17:00:00,races_1059
+1076,2022,3,1,Australian Grand Prix,2022-04-10 05:00:00,05:00:00,races_1060
+1077,2022,4,21,Emilia Romagna Grand Prix,2022-04-24 13:00:00,13:00:00,races_1061
+1078,2022,5,79,Miami Grand Prix,2022-05-08 19:30:00,19:30:00,races_1062
+1079,2022,6,4,Spanish Grand Prix,2022-05-22 13:00:00,13:00:00,races_1063
+1080,2022,7,6,Monaco Grand Prix,2022-05-29 13:00:00,13:00:00,races_1064
+1081,2022,8,73,Azerbaijan Grand Prix,2022-06-12 11:00:00,11:00:00,races_1065
+1082,2022,9,7,Canadian Grand Prix,2022-06-19 18:00:00,18:00:00,races_1066
+1083,2022,10,9,British Grand Prix,2022-07-03 14:00:00,14:00:00,races_1067
+1084,2022,11,70,Austrian Grand Prix,2022-07-10 13:00:00,13:00:00,races_1068
+1085,2022,12,34,French Grand Prix,2022-07-24 13:00:00,13:00:00,races_1069
+1086,2022,13,11,Hungarian Grand Prix,2022-07-31 13:00:00,13:00:00,races_1070
+1087,2022,14,13,Belgian Grand Prix,2022-08-28 13:00:00,13:00:00,races_1071
+1088,2022,15,39,Dutch Grand Prix,2022-09-04 13:00:00,13:00:00,races_1072
+1089,2022,16,14,Italian Grand Prix,2022-09-11 13:00:00,13:00:00,races_1073
+1091,2022,17,15,Singapore Grand Prix,2022-10-02 12:00:00,12:00:00,races_1074
+1092,2022,18,22,Japanese Grand Prix,2022-10-09 05:00:00,05:00:00,races_1075
+1093,2022,19,69,United States Grand Prix,2022-10-23 19:00:00,19:00:00,races_1076
+1094,2022,20,32,Mexico City Grand Prix,2022-10-30 20:00:00,20:00:00,races_1077
+1095,2022,21,18,Brazilian Grand Prix,2022-11-13 18:00:00,18:00:00,races_1078
+1096,2022,22,24,Abu Dhabi Grand Prix,2022-11-20 13:00:00,13:00:00,races_1079
+1098,2023,1,3,Bahrain Grand Prix,2023-03-05 15:00:00,15:00:00,races_1080
+1099,2023,2,77,Saudi Arabian Grand Prix,2023-03-19 17:00:00,17:00:00,races_1081
+1100,2023,3,1,Australian Grand Prix,2023-04-02 05:00:00,05:00:00,races_1082
+1101,2023,4,73,Azerbaijan Grand Prix,2023-04-30 11:00:00,11:00:00,races_1083
+1102,2023,5,79,Miami Grand Prix,2023-05-07 19:30:00,19:30:00,races_1084
+1104,2023,6,6,Monaco Grand Prix,2023-05-28 13:00:00,13:00:00,races_1085
+1105,2023,7,4,Spanish Grand Prix,2023-06-04 13:00:00,13:00:00,races_1086
+1106,2023,8,7,Canadian Grand Prix,2023-06-18 18:00:00,18:00:00,races_1087
+1107,2023,9,70,Austrian Grand Prix,2023-07-02 13:00:00,13:00:00,races_1088
+1108,2023,10,9,British Grand Prix,2023-07-09 14:00:00,14:00:00,races_1089
+1109,2023,11,11,Hungarian Grand Prix,2023-07-23 13:00:00,13:00:00,races_1090
+1110,2023,12,13,Belgian Grand Prix,2023-07-30 13:00:00,13:00:00,races_1091
+1111,2023,13,39,Dutch Grand Prix,2023-08-27 13:00:00,13:00:00,races_1092
+1112,2023,14,14,Italian Grand Prix,2023-09-03 13:00:00,13:00:00,races_1093
+1113,2023,15,15,Singapore Grand Prix,2023-09-17 12:00:00,12:00:00,races_1094
+1114,2023,16,22,Japanese Grand Prix,2023-09-24 05:00:00,05:00:00,races_1095
+1115,2023,17,78,Qatar Grand Prix,2023-10-08 14:00:00,14:00:00,races_1096
+1116,2023,18,69,United States Grand Prix,2023-10-22 19:00:00,19:00:00,races_1097
+1117,2023,19,32,Mexico City Grand Prix,2023-10-29 20:00:00,20:00:00,races_1098
+1118,2023,20,18,São Paulo Grand Prix,2023-11-05 17:00:00,17:00:00,races_1099
+1119,2023,21,80,Las Vegas Grand Prix,2023-11-19 06:00:00,06:00:00,races_1100
+1120,2023,22,24,Abu Dhabi Grand Prix,2023-11-26 13:00:00,13:00:00,races_1101

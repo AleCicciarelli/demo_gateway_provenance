@@ -11,14 +11,11 @@ evaluation/
 OAR.*
 faiss_mpnet_analysis/
 faiss_index_tpch_*
-rel-f1-csv/
 faiss_index_relf1_*
 evaluation_relf1/
 evaluation_tpch/
 bucket/
 docs/unstructured_data_ingestion.md
-
-# LaTeX build artifacts
 docs/*.aux
 docs/*.bbl
 docs/*.blg

@@ -1,0 +1,2723 @@
+{
+  "tables": {
+    "circuits": {
+      "num_rows": 77,
+      "num_columns": 8,
+      "columns": {
+        "circuitId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 77,
+          "unique": 77,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "circuitRef": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 77,
+          "unique": 77,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "albert_park",
+            "sepang",
+            "bahrain",
+            "catalunya",
+            "istanbul"
+          ]
+        },
+        "name": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 77,
+          "unique": 77,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "Albert Park Grand Prix Circuit",
+            "Sepang International Circuit",
+            "Bahrain International Circuit",
+            "Circuit de Barcelona-Catalunya",
+            "Istanbul Park"
+          ]
+        },
+        "location": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 77,
+          "unique": 75,
+          "unique_ratio": 0.974,
+          "null_ratio": 0.0,
+          "examples": [
+            "Melbourne",
+            "Kuala Lumpur",
+            "Sakhir",
+            "Montmel\u00f3",
+            "Istanbul"
+          ]
+        },
+        "country": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 77,
+          "unique": 35,
+          "unique_ratio": 0.4545,
+          "null_ratio": 0.0,
+          "examples": [
+            "Australia",
+            "Malaysia",
+            "Bahrain",
+            "Spain",
+            "Turkey"
+          ]
+        },
+        "lat": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 77,
+          "unique": 77,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "-37.8497",
+            "2.76083",
+            "26.0325",
+            "41.57",
+            "40.9517"
+          ]
+        },
+        "lng": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 77,
+          "unique": 77,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "144.968",
+            "101.738",
+            "50.5106",
+            "2.26111",
+            "29.405"
+          ]
+        },
+        "alt": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 74,
+          "unique": 65,
+          "unique_ratio": 0.8442,
+          "null_ratio": 0.039,
+          "examples": [
+            "10.0",
+            "18.0",
+            "7.0",
+            "109.0",
+            "130.0"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "circuitId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitId",
+            "circuitRef"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitId",
+            "name"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitId",
+            "location"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitId",
+            "country"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitId",
+            "lat"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitId",
+            "lng"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitRef"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "name"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "lat"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        }
+      ]
+    },
+    "constructor_results": {
+      "num_rows": 12290,
+      "num_columns": 5,
+      "columns": {
+        "constructorResultsId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 12290,
+          "unique": 12290,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "raceId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 12290,
+          "unique": 1028,
+          "unique_ratio": 0.0836,
+          "null_ratio": 0.0,
+          "examples": [
+            "18",
+            "19",
+            "20",
+            "21",
+            "22"
+          ]
+        },
+        "constructorId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 12290,
+          "unique": 175,
+          "unique_ratio": 0.0142,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "points": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 12290,
+          "unique": 57,
+          "unique_ratio": 0.0046,
+          "null_ratio": 0.0,
+          "examples": [
+            "14.0",
+            "8.0",
+            "9.0",
+            "5.0",
+            "2.0"
+          ]
+        },
+        "date": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 12290,
+          "unique": 1028,
+          "unique_ratio": 0.0836,
+          "null_ratio": 0.0,
+          "examples": [
+            "2008-03-16 04:30:00",
+            "2008-03-23 07:00:00",
+            "2008-04-06 11:30:00",
+            "2008-04-27 12:00:00",
+            "2008-05-11 12:00:00"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "constructorResultsId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorResultsId",
+            "raceId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorResultsId",
+            "constructorId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "constructorId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorResultsId",
+            "points"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorResultsId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "constructor_standings": {
+      "num_rows": 13051,
+      "num_columns": 7,
+      "columns": {
+        "constructorStandingsId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 13051,
+          "unique": 13051,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "raceId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 13051,
+          "unique": 1027,
+          "unique_ratio": 0.0787,
+          "null_ratio": 0.0,
+          "examples": [
+            "18",
+            "19",
+            "20",
+            "21",
+            "22"
+          ]
+        },
+        "constructorId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 13051,
+          "unique": 159,
+          "unique_ratio": 0.0122,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "points": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 13051,
+          "unique": 541,
+          "unique_ratio": 0.0415,
+          "null_ratio": 0.0,
+          "examples": [
+            "14.0",
+            "8.0",
+            "9.0",
+            "5.0",
+            "2.0"
+          ]
+        },
+        "position": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 13051,
+          "unique": 22,
+          "unique_ratio": 0.0017,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "3",
+            "2",
+            "4",
+            "5"
+          ]
+        },
+        "wins": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 13051,
+          "unique": 20,
+          "unique_ratio": 0.0015,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "0",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        "date": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 13051,
+          "unique": 1027,
+          "unique_ratio": 0.0787,
+          "null_ratio": 0.0,
+          "examples": [
+            "2008-03-16 04:30:00",
+            "2008-03-23 07:00:00",
+            "2008-04-06 11:30:00",
+            "2008-04-27 12:00:00",
+            "2008-05-11 12:00:00"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "constructorStandingsId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorStandingsId",
+            "raceId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorStandingsId",
+            "constructorId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "constructorId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorStandingsId",
+            "points"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorStandingsId",
+            "position"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorStandingsId",
+            "wins"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorStandingsId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "position"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "constructors": {
+      "num_rows": 211,
+      "num_columns": 4,
+      "columns": {
+        "constructorId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 211,
+          "unique": 211,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "constructorRef": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 211,
+          "unique": 211,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "mclaren",
+            "bmw_sauber",
+            "williams",
+            "renault",
+            "toro_rosso"
+          ]
+        },
+        "name": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 211,
+          "unique": 211,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "McLaren",
+            "BMW Sauber",
+            "Williams",
+            "Renault",
+            "Toro Rosso"
+          ]
+        },
+        "nationality": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 211,
+          "unique": 24,
+          "unique_ratio": 0.1137,
+          "null_ratio": 0.0,
+          "examples": [
+            "British",
+            "German",
+            "French",
+            "Italian",
+            "Japanese"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "constructorId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorId",
+            "constructorRef"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorId",
+            "name"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorId",
+            "nationality"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorRef"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "name"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorRef",
+            "name"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "constructorRef",
+            "nationality"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "name",
+            "nationality"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "drivers": {
+      "num_rows": 857,
+      "num_columns": 7,
+      "columns": {
+        "driverId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 857,
+          "unique": 857,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "driverRef": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 857,
+          "unique": 857,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "hamilton",
+            "heidfeld",
+            "rosberg",
+            "alonso",
+            "kovalainen"
+          ]
+        },
+        "code": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 857,
+          "unique": 95,
+          "unique_ratio": 0.1109,
+          "null_ratio": 0.0,
+          "examples": [
+            "HAM",
+            "HEI",
+            "ROS",
+            "ALO",
+            "KOV"
+          ]
+        },
+        "forename": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 857,
+          "unique": 476,
+          "unique_ratio": 0.5554,
+          "null_ratio": 0.0,
+          "examples": [
+            "Lewis",
+            "Nick",
+            "Nico",
+            "Fernando",
+            "Heikki"
+          ]
+        },
+        "surname": {
+          "type": "text",
+          "is_provenance": false,
+          "non_null": 857,
+          "unique": 798,
+          "unique_ratio": 0.9312,
+          "null_ratio": 0.0,
+          "examples": [
+            "Hamilton",
+            "Heidfeld",
+            "Rosberg",
+            "Alonso",
+            "Kovalainen"
+          ]
+        },
+        "dob": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 857,
+          "unique": 839,
+          "unique_ratio": 0.979,
+          "null_ratio": 0.0,
+          "examples": [
+            "1985-01-07",
+            "1977-05-10",
+            "1985-06-27",
+            "1981-07-29",
+            "1981-10-19"
+          ]
+        },
+        "nationality": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 857,
+          "unique": 42,
+          "unique_ratio": 0.049,
+          "null_ratio": 0.0,
+          "examples": [
+            "British",
+            "German",
+            "Spanish",
+            "Finnish",
+            "Japanese"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "driverId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "driverRef"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "code"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "forename"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "surname"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "dob"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "nationality"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverRef"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "driverRef",
+            "code"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverRef",
+            "forename"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "qualifying": {
+      "num_rows": 9815,
+      "num_columns": 7,
+      "columns": {
+        "qualifyId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 9815,
+          "unique": 9815,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "raceId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 9815,
+          "unique": 460,
+          "unique_ratio": 0.0469,
+          "null_ratio": 0.0,
+          "examples": [
+            "18",
+            "19",
+            "20",
+            "21",
+            "22"
+          ]
+        },
+        "driverId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 9815,
+          "unique": 168,
+          "unique_ratio": 0.0171,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "9",
+            "5",
+            "13",
+            "2"
+          ]
+        },
+        "constructorId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 9815,
+          "unique": 46,
+          "unique_ratio": 0.0047,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "6",
+            "7",
+            "3"
+          ]
+        },
+        "number": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 9815,
+          "unique": 54,
+          "unique_ratio": 0.0055,
+          "null_ratio": 0.0,
+          "examples": [
+            "22",
+            "4",
+            "23",
+            "2",
+            "3"
+          ]
+        },
+        "position": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 9815,
+          "unique": 28,
+          "unique_ratio": 0.0029,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "date": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 9815,
+          "unique": 460,
+          "unique_ratio": 0.0469,
+          "null_ratio": 0.0,
+          "examples": [
+            "2008-03-15 04:30:00",
+            "2008-03-22 07:00:00",
+            "2008-04-05 11:30:00",
+            "2008-04-26 12:00:00",
+            "2008-05-10 12:00:00"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "qualifyId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "qualifyId",
+            "raceId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "qualifyId",
+            "driverId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "qualifyId",
+            "constructorId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "driverId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "qualifyId",
+            "number"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "qualifyId",
+            "position"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "qualifyId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "position"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "races": {
+      "num_rows": 1101,
+      "num_columns": 7,
+      "columns": {
+        "raceId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 1101,
+          "unique": 1101,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "year": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 1101,
+          "unique": 74,
+          "unique_ratio": 0.0672,
+          "null_ratio": 0.0,
+          "examples": [
+            "2009",
+            "2008",
+            "2007",
+            "2006",
+            "2005"
+          ]
+        },
+        "round": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 1101,
+          "unique": 22,
+          "unique_ratio": 0.02,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "circuitId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 1101,
+          "unique": 77,
+          "unique_ratio": 0.0699,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "17",
+            "3",
+            "4"
+          ]
+        },
+        "name": {
+          "type": "categorical",
+          "is_provenance": false,
+          "non_null": 1101,
+          "unique": 54,
+          "unique_ratio": 0.049,
+          "null_ratio": 0.0,
+          "examples": [
+            "Australian Grand Prix",
+            "Malaysian Grand Prix",
+            "Chinese Grand Prix",
+            "Bahrain Grand Prix",
+            "Spanish Grand Prix"
+          ]
+        },
+        "date": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 1101,
+          "unique": 1101,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "2009-03-29 06:00:00",
+            "2009-04-05 09:00:00",
+            "2009-04-19 07:00:00",
+            "2009-04-26 12:00:00",
+            "2009-05-10 12:00:00"
+          ]
+        },
+        "time": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 1101,
+          "unique": 34,
+          "unique_ratio": 0.0309,
+          "null_ratio": 0.0,
+          "examples": [
+            "06:00:00",
+            "09:00:00",
+            "07:00:00",
+            "12:00:00",
+            "05:00:00"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "raceId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "circuitId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "year"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "round"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "name"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "time"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "circuitId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "date"
+          ],
+          "kind": "single",
+          "score": 1.0,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "year",
+            "round"
+          ],
+          "kind": "composite",
+          "score": 0.9,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "results": {
+      "num_rows": 26080,
+      "num_columns": 15,
+      "columns": {
+        "resultId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 26080,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "raceId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 1091,
+          "unique_ratio": 0.0418,
+          "null_ratio": 0.0,
+          "examples": [
+            "18",
+            "19",
+            "20",
+            "21",
+            "22"
+          ]
+        },
+        "driverId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 857,
+          "unique_ratio": 0.0329,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "constructorId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 210,
+          "unique_ratio": 0.0081,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "number": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26074,
+          "unique": 129,
+          "unique_ratio": 0.0049,
+          "null_ratio": 0.0002,
+          "examples": [
+            "22.0",
+            "3.0",
+            "7.0",
+            "5.0",
+            "23.0"
+          ]
+        },
+        "grid": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 35,
+          "unique_ratio": 0.0013,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "5",
+            "7",
+            "11",
+            "3"
+          ]
+        },
+        "position": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 15207,
+          "unique": 33,
+          "unique_ratio": 0.0013,
+          "null_ratio": 0.4169,
+          "examples": [
+            "1.0",
+            "2.0",
+            "3.0",
+            "4.0",
+            "5.0"
+          ]
+        },
+        "positionOrder": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 39,
+          "unique_ratio": 0.0015,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "points": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 39,
+          "unique_ratio": 0.0015,
+          "null_ratio": 0.0,
+          "examples": [
+            "10.0",
+            "8.0",
+            "6.0",
+            "5.0",
+            "4.0"
+          ]
+        },
+        "laps": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 172,
+          "unique_ratio": 0.0066,
+          "null_ratio": 0.0,
+          "examples": [
+            "58",
+            "57",
+            "55",
+            "53",
+            "47"
+          ]
+        },
+        "milliseconds": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 7250,
+          "unique": 7212,
+          "unique_ratio": 0.2765,
+          "null_ratio": 0.722,
+          "examples": [
+            "5690616.0",
+            "5696094.0",
+            "5698779.0",
+            "5707797.0",
+            "5708630.0"
+          ]
+        },
+        "fastestLap": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 7615,
+          "unique": 79,
+          "unique_ratio": 0.003,
+          "null_ratio": 0.708,
+          "examples": [
+            "39.0",
+            "41.0",
+            "58.0",
+            "43.0",
+            "50.0"
+          ]
+        },
+        "rank": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 7831,
+          "unique": 25,
+          "unique_ratio": 0.001,
+          "null_ratio": 0.6997,
+          "examples": [
+            "2.0",
+            "3.0",
+            "5.0",
+            "7.0",
+            "1.0"
+          ]
+        },
+        "statusId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 137,
+          "unique_ratio": 0.0053,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "11",
+            "5",
+            "4",
+            "3"
+          ]
+        },
+        "date": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 26080,
+          "unique": 1091,
+          "unique_ratio": 0.0418,
+          "null_ratio": 0.0,
+          "examples": [
+            "2008-03-16 04:30:00",
+            "2008-03-23 07:00:00",
+            "2008-04-06 11:30:00",
+            "2008-04-27 12:00:00",
+            "2008-05-11 12:00:00"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "resultId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "raceId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "driverId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "constructorId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "grid"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "statusId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "positionOrder"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "points"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "laps"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "resultId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    },
+    "standings": {
+      "num_rows": 34124,
+      "num_columns": 7,
+      "columns": {
+        "driverStandingsId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 34124,
+          "unique": 34124,
+          "unique_ratio": 1.0,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "raceId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 34124,
+          "unique": 1091,
+          "unique_ratio": 0.032,
+          "null_ratio": 0.0,
+          "examples": [
+            "18",
+            "19",
+            "20",
+            "21",
+            "22"
+          ]
+        },
+        "driverId": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 34124,
+          "unique": 850,
+          "unique_ratio": 0.0249,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "points": {
+          "type": "decimal",
+          "is_provenance": false,
+          "non_null": 34124,
+          "unique": 418,
+          "unique_ratio": 0.0122,
+          "null_ratio": 0.0,
+          "examples": [
+            "10.0",
+            "8.0",
+            "6.0",
+            "5.0",
+            "4.0"
+          ]
+        },
+        "position": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 34124,
+          "unique": 108,
+          "unique_ratio": 0.0032,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5"
+          ]
+        },
+        "wins": {
+          "type": "integer",
+          "is_provenance": false,
+          "non_null": 34124,
+          "unique": 16,
+          "unique_ratio": 0.0005,
+          "null_ratio": 0.0,
+          "examples": [
+            "1",
+            "0",
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        "date": {
+          "type": "date",
+          "is_provenance": false,
+          "non_null": 34124,
+          "unique": 1091,
+          "unique_ratio": 0.032,
+          "null_ratio": 0.0,
+          "examples": [
+            "2008-03-16 04:30:00",
+            "2008-03-23 07:00:00",
+            "2008-04-06 11:30:00",
+            "2008-04-27 12:00:00",
+            "2008-05-11 12:00:00"
+          ]
+        }
+      },
+      "primary_key_candidates": [
+        {
+          "columns": [
+            "driverStandingsId"
+          ],
+          "kind": "single",
+          "score": 2.5,
+          "reason": "unique and non-null"
+        },
+        {
+          "columns": [
+            "driverStandingsId",
+            "raceId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverStandingsId",
+            "driverId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "driverId"
+          ],
+          "kind": "composite",
+          "score": 2.4,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverStandingsId",
+            "points"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverStandingsId",
+            "position"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverStandingsId",
+            "wins"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverStandingsId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "raceId",
+            "position"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        },
+        {
+          "columns": [
+            "driverId",
+            "date"
+          ],
+          "kind": "composite",
+          "score": 1.65,
+          "reason": "composite unique and non-null"
+        }
+      ]
+    }
+  },
+  "foreign_key_candidates": [
+    {
+      "from_table": "constructor_results",
+      "from_columns": [
+        "raceId"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "raceId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "constructor_results",
+      "from_columns": [
+        "constructorId"
+      ],
+      "to_table": "constructors",
+      "to_columns": [
+        "constructorId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "constructor_results",
+      "from_columns": [
+        "date"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "date"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "constructor_standings",
+      "from_columns": [
+        "raceId"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "raceId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "constructor_standings",
+      "from_columns": [
+        "constructorId"
+      ],
+      "to_table": "constructors",
+      "to_columns": [
+        "constructorId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "constructor_standings",
+      "from_columns": [
+        "date"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "date"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "qualifying",
+      "from_columns": [
+        "raceId"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "raceId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "qualifying",
+      "from_columns": [
+        "driverId"
+      ],
+      "to_table": "drivers",
+      "to_columns": [
+        "driverId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "qualifying",
+      "from_columns": [
+        "constructorId"
+      ],
+      "to_table": "constructors",
+      "to_columns": [
+        "constructorId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "races",
+      "from_columns": [
+        "circuitId"
+      ],
+      "to_table": "circuits",
+      "to_columns": [
+        "circuitId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "raceId"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "raceId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "driverId"
+      ],
+      "to_table": "drivers",
+      "to_columns": [
+        "driverId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "constructorId"
+      ],
+      "to_table": "constructors",
+      "to_columns": [
+        "constructorId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "date"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "date"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "standings",
+      "from_columns": [
+        "raceId"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "raceId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "standings",
+      "from_columns": [
+        "driverId"
+      ],
+      "to_table": "drivers",
+      "to_columns": [
+        "driverId"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "standings",
+      "from_columns": [
+        "date"
+      ],
+      "to_table": "races",
+      "to_columns": [
+        "date"
+      ],
+      "coverage": 1.0,
+      "name_similarity": 1.0,
+      "score": 1.0
+    },
+    {
+      "from_table": "qualifying",
+      "from_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "to_table": "constructor_results",
+      "to_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "coverage": 0.9994,
+      "name_similarity": 1.0,
+      "score": 0.9995
+    },
+    {
+      "from_table": "constructor_results",
+      "from_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "to_table": "constructor_standings",
+      "to_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "coverage": 0.9892,
+      "name_similarity": 1.0,
+      "score": 0.9919
+    },
+    {
+      "from_table": "qualifying",
+      "from_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "to_table": "constructor_standings",
+      "to_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "coverage": 0.9892,
+      "name_similarity": 1.0,
+      "score": 0.9919
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "raceId",
+        "driverId"
+      ],
+      "to_table": "standings",
+      "to_columns": [
+        "raceId",
+        "driverId"
+      ],
+      "coverage": 0.982,
+      "name_similarity": 1.0,
+      "score": 0.9865
+    },
+    {
+      "from_table": "qualifying",
+      "from_columns": [
+        "raceId",
+        "driverId"
+      ],
+      "to_table": "standings",
+      "to_columns": [
+        "raceId",
+        "driverId"
+      ],
+      "coverage": 0.9754,
+      "name_similarity": 1.0,
+      "score": 0.9816
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "to_table": "constructor_results",
+      "to_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "coverage": 0.9681,
+      "name_similarity": 1.0,
+      "score": 0.9761
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "to_table": "constructor_standings",
+      "to_columns": [
+        "raceId",
+        "constructorId"
+      ],
+      "coverage": 0.9583,
+      "name_similarity": 1.0,
+      "score": 0.9687
+    },
+    {
+      "from_table": "results",
+      "from_columns": [
+        "raceId",
+        "grid"
+      ],
+      "to_table": "standings",
+      "to_columns": [
+        "raceId",
+        "position"
+      ],
+      "coverage": 0.9703,
+      "name_similarity": 0.5,
+      "score": 0.8527
+    }
+  ],
+  "relf1_comparison": {
+    "primary_keys": {
+      "races": {
+        "expected": [
+          [
+            "raceId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "raceId"
+          ],
+          [
+            "circuitId",
+            "raceId"
+          ],
+          [
+            "year",
+            "raceId"
+          ],
+          [
+            "round",
+            "raceId"
+          ],
+          [
+            "name",
+            "raceId"
+          ],
+          [
+            "date",
+            "raceId"
+          ],
+          [
+            "time",
+            "raceId"
+          ],
+          [
+            "circuitId",
+            "date"
+          ],
+          [
+            "date"
+          ],
+          [
+            "year",
+            "round"
+          ]
+        ],
+        "matched": true
+      },
+      "circuits": {
+        "expected": [
+          [
+            "circuitId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "circuitId"
+          ],
+          [
+            "circuitId",
+            "circuitRef"
+          ],
+          [
+            "circuitId",
+            "name"
+          ],
+          [
+            "circuitId",
+            "location"
+          ],
+          [
+            "circuitId",
+            "country"
+          ],
+          [
+            "circuitId",
+            "lat"
+          ],
+          [
+            "circuitId",
+            "lng"
+          ],
+          [
+            "circuitRef"
+          ],
+          [
+            "name"
+          ],
+          [
+            "lat"
+          ]
+        ],
+        "matched": true
+      },
+      "drivers": {
+        "expected": [
+          [
+            "driverId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "driverId"
+          ],
+          [
+            "driverId",
+            "driverRef"
+          ],
+          [
+            "code",
+            "driverId"
+          ],
+          [
+            "forename",
+            "driverId"
+          ],
+          [
+            "surname",
+            "driverId"
+          ],
+          [
+            "driverId",
+            "dob"
+          ],
+          [
+            "nationality",
+            "driverId"
+          ],
+          [
+            "driverRef"
+          ],
+          [
+            "code",
+            "driverRef"
+          ],
+          [
+            "forename",
+            "driverRef"
+          ]
+        ],
+        "matched": true
+      },
+      "constructors": {
+        "expected": [
+          [
+            "constructorId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "constructorId"
+          ],
+          [
+            "constructorRef",
+            "constructorId"
+          ],
+          [
+            "name",
+            "constructorId"
+          ],
+          [
+            "nationality",
+            "constructorId"
+          ],
+          [
+            "constructorRef"
+          ],
+          [
+            "name"
+          ],
+          [
+            "constructorRef",
+            "name"
+          ],
+          [
+            "nationality",
+            "constructorRef"
+          ],
+          [
+            "nationality",
+            "name"
+          ]
+        ],
+        "matched": true
+      },
+      "constructor_results": {
+        "expected": [
+          [
+            "constructorResultsId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "constructorResultsId"
+          ],
+          [
+            "constructorResultsId",
+            "raceId"
+          ],
+          [
+            "constructorResultsId",
+            "constructorId"
+          ],
+          [
+            "constructorId",
+            "raceId"
+          ],
+          [
+            "points",
+            "constructorResultsId"
+          ],
+          [
+            "date",
+            "constructorResultsId"
+          ],
+          [
+            "date",
+            "constructorId"
+          ]
+        ],
+        "matched": true
+      },
+      "constructor_standings": {
+        "expected": [
+          [
+            "constructorStandingsId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "constructorStandingsId"
+          ],
+          [
+            "raceId",
+            "constructorStandingsId"
+          ],
+          [
+            "constructorId",
+            "constructorStandingsId"
+          ],
+          [
+            "constructorId",
+            "raceId"
+          ],
+          [
+            "points",
+            "constructorStandingsId"
+          ],
+          [
+            "position",
+            "constructorStandingsId"
+          ],
+          [
+            "wins",
+            "constructorStandingsId"
+          ],
+          [
+            "date",
+            "constructorStandingsId"
+          ],
+          [
+            "position",
+            "raceId"
+          ],
+          [
+            "date",
+            "constructorId"
+          ]
+        ],
+        "matched": true
+      },
+      "standings": {
+        "expected": [
+          [
+            "driverStandingsId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "driverStandingsId"
+          ],
+          [
+            "driverStandingsId",
+            "raceId"
+          ],
+          [
+            "driverStandingsId",
+            "driverId"
+          ],
+          [
+            "driverId",
+            "raceId"
+          ],
+          [
+            "points",
+            "driverStandingsId"
+          ],
+          [
+            "position",
+            "driverStandingsId"
+          ],
+          [
+            "driverStandingsId",
+            "wins"
+          ],
+          [
+            "date",
+            "driverStandingsId"
+          ],
+          [
+            "position",
+            "raceId"
+          ],
+          [
+            "date",
+            "driverId"
+          ]
+        ],
+        "matched": true
+      },
+      "results": {
+        "expected": [
+          [
+            "resultId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "resultId"
+          ],
+          [
+            "resultId",
+            "raceId"
+          ],
+          [
+            "driverId",
+            "resultId"
+          ],
+          [
+            "resultId",
+            "constructorId"
+          ],
+          [
+            "resultId",
+            "grid"
+          ],
+          [
+            "statusId",
+            "resultId"
+          ],
+          [
+            "resultId",
+            "positionOrder"
+          ],
+          [
+            "points",
+            "resultId"
+          ],
+          [
+            "laps",
+            "resultId"
+          ],
+          [
+            "date",
+            "resultId"
+          ]
+        ],
+        "matched": true
+      },
+      "qualifying": {
+        "expected": [
+          [
+            "qualifyId"
+          ]
+        ],
+        "found_candidates": [
+          [
+            "qualifyId"
+          ],
+          [
+            "qualifyId",
+            "raceId"
+          ],
+          [
+            "qualifyId",
+            "driverId"
+          ],
+          [
+            "qualifyId",
+            "constructorId"
+          ],
+          [
+            "driverId",
+            "raceId"
+          ],
+          [
+            "qualifyId",
+            "number"
+          ],
+          [
+            "qualifyId",
+            "position"
+          ],
+          [
+            "qualifyId",
+            "date"
+          ],
+          [
+            "position",
+            "raceId"
+          ],
+          [
+            "date",
+            "driverId"
+          ]
+        ],
+        "matched": true
+      }
+    },
+    "foreign_keys": {
+      "expected": [
+        {
+          "from": "constructor_results.raceId",
+          "to": "races.raceId",
+          "matched": true
+        },
+        {
+          "from": "constructor_results.constructorId",
+          "to": "constructors.constructorId",
+          "matched": true
+        },
+        {
+          "from": "constructor_standings.raceId",
+          "to": "races.raceId",
+          "matched": true
+        },
+        {
+          "from": "constructor_standings.constructorId",
+          "to": "constructors.constructorId",
+          "matched": true
+        },
+        {
+          "from": "standings.raceId",
+          "to": "races.raceId",
+          "matched": true
+        },
+        {
+          "from": "standings.driverId",
+          "to": "drivers.driverId",
+          "matched": true
+        },
+        {
+          "from": "results.raceId",
+          "to": "races.raceId",
+          "matched": true
+        },
+        {
+          "from": "results.driverId",
+          "to": "drivers.driverId",
+          "matched": true
+        },
+        {
+          "from": "results.constructorId",
+          "to": "constructors.constructorId",
+          "matched": true
+        },
+        {
+          "from": "qualifying.raceId",
+          "to": "races.raceId",
+          "matched": true
+        },
+        {
+          "from": "qualifying.driverId",
+          "to": "drivers.driverId",
+          "matched": true
+        },
+        {
+          "from": "qualifying.constructorId",
+          "to": "constructors.constructorId",
+          "matched": true
+        },
+        {
+          "from": "races.circuitId",
+          "to": "circuits.circuitId",
+          "matched": true
+        }
+      ],
+      "extra_inferred": [
+        {
+          "from": "constructor_results.date",
+          "to": "races.date"
+        },
+        {
+          "from": "constructor_results.raceId.constructorId",
+          "to": "constructor_standings.raceId.constructorId"
+        },
+        {
+          "from": "constructor_standings.date",
+          "to": "races.date"
+        },
+        {
+          "from": "qualifying.raceId.constructorId",
+          "to": "constructor_results.raceId.constructorId"
+        },
+        {
+          "from": "qualifying.raceId.constructorId",
+          "to": "constructor_standings.raceId.constructorId"
+        },
+        {
+          "from": "qualifying.raceId.driverId",
+          "to": "standings.raceId.driverId"
+        },
+        {
+          "from": "results.date",
+          "to": "races.date"
+        },
+        {
+          "from": "results.raceId.constructorId",
+          "to": "constructor_results.raceId.constructorId"
+        },
+        {
+          "from": "results.raceId.constructorId",
+          "to": "constructor_standings.raceId.constructorId"
+        },
+        {
+          "from": "results.raceId.driverId",
+          "to": "standings.raceId.driverId"
+        },
+        {
+          "from": "results.raceId.grid",
+          "to": "standings.raceId.position"
+        },
+        {
+          "from": "standings.date",
+          "to": "races.date"
+        }
+      ]
+    }
+  }
+}
