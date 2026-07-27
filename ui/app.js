@@ -871,6 +871,7 @@ function renderOutput() {
     ${renderRunSummary(state.output)}
     ${renderProgress(state.output?.progress ?? [])}
     ${renderRagAnnotations(state.output?.annotations ?? [])}
+    ${renderLlmConfidenceAnnotations(state.output?.annotations ?? [])}
     ${renderAnswerTable(answer)}
     ${renderInlineExplanation(state.output)}
   `;
@@ -941,6 +942,51 @@ function renderRagAnnotations(annotations) {
                     </div>`
                   : `<div class="empty-state">No scored evidence rows were retrieved.</div>`
               }
+            </div>
+          `;
+        })
+        .join("")}
+    </section>
+  `;
+}
+
+function renderLlmConfidenceAnnotations(annotations) {
+  const confidenceAnnotations = Array.isArray(annotations)
+    ? annotations.filter((annotation) => annotation?.type === "llm_confidence")
+    : [];
+  if (!confidenceAnnotations.length) {
+    return "";
+  }
+
+  const levelClass = {
+    high: "similarity-green",
+    medium: "similarity-yellow",
+    low: "similarity-red",
+  };
+
+  return `
+    <section class="annotation-section" aria-label="LLM confidence annotations">
+      <h3>LLM confidence</h3>
+      ${confidenceAnnotations
+        .map((annotation) => {
+          const level = String(annotation.level ?? "unknown").toLowerCase();
+          const scope = annotation.scope?.table ?? annotation.scope?.type ?? "generated block";
+          return `
+            <div class="annotation-card confidence-card">
+              <div class="annotation-heading">
+                <strong>Internal-knowledge self-assessment · ${escapeHtml(scope)}</strong>
+                <span class="annotation-badge">LLM annotation</span>
+              </div>
+              <div>
+                <span class="confidence-level ${levelClass[level] ?? "similarity-unknown"}">
+                  ${escapeHtml(level)}
+                </span>
+              </div>
+              <p>${escapeHtml(annotation.reason ?? "No assessment rationale was returned.")}</p>
+              <p>
+                ${escapeHtml(annotation.model ?? "unknown model")} ·
+                ${escapeHtml(annotation.assessment_method ?? "self-assessment")}
+              </p>
             </div>
           `;
         })

@@ -221,6 +221,61 @@ Consequently, the final output comprises the answer, provenance, a
 human-readable explanation, the propagated annotations, and their associated
 probability or confidence indicators.
 
+\subsubsection{Meaning of Confidence}
+
+Confidence is not interpreted as one universal probability shared by all
+pipelines. Instead, it records the strongest reliability signal that the
+producing component can justify. A ProvSQL probability, when available, is a
+formal value computed from the probabilistic provenance model. A retrieval
+score is an evidence-relevance signal: it estimates how close an indexed row is
+to the retrieval query, but it does not prove that the row is correct or that
+the final answer is true. An LLM confidence label is a qualitative assessment
+of a generated block or subtree and must likewise remain distinct from a
+formal probability. Every confidence annotation therefore identifies its
+type, producer, pipeline, execution scope, metric, and interpretation so that
+different signals are not compared as though they had identical semantics.
+
+\subsubsection{Implementation in the Gateway Container}
+
+The current container implementation produces retrieval-confidence annotations
+at the shared FAISS retrieval stage. This stage is used by Standard RAG,
+Planner-First, Planner-First with predicate pushdown, Planner-First Explanation,
+Manual retrieval, and the Iterative Join-Aware pipeline. Internal Knowledge is
+excluded because it does not retrieve external evidence. The gateway calls the
+scored FAISS similarity function, retains the relevance score and rank for each
+selected row identifier, and emits a \code{rag\_similarity} annotation. The
+annotation also records the producing pipeline, dataset, query-tree scope,
+retrieval query, embedding model, embedding strategy, metric, and the rule that
+higher values indicate greater similarity. Leaf annotations are carried in the
+leaf output, collected into the complete pipeline result, and serialized in
+both the regular and streaming UI responses.
+
+The embedding configuration is dataset-specific inside the same gateway
+container. TPC-H uses the configured \code{EMB\_MODEL}, while REL-F1 uses
+\code{BAAI/bge-m3} with the \code{bge-m3} strategy and its mounted FAISS index.
+Thus BGE-M3 scores follow the same annotation contract while explicitly
+identifying BGE-M3 as their producer. The UI renders each numeric relevance
+score with four explanatory bands: green for scores greater than or equal to
+$0.75$ (close), yellow for scores greater than or equal to $0.50$ (relevant),
+orange for scores greater than or equal to $0.25$ (weak), and red for scores
+below $0.25$ (far). These bands are presentation aids for interpreting
+retrieval proximity; they are not calibrated probabilities and may be adjusted
+after evaluation on a representative query set.
+
+For the Internal Knowledge pipeline, the gateway performs a separate
+self-assessment call after generating the answer. The evaluator receives the
+question and generated result, but no retrieved rows or database access, and
+must return a strict JSON object containing a \code{low}, \code{medium}, or
+\code{high} level and a concise rationale. High confidence denotes stable,
+well-known, internally consistent facts with coherent provenance identifiers;
+medium denotes a plausible result with uncertainty about values, completeness,
+or provenance details; and low denotes guessed, inconsistent, unsupported, or
+instance-specific content. The gateway validates the assessment, stores it as
+an \code{llm\_confidence} annotation with the model, assessment method,
+generation stage, and leaf or query scope, and propagates it with the pipeline
+result. This label remains an LLM self-assessment rather than an externally
+verified or calibrated probability.
+
 \section{Running the Demo}
 
 The demo requires Docker with Compose support, Git, and Git LFS. From the

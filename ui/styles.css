@@ -696,7 +696,8 @@ select {
 }
 
 .similarity-chip,
-.similarity-score {
+.similarity-score,
+.confidence-level {
   border: 1px solid transparent;
   border-radius: 999px;
   font-weight: 800;
@@ -718,6 +719,18 @@ select {
 .similarity-score small {
   font-size: 10px;
   font-weight: 800;
+  text-transform: uppercase;
+}
+
+.confidence-card {
+  border-color: rgba(124, 58, 237, 0.25);
+  background: #f5f3ff;
+}
+
+.confidence-level {
+  display: inline-block;
+  padding: 5px 10px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 

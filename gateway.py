@@ -1048,6 +1048,7 @@ def _call_model_with_retry(
     max_tries: int = 2,
     validator: Optional[Callable[[str], Tuple[bool, Optional[str]]]] = None,
     scorer: Optional[Callable[[str], int]] = None,
+    retry_suffix: str = RETRY_SUFFIX,
 ) -> str:
     """
     Call to the model with the given prompt. If the output is not a valid JSON array, retry up to max_tries times by appending the RETRY_SUFFIX to the prompt.
@@ -1087,7 +1088,7 @@ def _call_model_with_retry(
             base_prompt
             + "\n\n"
             + f"Previous output failed validation: {err}\n"
-            + RETRY_SUFFIX
+            + retry_suffix
         )
 
     # If every attempt fails, keep the attempt with the most individually valid rows instead of returning a shorter retry.
@@ -1963,7 +1964,11 @@ def _llm_internal_leaf_output(
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     leaf_question = _leaf_question_sql(task)
-    answer, raw_output = _run_llm_internal_query(leaf_question, dataset, temperature)
+    answer, raw_output, confidence = _run_llm_internal_query(
+        leaf_question,
+        dataset,
+        temperature,
+    )
     parsed_output: List[Dict[str, Any]] = []
     for index, item in enumerate(answer, start=1):
         provenance = item.get("provenance") or []
@@ -1981,6 +1986,10 @@ def _llm_internal_leaf_output(
         "parsed_output": parsed_output,
         "parse_error": None,
         "valid_leaf_output": True,
+        "annotations": [{
+            **confidence,
+            "scope": {"type": "leaf", "table": table_name},
+        }],
     }
 
 
@@ -2173,9 +2182,9 @@ def _run_ui_iterative_join_pipeline(
         dataset=dataset,
         pipeline_id=ITERATIVE_PIPELINE_MODEL_ID,
         run_leaf=run_leaf,
-        build_base_retrieval_query=lambda task: _build_leaf_retrieval_query(
+        build_base_retrieval_query=lambda task, iterative_pushdown: _build_leaf_retrieval_query(
             task,
-            include_pushdown=pushdown,
+            include_pushdown=pushdown and iterative_pushdown,
         ),
         log_event=_log_event,
     )
@@ -2358,7 +2367,7 @@ def _run_llm_internal_query(
     question: str,
     dataset: str,
     temperature: float,
-) -> Tuple[List[Dict[str, Any]], str]:
+) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
     def validate(text: str) -> Tuple[bool, Optional[str]]:
         try:
             _parse_answer_json(text)
@@ -2376,7 +2385,93 @@ def _run_llm_internal_query(
         max_tries=2,
         validator=validate,
     )
-    return _parse_answer_json(raw_output), raw_output
+    answer = _parse_answer_json(raw_output)
+    confidence = _assess_llm_internal_confidence(
+        question=question,
+        generated_output=answer,
+        temperature=temperature,
+    )
+    return answer, raw_output, confidence
+
+
+def _assess_llm_internal_confidence(
+    question: str,
+    generated_output: List[Dict[str, Any]],
+    temperature: float,
+) -> Dict[str, Any]:
+    def parse_assessment(text: str) -> Dict[str, str]:
+        decoder = json.JSONDecoder()
+        for start, char in enumerate(text):
+            if char != "{":
+                continue
+            try:
+                value, _ = decoder.raw_decode(text[start:])
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(value, dict):
+                continue
+            level = str(value.get("level") or "").strip().lower()
+            reason = str(value.get("reason") or "").strip()
+            if level in {"low", "medium", "high"} and reason:
+                return {"level": level, "reason": reason}
+        raise ValueError("Expected a JSON object with level=low|medium|high and a reason")
+
+    def validate_assessment(text: str) -> Tuple[bool, Optional[str]]:
+        try:
+            parse_assessment(text)
+            return True, None
+        except ValueError as exc:
+            return False, str(exc)
+
+    assessment_prompt = f"""
+You are assessing the confidence of an answer produced only from an LLM's
+internal knowledge. Evaluate the generated data itself; you do not have access
+to retrieval evidence or the source database.
+
+Assign exactly one level:
+- high: the generated data contains stable, well-known facts and is internally
+  consistent, specific, and supported by coherent provenance identifiers;
+- medium: the answer is plausible and mostly consistent, but some values,
+  completeness, or provenance details may be uncertain;
+- low: the answer appears guessed, contains instance-specific facts that cannot
+  be verified from internal knowledge, is inconsistent, or lacks adequate
+  support.
+
+An empty result may be rated high only when abstaining is clearly more reliable
+than inventing unavailable instance data. This is a self-assessment, not an
+externally verified probability.
+
+Return ONLY this JSON object:
+{{"level":"low|medium|high","reason":"one concise sentence"}}
+
+QUESTION:
+{question}
+
+GENERATED OUTPUT:
+{json.dumps(generated_output, ensure_ascii=False)}
+"""
+    raw_assessment = _call_model_with_retry(
+        MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID],
+        assessment_prompt,
+        temperature,
+        provider="ollama",
+        max_tries=2,
+        validator=validate_assessment,
+        retry_suffix=(
+            "Return ONLY one JSON object with exactly the keys level and reason. "
+            "The level must be low, medium, or high."
+        ),
+    )
+    assessment = parse_assessment(raw_assessment)
+    return {
+        "type": "llm_confidence",
+        "pipeline": LLM_INTERNAL_PIPELINE_ID,
+        "stage": "generation",
+        "level": assessment["level"],
+        "reason": assessment["reason"],
+        "assessment_method": "llm_self_assessment",
+        "model": MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID],
+    }
 
 def _run_ui_ap_explanation_for_csv_files(
     sql_query: str,
@@ -3548,9 +3643,14 @@ def chat_completions(
             )
 
     if ui_model == LLM_INTERNAL_PIPELINE_ID:
-        base_prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)
-        out_text = _call_model_with_retry(ollama_model, base_prompt, temperature, max_tries=2)
-        response_text = _render_chat_response(out_text)
+        answer, out_text, confidence = _run_llm_internal_query(
+            question,
+            dataset,
+            temperature,
+        )
+        confidence["scope"] = {"type": "query"}
+        annotations = [confidence]
+        response_text = _render_chat_response(out_text, answer)
         _log_event({
             "type": "internal_knowledge_request",
             "dataset": dataset,
@@ -3560,10 +3660,9 @@ def chat_completions(
             "temperature": temperature,
             "stream": req.stream,
             "question": question,
-            "prompt": base_prompt,
             "output": out_text,
-            "prompt_chars": len(base_prompt),
             "response_chars": len(out_text),
+            "annotations": annotations,
             "messages_count": len(req.messages),
             "raw_messages": [m.model_dump() for m in req.messages],
             "has_auth": bool(authorization),
@@ -3581,6 +3680,7 @@ def chat_completions(
                     "finish_reason": "stop",
                 }
             ],
+            "annotations": annotations,
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
