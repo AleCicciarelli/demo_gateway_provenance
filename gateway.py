@@ -1368,6 +1368,9 @@ def retrieve_context_data_iterative(
     dataset: Optional[str] = None,
     target_tables: Optional[List[str]] = None,
     include_correlated_rows: bool = True,
+    annotation_sink: Optional[List[Dict[str, Any]]] = None,
+    annotation_scope: Optional[Dict[str, str]] = None,
+    annotation_pipeline: str = "rag",
 ) -> Dict[str, Any]:
     """
     Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K
@@ -1391,18 +1394,22 @@ def retrieve_context_data_iterative(
 
     ctx: Dict[str, Any] = defaultdict(dict)
     seen_docs = set()
+    scored_evidence: List[Dict[str, Any]] = []
     correlated_rows_added = 0
     k = RETRIEVER_K
 
     for iteration in range(1, MAX_ITERATIVE_RETRIEVALS + 1):
-        docs = vs.similarity_search(question, k=k)
+        if annotation_sink is not None:
+            scored_docs = vs.similarity_search_with_relevance_scores(question, k=k)
+        else:
+            scored_docs = [(document, None) for document in vs.similarity_search(question, k=k)]
         new_count = 0
         new_rids = []
         correlated_additions: List[Dict[str, str]] = []
 
-        print(f"\n[ITERATION {iteration}] k={k} | docs_returned={len(docs)}", flush=True)
+        print(f"\n[ITERATION {iteration}] k={k} | docs_returned={len(scored_docs)}", flush=True)
 
-        for rank, d in enumerate(docs, start=1):
+        for rank, (d, relevance_score) in enumerate(scored_docs, start=1):
             meta = d.metadata or {}
             table = meta.get("table")
             rid = meta.get("rid")
@@ -1432,6 +1439,13 @@ def retrieve_context_data_iterative(
             seen_docs.add(rid)
             new_count += 1
             new_rids.append((rank, table, rid))
+            if relevance_score is not None:
+                scored_evidence.append({
+                    "table": table,
+                    "row_id": rid,
+                    "rank": rank,
+                    "score": float(relevance_score),
+                })
 
             if include_correlated_rows:
                 remaining_correlated = max(MAX_CORRELATED_CONTEXT_ROWS - correlated_rows_added, 0)
@@ -1524,21 +1538,45 @@ def retrieve_context_data_iterative(
         "target_tables": sorted(target_table_set),
     })
 
+    if annotation_sink is not None:
+        annotation_sink.append({
+            "type": "rag_similarity",
+            "pipeline": _canonical_pipeline_id(annotation_pipeline),
+            "stage": "retrieval",
+            "scope": annotation_scope or {"type": "retrieval"},
+            "dataset": config.name,
+            "embedding_model": config.emb_model,
+            "embedding_strategy": config.emb_strategy,
+            "retrieval_query": question,
+            "metric": "faiss_relevance",
+            "interpretation": "higher_is_more_similar",
+            "evidence": scored_evidence,
+        })
+
     return dict(ctx)
-def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict[str, Any]:
+def _retrieve_context_data(
+    question: str,
+    dataset: Optional[str] = None,
+    annotation_sink: Optional[List[Dict[str, Any]]] = None,
+    annotation_pipeline: str = "rag",
+) -> Dict[str, Any]:
     config = _dataset_config(dataset)
     runtime = _dataset_runtime(config.name)
     _load_csvs_once(config.name)
     vs = _get_or_build_faiss(config.name)
 
-    docs = vs.similarity_search(question, k=RETRIEVER_K)
+    if annotation_sink is not None:
+        scored_docs = vs.similarity_search_with_relevance_scores(question, k=RETRIEVER_K)
+    else:
+        scored_docs = [(document, None) for document in vs.similarity_search(question, k=RETRIEVER_K)]
 
     ctx: Dict[str, Any] = defaultdict(dict)
+    scored_evidence: List[Dict[str, Any]] = []
     used = 0
     correlated_rows_added = 0
     correlated_additions: List[Dict[str, str]] = []
 
-    for d in docs:
+    for rank, (d, relevance_score) in enumerate(scored_docs, start=1):
         meta = d.metadata or {}
         table = meta.get("table")
         rid = meta.get("rid")
@@ -1557,6 +1595,13 @@ def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict
 
         ctx[table][rid] = row
         used += 1
+        if relevance_score is not None:
+            scored_evidence.append({
+                "table": table,
+                "row_id": rid,
+                "rank": rank,
+                "score": float(relevance_score),
+            })
 
         remaining_correlated = max(MAX_CORRELATED_CONTEXT_ROWS - correlated_rows_added, 0)
         added, additions = _add_correlated_rows_from_metadata(
@@ -1586,6 +1631,21 @@ def _retrieve_context_data(question: str, dataset: Optional[str] = None) -> Dict
         "correlated_rows": correlated_additions,
         "question": question,
     })
+
+    if annotation_sink is not None:
+        annotation_sink.append({
+            "type": "rag_similarity",
+            "pipeline": _canonical_pipeline_id(annotation_pipeline),
+            "stage": "retrieval",
+            "scope": {"type": "query"},
+            "dataset": config.name,
+            "embedding_model": config.emb_model,
+            "embedding_strategy": config.emb_strategy,
+            "retrieval_query": question,
+            "metric": "faiss_relevance",
+            "interpretation": "higher_is_more_similar",
+            "evidence": scored_evidence,
+        })
 
     return ctx
 # =========================
@@ -1750,6 +1810,7 @@ def _run_planner_first(
     model_provider: str,
     temperature: float,
     dataset: Optional[str] = None,
+    pipeline_id: str = PLANNER_ONLY_MODEL_ID,
 ) -> Dict[str, Any]:
     selected_dataset = _dataset_config(dataset).name
     plan = build_query_plan(sql_query)
@@ -1769,25 +1830,33 @@ def _run_planner_first(
         print(f"\n--- Running leaf task for table '{task.table_name}' with retrieval query: {retrieval_query}\n", flush=True)
 
         print("[planner only] calling retrieve_context_data_iterative()", flush=True)
-        leaf_ctx = retrieve_context_data_iterative(retrieval_query, dataset=selected_dataset)
+        annotations: List[Dict[str, Any]] = []
+        leaf_ctx = retrieve_context_data_iterative(
+            retrieval_query,
+            dataset=selected_dataset,
+            annotation_sink=annotations,
+            annotation_scope={"type": "leaf", "table": task.table_name},
+            annotation_pipeline=pipeline_id,
+        )
         print("[planner only] retrieve_context_data_iterative() returned", flush=True)
 
-        leaf_outputs.append(
-            _run_leaf_task(
-                task=task_dict,
-                ollama_model=ollama_model,
-                model_provider=model_provider,
-                temperature=temperature,
-                ctx=leaf_ctx,
-                retrieval_query=retrieval_query,
-            )
+        leaf_output = _run_leaf_task(
+            task=task_dict,
+            ollama_model=ollama_model,
+            model_provider=model_provider,
+            temperature=temperature,
+            ctx=leaf_ctx,
+            retrieval_query=retrieval_query,
         )
+        leaf_output["annotations"] = annotations
+        leaf_outputs.append(leaf_output)
 
     return {
         "dataset": selected_dataset,
         "sql": sql_query,
         "plan": plan_dict,
         "leaf_outputs": leaf_outputs,
+        "annotations": _collect_leaf_annotations(leaf_outputs),
     }
 
 def _manual_leaf_output(
@@ -1860,32 +1929,6 @@ def _run_ui_leaf_pipeline(
         include_pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
     )
 
-    if pipeline == "manual":
-        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
-        return _manual_leaf_output(task, ctx, retrieval_query)
-
-    if pipeline == "rag":
-        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
-        return _run_leaf_task(
-            task=task,
-            ollama_model=MODEL_ROUTING["base-llama3-8b"],
-            model_provider="ollama",
-            temperature=temperature,
-            ctx=ctx,
-            retrieval_query=retrieval_query,
-        )
-
-    if pipeline == PLANNER_ONLY_EXPLANATION_MODEL_ID:
-        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
-        return _run_leaf_task(
-            task=task,
-            ollama_model=MODEL_ROUTING[PLANNER_ONLY_EXPLANATION_MODEL_ID],
-            model_provider=PLANNER_LLM_PROVIDER,
-            temperature=temperature,
-            ctx=ctx,
-            retrieval_query=retrieval_query,
-        )
-
     if pipeline == "internal-knowledge":
         model_id = "internal-knowledge"
         model_name = MODEL_ROUTING[model_id]
@@ -1907,18 +1950,39 @@ def _run_ui_leaf_pipeline(
             raw_output=raw_output,
         )
 
-    if pipeline not in {PLANNER_ONLY_MODEL_ID, PLANNER_ONLY_PUSHDOWN_MODEL_ID}:
+    retrieval_pipelines = {
+        "manual",
+        "rag",
+        PLANNER_ONLY_MODEL_ID,
+        PLANNER_ONLY_PUSHDOWN_MODEL_ID,
+        PLANNER_ONLY_EXPLANATION_MODEL_ID,
+    }
+    if pipeline not in retrieval_pipelines:
         raise ValueError(f"Unsupported UI pipeline: {pipeline}")
 
-    ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
-    return _run_leaf_task(
-        task=task,
-        ollama_model=MODEL_ROUTING[pipeline],
-        model_provider=PLANNER_LLM_PROVIDER,
-        temperature=temperature,
-        ctx=ctx,
-        retrieval_query=retrieval_query,
+    annotations: List[Dict[str, Any]] = []
+    ctx = retrieve_context_data_iterative(
+        retrieval_query,
+        dataset=dataset,
+        annotation_sink=annotations,
+        annotation_scope={"type": "leaf", "table": str(task.get("table_name") or "")},
+        annotation_pipeline=pipeline,
     )
+    if pipeline == "manual":
+        leaf_output = _manual_leaf_output(task, ctx, retrieval_query)
+    else:
+        model_id = "base-llama3-8b" if pipeline == "rag" else pipeline
+        model_provider = "ollama" if pipeline == "rag" else PLANNER_LLM_PROVIDER
+        leaf_output = _run_leaf_task(
+            task=task,
+            ollama_model=MODEL_ROUTING[model_id],
+            model_provider=model_provider,
+            temperature=temperature,
+            ctx=ctx,
+            retrieval_query=retrieval_query,
+        )
+    leaf_output["annotations"] = annotations
+    return leaf_output
 
 def _context_row_count(ctx: Dict[str, Any]) -> int:
     total = 0
@@ -1941,6 +2005,17 @@ def _context_preview(
         elif isinstance(rows, list):
             preview[table_name] = rows[:rows_per_table]
     return preview
+
+
+def _collect_leaf_annotations(leaf_outputs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    annotations: List[Dict[str, Any]] = []
+    for leaf_output in leaf_outputs:
+        leaf_annotations = leaf_output.get("annotations")
+        if isinstance(leaf_annotations, list):
+            annotations.extend(
+                annotation for annotation in leaf_annotations if isinstance(annotation, dict)
+            )
+    return annotations
 
 def _run_ui_leaf_pipeline_with_context(
     task: Dict[str, Any],
@@ -2012,8 +2087,16 @@ def _run_ui_iterative_join_pipeline(
         inherited_bindings: Dict[str, List[str]],
         source_row_ids: List[str],
     ) -> Dict[str, Any]:
-        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
-        return _run_iterative_join_leaf_task(
+        table_name = str(task.get("table_name") or task.get("table") or "").strip()
+        annotations: List[Dict[str, Any]] = []
+        ctx = retrieve_context_data_iterative(
+            retrieval_query,
+            dataset=dataset,
+            annotation_sink=annotations,
+            annotation_scope={"type": "leaf", "table": table_name},
+            annotation_pipeline=ITERATIVE_PIPELINE_MODEL_ID,
+        )
+        leaf_output = _run_iterative_join_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
             model_provider=PLANNER_LLM_PROVIDER,
@@ -2023,8 +2106,10 @@ def _run_ui_iterative_join_pipeline(
             inherited_bindings=inherited_bindings,
             source_row_ids=source_row_ids,
         )
+        leaf_output["annotations"] = annotations
+        return leaf_output
 
-    return run_iterative_join_pipeline(
+    planner_result = run_iterative_join_pipeline(
         sql_query=sql_query,
         plan=plan,
         dataset=dataset,
@@ -2033,6 +2118,10 @@ def _run_ui_iterative_join_pipeline(
         build_base_retrieval_query=_build_leaf_retrieval_query,
         log_event=_log_event,
     )
+    planner_result["annotations"] = _collect_leaf_annotations(
+        planner_result.get("leaf_outputs") or []
+    )
+    return planner_result
 
 def _ui_rows_from_leaf_outputs(
     leaf_outputs: List[Dict[str, Any]],
@@ -2742,6 +2831,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
             "rows_by_id": rows_by_id,
             "leaf_answer": _leaf_answer,
             "leaf_outputs": leaf_outputs,
+            "annotations": _collect_leaf_annotations(leaf_outputs),
             "pipeline_choices": pipeline_choices,
             "errors": errors,
             "explanations": explanations,
@@ -2845,6 +2935,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         "source_row_ids": iterative_meta.get("source_row_ids") or [],
                         "source_row_summaries": iterative_meta.get("source_row_summaries") or [],
                         "context_preview": _context_preview(ctx),
+                        "annotations": leaf_output.get("annotations") or [],
                     })
                     yield encode_event("leaf_done", {
                         "table": table_name,
@@ -2893,7 +2984,14 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             task,
                             include_pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
                         )
-                        ctx = retrieve_context_data_iterative(retrieval_query, dataset=dataset)
+                        annotations: List[Dict[str, Any]] = []
+                        ctx = retrieve_context_data_iterative(
+                            retrieval_query,
+                            dataset=dataset,
+                            annotation_sink=annotations,
+                            annotation_scope={"type": "leaf", "table": table_name},
+                            annotation_pipeline=pipeline,
+                        )
                         yield encode_event("leaf_context", {
                             "table": table_name,
                             "pipeline": pipeline,
@@ -2902,6 +3000,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             "tables": sorted(ctx.keys()),
                             "retrieval_query": retrieval_query,
                             "context_preview": _context_preview(ctx),
+                            "annotations": annotations or [],
                         })
                         leaf_output = _run_ui_leaf_pipeline_with_context(
                             task=task,
@@ -2911,6 +3010,8 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             retrieval_query=retrieval_query,
                             ctx=ctx,
                         )
+                        if annotations:
+                            leaf_output["annotations"] = annotations
 
                     leaf_output["pipeline"] = pipeline
                     leaf_outputs.append(leaf_output)
@@ -2974,6 +3075,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 "rows_by_id": rows_by_id,
                 "leaf_answer": leaf_answer,
                 "leaf_outputs": leaf_outputs,
+                "annotations": _collect_leaf_annotations(leaf_outputs),
                 "pipeline_choices": pipeline_choices,
                 "errors": errors,
                 "explanations": explanations,
@@ -3049,6 +3151,7 @@ def chat_completions(
                 model_provider=PLANNER_LLM_PROVIDER,
                 temperature=temperature,
                 dataset=dataset,
+                pipeline_id=PLANNER_ONLY_MODEL_ID,
             )
 
             out_text = json.dumps(planner_result, ensure_ascii=False, indent=2)
@@ -3121,6 +3224,7 @@ def chat_completions(
                     model_provider=PLANNER_LLM_PROVIDER,
                     temperature=temperature,
                     dataset=dataset,
+                    pipeline_id=PLANNER_ONLY_EXPLANATION_MODEL_ID,
                 )
 
                 explanation_client = ExplanationClient(
@@ -3301,7 +3405,13 @@ def chat_completions(
 
 
     #schema_info = _get_relevant_schema_info(question)
-    ctx = _retrieve_context_data(question, dataset=dataset)
+    annotations: List[Dict[str, Any]] = []
+    ctx = _retrieve_context_data(
+        question,
+        dataset=dataset,
+        annotation_sink=annotations,
+        annotation_pipeline="rag",
+    )
 
     base_prompt = PROMPT_TEMPLATE.format(
         question=question,
@@ -3321,6 +3431,7 @@ def chat_completions(
         "prompt": base_prompt,
         "context_tables": list(ctx.keys()),
         "context_data": ctx,
+        "annotations": annotations,
         "messages_count": len(req.messages),
         "raw_messages": [m.model_dump() for m in req.messages],
         "has_auth": bool(authorization),
@@ -3369,6 +3480,7 @@ def chat_completions(
                 "finish_reason": "stop",
             }
         ],
+        "annotations": annotations,
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
 

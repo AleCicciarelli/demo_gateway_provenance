@@ -614,6 +614,54 @@ select {
   margin-top: 12px;
 }
 
+.annotation-section {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.annotation-section h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.annotation-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: #eff6ff;
+}
+
+.annotation-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.annotation-badge {
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.annotation-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.annotation-card > code {
+  overflow-wrap: anywhere;
+  color: #1d4ed8;
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);

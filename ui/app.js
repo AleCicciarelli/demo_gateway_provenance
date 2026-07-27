@@ -659,6 +659,7 @@ function makeEmptyRunOutput() {
     dataset: state.plan?.dataset ?? state.dataset,
     answer: [],
     rows_by_id: {},
+    annotations: [],
     pipeline_choices: choices,
     errors: [],
     explanations: [],
@@ -699,6 +700,9 @@ function applyRunEvent(event) {
   if (event.type === "leaf_start") {
     pushProgress(event);
   } else if (event.type === "leaf_context") {
+    if (Array.isArray(event.annotations) && event.annotations.length) {
+      state.output.annotations.push(...event.annotations);
+    }
     pushProgress(event, "success");
   } else if (event.type === "leaf_done") {
     pushProgress(event, "success");
@@ -838,12 +842,79 @@ function renderOutput() {
     ${renderErrors(state.output?.errors ?? [])}
     ${renderRunSummary(state.output)}
     ${renderProgress(state.output?.progress ?? [])}
+    ${renderRagAnnotations(state.output?.annotations ?? [])}
     ${renderAnswerTable(answer)}
     ${renderInlineExplanation(state.output)}
   `;
   els.provenanceView.innerHTML = renderProvenance(answer);
   els.rowsView.innerHTML = renderSupportingRows(state.output?.rows_by_id ?? {});
   bindOutputActions();
+}
+
+function renderRagAnnotations(annotations) {
+  const ragAnnotations = Array.isArray(annotations)
+    ? annotations.filter((annotation) => annotation?.type === "rag_similarity")
+    : [];
+  if (!ragAnnotations.length) {
+    return "";
+  }
+
+  return `
+    <section class="annotation-section" aria-label="RAG annotations">
+      <h3>RAG annotations</h3>
+      ${ragAnnotations
+        .map((annotation) => {
+          const evidence = Array.isArray(annotation.evidence) ? annotation.evidence : [];
+          const table = annotation.scope?.table ?? "unknown leaf";
+          const embedding = annotation.embedding_model ?? annotation.embedding_strategy ?? "unknown";
+          return `
+            <div class="annotation-card">
+              <div class="annotation-heading">
+                <strong>RAG retrieval · ${escapeHtml(table)}</strong>
+                <span class="annotation-badge">RAG annotation</span>
+              </div>
+              <p>
+                ${escapeHtml(pipelineLabel(annotation.pipeline))} ·
+                ${escapeHtml(embedding)}
+                ${annotation.embedding_strategy ? ` (${escapeHtml(annotation.embedding_strategy)})` : ""}
+              </p>
+              <p>
+                FAISS relevance score; higher values indicate greater similarity to the retrieval query.
+              </p>
+              <code>${escapeHtml(annotation.retrieval_query ?? "")}</code>
+              ${
+                evidence.length
+                  ? `<div class="table-wrap">
+                      <table>
+                        <thead>
+                          <tr><th>Rank</th><th>Table</th><th>Row id</th><th>Similarity score</th></tr>
+                        </thead>
+                        <tbody>
+                          ${evidence
+                            .map(
+                              (item) => `
+                                <tr>
+                                  <td>${escapeHtml(item.rank)}</td>
+                                  <td>${escapeHtml(item.table)}</td>
+                                  <td>${escapeHtml(item.row_id)}</td>
+                                  <td>${escapeHtml(
+                                    Number.isFinite(item.score) ? item.score.toFixed(4) : item.score,
+                                  )}</td>
+                                </tr>
+                              `,
+                            )
+                            .join("")}
+                        </tbody>
+                      </table>
+                    </div>`
+                  : `<div class="empty-state">No scored evidence rows were retrieved.</div>`
+              }
+            </div>
+          `;
+        })
+        .join("")}
+    </section>
+  `;
 }
 
 function renderRunSummary(output) {
