@@ -5,25 +5,22 @@ const BACKEND_ENDPOINTS = {
 };
 
 const PIPELINES = [
-  { id: "planner-only", label: "Planner only" },
-  { id: "planner-only-pushdown", label: "Planner only + pushdown" },
-  { id: "planner-only-explanation", label: "Planner only + explanation" },
-  { id: "iterative-join-aware", label: "Iterative join-aware" },
   { id: "rag", label: "RAG" },
-  { id: "internal-knowledge", label: "Internal knowledge" },
-  { id: "manual", label: "Manual review" },
+  { id: "llm-internal", label: "LLM internal" },
+  { id: "sql-table", label: "SQL table" },
 ];
 
 const state = {
   dataset: "tpch",
   plan: null,
   selectedPipelines: {},
+  leafRagOptions: {},
   output: null,
   progress: [],
   explanationOpen: false,
 };
 
-const DEFAULT_PIPELINE = "planner-only";
+const DEFAULT_PIPELINE = "rag";
 
 const els = {
   queryInput: document.querySelector("#query-input"),
@@ -595,8 +592,10 @@ async function generatePlan() {
     }
 
     state.selectedPipelines = {};
+    state.leafRagOptions = {};
     for (const leaf of state.plan.plan.leaf_tasks) {
       state.selectedPipelines[leaf.table_name] = DEFAULT_PIPELINE;
+      state.leafRagOptions[leaf.table_name] = { pushdown: false, iterative: false };
     }
 
     renderPlan();
@@ -626,6 +625,7 @@ async function runSelectedPipelines() {
     sql: state.plan.sql,
     plan: state.plan.plan,
     leaf_pipeline_choices: state.selectedPipelines,
+    leaf_pipeline_options: state.leafRagOptions,
     dataset: state.plan.dataset ?? state.dataset,
   };
 
@@ -775,12 +775,25 @@ function renderPlan() {
     select.addEventListener("change", (event) => {
       const table = event.target.dataset.table;
       state.selectedPipelines[table] = event.target.value;
+      renderPlan();
+    });
+  });
+  els.leafList.querySelectorAll("input[data-rag-option]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const table = event.target.dataset.table;
+      const option = event.target.dataset.ragOption;
+      state.leafRagOptions[table] ??= { pushdown: false, iterative: false };
+      state.leafRagOptions[table][option] = event.target.checked;
     });
   });
 }
 
 function renderLeafCard(leaf, index) {
   const selected = state.selectedPipelines[leaf.table_name] ?? DEFAULT_PIPELINE;
+  const ragOptions = state.leafRagOptions[leaf.table_name] ?? {
+    pushdown: false,
+    iterative: false,
+  };
   const options = PIPELINES.map(
     (pipeline) => `
       <option value="${escapeHtml(pipeline.id)}" ${pipeline.id === selected ? "selected" : ""}>
@@ -788,7 +801,6 @@ function renderLeafCard(leaf, index) {
       </option>
     `,
   ).join("");
-
   return `
     <article class="leaf-card">
       <div class="leaf-card-header">
@@ -799,10 +811,26 @@ function renderLeafCard(leaf, index) {
             ${leaf.alias ? `<span class="meta-chip">alias ${escapeHtml(leaf.alias)}</span>` : ""}
           </div>
         </div>
-        <label>
-          <span class="field-label">Pipeline</span>
-          <select data-table="${escapeHtml(leaf.table_name)}">${options}</select>
-        </label>
+        <div class="leaf-pipeline-control">
+          <label>
+            <span class="field-label">Pipeline</span>
+            <select data-table="${escapeHtml(leaf.table_name)}">${options}</select>
+          </label>
+          ${selected === "rag" ? `
+            <div class="leaf-rag-options">
+              <label>
+                <input type="checkbox" data-table="${escapeHtml(leaf.table_name)}"
+                  data-rag-option="pushdown" ${ragOptions.pushdown ? "checked" : ""} />
+                Pushdown
+              </label>
+              <label>
+                <input type="checkbox" data-table="${escapeHtml(leaf.table_name)}"
+                  data-rag-option="iterative" ${ragOptions.iterative ? "checked" : ""} />
+                Iterative RAG
+              </label>
+            </div>
+          ` : ""}
+        </div>
       </div>
       <div class="leaf-details">
         ${renderDetail("Columns", compactList(leaf.columns))}
@@ -1242,6 +1270,7 @@ els.datasetSelect?.addEventListener("change", () => {
   state.dataset = els.datasetSelect.value;
   state.plan = null;
   state.selectedPipelines = {};
+  state.leafRagOptions = {};
   renderPlan();
   clearOutput();
   setStatus("Dataset changed. Generate a new plan before running pipelines.");

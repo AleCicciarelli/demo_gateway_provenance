@@ -8,6 +8,10 @@ This project provides a **local demo environment** for the Provenance LLM Gatewa
 - **Local CSV data**
 - **FAISS vector index** built automatically on first query
 
+In the browser UI, a pipeline is selected independently for every planned leaf:
+`RAG`, `LLM internal`, or `SQL table`. Each RAG leaf also has independent
+predicate-pushdown and iterative-RAG options.
+
 
 ---
 # Architecture
@@ -16,9 +20,10 @@ The demo runs two services:
 
 - **Gateway**
   - FastAPI application
-  - RAG pipeline
+  - RAG pipeline with optional predicate pushdown and iterative join-aware retrieval
+  - LLM internal-knowledge pipeline
+  - Deterministic SQL-table pipeline
   - FAISS indexing
-  - Planner only pipeline
 
 - **Ollama**
   - Hosts the base LLM models
@@ -28,11 +33,12 @@ Both services are started using **Docker Compose**.
 
 ---
 
-## Planner Only Documentation
+## RAG Documentation
 
-The detailed documentation for the planner-only pipeline and evaluation workflow is here:
+The RAG pipeline evolved from the earlier planner-only implementation. Its detailed
+planning and evaluation documentation is here:
 
-- [Planner-only logic and evaluation](docs/planner_first.md)
+- [RAG planning logic and evaluation](docs/planner_first.md)
 
 It covers SQL planning, leaf extraction, iterative retrieval, output validation, ProvSQL ground-truth generation, local/OAR evaluation runs, metrics, logs, and current limitations.
 
@@ -104,7 +110,7 @@ curl http://localhost:9005/v1/models
 Expected response:
 
 ```json
-{"object":"list","data":[{"id":"base-llama3-8b","object":"model"},{"id":"best-ft-llama3-8b-nl","object":"model"},{"id":"best-ft-llama3-8b-sql","object":"model"},{"id":"planner-only","object":"model"},{"id":"planner-only-explanation","object":"model"},{"id":"internal-knowledge","object":"model"}]}
+{"object":"list","data":[{"id":"base-llama3-8b","object":"model"},{"id":"best-ft-llama3-8b-nl","object":"model"},{"id":"best-ft-llama3-8b-sql","object":"model"},{"id":"rag","object":"model"},{"id":"llm-internal","object":"model"},{"id":"sql-table","object":"model"}]}
 ```
 
 You should see the following models:
@@ -112,21 +118,21 @@ You should see the following models:
 - `base-llama3-8b`
 - `best-ft-llama3-8b-nl`
 - `best-ft-llama3-8b-sql`
-- `planner-only`
-- `planner-only-explanation`
-- `internal-knowledge`
+- `rag`
+- `llm-internal`
+- `sql-table`
 
 ---
 
 ## 6. Example Request
 
-Example request using the **planner-only** model:
+Example request using the **RAG** model:
 
 ```bash
 curl -X POST http://localhost:9005/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "planner-only",
+    "model": "rag",
     "messages": [
       {
         "role": "user",

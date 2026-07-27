@@ -123,7 +123,34 @@ button:focus-visible {
 .actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: end;
   gap: 10px;
+}
+
+.leaf-rag-options {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-soft);
+}
+
+.leaf-rag-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.leaf-rag-options input {
+  margin: 0;
+}
+
+.leaf-pipeline-control {
+  display: grid;
+  gap: 7px;
 }
 
 button {

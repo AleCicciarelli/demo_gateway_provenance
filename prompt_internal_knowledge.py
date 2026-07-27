@@ -174,7 +174,7 @@ PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE = PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
 
 def get_internal_knowledge_prompt_template(domain: str) -> str:
     normalized = domain.strip().lower()
-    if normalized in {"relf", "rel-f1", "f1", "formula1", "formula-1"}:
+    if normalized in {"relf", "relf1", "rel-f1", "f1", "formula1", "formula-1"}:
         return PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE
     if normalized in {"tpch", "tpc-h"}:
         return PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE

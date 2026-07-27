@@ -9,6 +9,7 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 import csv
+import shutil
 from pathlib import Path
 from collections import defaultdict
 import requests
@@ -22,7 +23,10 @@ from json_to_csv import clean_bucket, planner_result_to_csv_files
 from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
 from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt
-from prompt_internal_knowledge import PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE
+from prompt_internal_knowledge import (
+    PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE,
+    get_internal_knowledge_prompt_template,
+)
 from tpch_schema_info import SCHEMA_INFO as TPCH_SCHEMA_INFO
 from planner import  build_query_plan
 import uuid
@@ -121,22 +125,33 @@ EXPLANATION_POSTGRES_PASSWORD = os.getenv("EXPLANATION_POSTGRES_PASSWORD", "prov
 
 # una pipeline explanation alla volta per evitare che due pipeline concorrenti scrivano i csv nella stessa cartella del bucket
 _EXPLANATION_PIPELINE_LOCK = threading.Lock()
-PLANNER_ONLY_MODEL_ID = "planner-only"
-PLANNER_ONLY_PUSHDOWN_MODEL_ID = "planner-only-pushdown"
-PLANNER_ONLY_EXPLANATION_MODEL_ID = "planner-only-explanation"
-ITERATIVE_PIPELINE_MODEL_ID = "iterative-join-aware"
+RAG_PIPELINE_ID = "rag"
+LLM_INTERNAL_PIPELINE_ID = "llm-internal"
+SQL_TABLE_PIPELINE_ID = "sql-table"
+# Legacy constants remain internal compatibility shims for older API clients.
+PLANNER_ONLY_MODEL_ID = RAG_PIPELINE_ID
+PLANNER_ONLY_PUSHDOWN_MODEL_ID = "rag-pushdown"
+PLANNER_ONLY_EXPLANATION_MODEL_ID = "rag-explanation"
+ITERATIVE_PIPELINE_MODEL_ID = "rag-iterative"
 PLANNER_ONLY_ALIASES = {
-    "planner only": PLANNER_ONLY_MODEL_ID,
-    "planner-first": PLANNER_ONLY_MODEL_ID,
-    "planner_first": PLANNER_ONLY_MODEL_ID,
+    "planner only": RAG_PIPELINE_ID,
+    "planner-only": RAG_PIPELINE_ID,
+    "planner-first": RAG_PIPELINE_ID,
+    "planner_first": RAG_PIPELINE_ID,
     "planner only pushdown": PLANNER_ONLY_PUSHDOWN_MODEL_ID,
+    "planner-only-pushdown": PLANNER_ONLY_PUSHDOWN_MODEL_ID,
     "planner-first-pushdown": PLANNER_ONLY_PUSHDOWN_MODEL_ID,
     "planner_first_pushdown": PLANNER_ONLY_PUSHDOWN_MODEL_ID,
     "planner only-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
+    "planner-only-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "planner-first-explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "planner_first_explanation": PLANNER_ONLY_EXPLANATION_MODEL_ID,
     "iterative join aware": ITERATIVE_PIPELINE_MODEL_ID,
     "iterative-join-aware": ITERATIVE_PIPELINE_MODEL_ID,
+    "internal-knowledge": LLM_INTERNAL_PIPELINE_ID,
+    "internal knowledge": LLM_INTERNAL_PIPELINE_ID,
+    "llm internal": LLM_INTERNAL_PIPELINE_ID,
+    "sql table": SQL_TABLE_PIPELINE_ID,
 }
 
 
@@ -164,7 +179,8 @@ MODEL_ROUTING: Dict[str, str] = {
     PLANNER_ONLY_EXPLANATION_MODEL_ID: PLANNER_LLM_MODEL
     if PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
     else os.getenv("OLLAMA_MODEL_PLANNER_FIRST_EXPLANATION", PLANNER_LLM_MODEL),
-    "internal-knowledge": os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", "llama3:8b"),
+    LLM_INTERNAL_PIPELINE_ID: os.getenv("OLLAMA_MODEL_INTERNAL_KNOWLEDGE", "llama3:8b"),
+    SQL_TABLE_PIPELINE_ID: os.getenv("OLLAMA_MODEL_BASE", "llama3:8b"),
     ITERATIVE_PIPELINE_MODEL_ID: os.getenv("OLLAMA_MODEL_ITERATIVE_PIPELINE", PLANNER_LLM_MODEL),
 }
 for alias, canonical in PLANNER_ONLY_ALIASES.items():
@@ -175,11 +191,9 @@ EXPOSED_MODEL_IDS = [
     "base-llama3-8b",
     "best-ft-llama3-8b-nl",
     "best-ft-llama3-8b-sql",
-    PLANNER_ONLY_MODEL_ID,
-    PLANNER_ONLY_PUSHDOWN_MODEL_ID,
-    PLANNER_ONLY_EXPLANATION_MODEL_ID,
-    "internal-knowledge",
-    ITERATIVE_PIPELINE_MODEL_ID,
+    RAG_PIPELINE_ID,
+    LLM_INTERNAL_PIPELINE_ID,
+    SQL_TABLE_PIPELINE_ID,
 ]
 EXPOSED_MODELS = [{"id": mid, "object": "model"} for mid in EXPOSED_MODEL_IDS]
 
@@ -847,11 +861,16 @@ class UiPlanRequest(BaseModel):
     sql: Optional[str] = None
     dataset: Optional[str] = None
 
+class UiLeafPipelineOptions(BaseModel):
+    pushdown: bool = False
+    iterative: bool = False
+
 class UiRunRequest(BaseModel):
     question: str
     sql: str
     plan: Dict[str, Any]
     leaf_pipeline_choices: Dict[str, str] = Field(default_factory=dict)
+    leaf_pipeline_options: Dict[str, UiLeafPipelineOptions] = Field(default_factory=dict)
     temperature: Optional[float] = 0.0
     dataset: Optional[str] = None
 # =========================
@@ -1911,6 +1930,59 @@ def _raw_model_leaf_output(
         "model_provider": model_provider,
     }
 
+def _sql_table_leaf_output(
+    task: Dict[str, Any],
+    dataset: str,
+) -> Dict[str, Any]:
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    _load_csvs_once(dataset)
+    runtime = _dataset_runtime(dataset)
+    rows = runtime.csv_cache.get(table_name)
+    if rows is None:
+        raise ValueError(f"SQL table leaf references unknown table: {table_name}")
+    parsed_output = [
+        {"row_id": str(row.get("__rid__") or f"{table_name}_{index}"), "values": dict(row)}
+        for index, row in enumerate(rows, start=1)
+    ]
+    return {
+        "table_name": table_name,
+        "task": task,
+        "retrieval_query": "",
+        "context_data": {},
+        "prompt": "SQL TABLE MODE",
+        "output_text": "",
+        "parsed_output": parsed_output,
+        "parse_error": None,
+        "valid_leaf_output": True,
+    }
+
+def _llm_internal_leaf_output(
+    task: Dict[str, Any],
+    dataset: str,
+    temperature: float,
+) -> Dict[str, Any]:
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    leaf_question = _leaf_question_sql(task)
+    answer, raw_output = _run_llm_internal_query(leaf_question, dataset, temperature)
+    parsed_output: List[Dict[str, Any]] = []
+    for index, item in enumerate(answer, start=1):
+        provenance = item.get("provenance") or []
+        row_id = f"{table_name}_internal_{index}"
+        if provenance and isinstance(provenance[0], list) and provenance[0]:
+            row_id = str(provenance[0][0])
+        parsed_output.append({"row_id": row_id, "values": item["result"]})
+    return {
+        "table_name": table_name,
+        "task": task,
+        "retrieval_query": "",
+        "context_data": {},
+        "prompt": "LLM INTERNAL MODE",
+        "output_text": raw_output,
+        "parsed_output": parsed_output,
+        "parse_error": None,
+        "valid_leaf_output": True,
+    }
+
 
 def _pipeline_uses_pushdown_retrieval(pipeline: str) -> bool:
     return _canonical_pipeline_id(pipeline) == PLANNER_ONLY_PUSHDOWN_MODEL_ID
@@ -1924,35 +1996,20 @@ def _run_ui_leaf_pipeline(
     dataset: Optional[str] = None,
 ) -> Dict[str, Any]:
     pipeline = _canonical_pipeline_id(pipeline)
+    selected_dataset = _dataset_config(dataset).name
     retrieval_query = _build_leaf_retrieval_query(
         task,
         include_pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
     )
 
-    if pipeline == "internal-knowledge":
-        model_id = "internal-knowledge"
-        model_name = MODEL_ROUTING[model_id]
-        prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=sql_query)
-        raw_output = _call_model_with_retry(
-            model_name,
-            prompt,
-            temperature,
-            provider="ollama",
-            max_tries=2,
-        )
-        return _raw_model_leaf_output(
-            task=task,
-            pipeline=pipeline,
-            model_id=model_id,
-            model_provider="ollama",
-            temperature=temperature,
-            retrieval_query=retrieval_query,
-            raw_output=raw_output,
-        )
+    if pipeline == LLM_INTERNAL_PIPELINE_ID:
+        return _llm_internal_leaf_output(task, selected_dataset, temperature)
+    if pipeline == SQL_TABLE_PIPELINE_ID:
+        return _sql_table_leaf_output(task, selected_dataset)
 
     retrieval_pipelines = {
         "manual",
-        "rag",
+        RAG_PIPELINE_ID,
         PLANNER_ONLY_MODEL_ID,
         PLANNER_ONLY_PUSHDOWN_MODEL_ID,
         PLANNER_ONLY_EXPLANATION_MODEL_ID,
@@ -1971,8 +2028,8 @@ def _run_ui_leaf_pipeline(
     if pipeline == "manual":
         leaf_output = _manual_leaf_output(task, ctx, retrieval_query)
     else:
-        model_id = "base-llama3-8b" if pipeline == "rag" else pipeline
-        model_provider = "ollama" if pipeline == "rag" else PLANNER_LLM_PROVIDER
+        model_id = "base-llama3-8b" if pipeline == RAG_PIPELINE_ID else pipeline
+        model_provider = "ollama" if pipeline == RAG_PIPELINE_ID else PLANNER_LLM_PROVIDER
         leaf_output = _run_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[model_id],
@@ -2030,7 +2087,7 @@ def _run_ui_leaf_pipeline_with_context(
     if pipeline == "manual":
         return _manual_leaf_output(task, ctx, retrieval_query)
 
-    if pipeline == "rag":
+    if pipeline == RAG_PIPELINE_ID:
         return _run_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING["base-llama3-8b"],
@@ -2080,6 +2137,7 @@ def _run_ui_iterative_join_pipeline(
     plan: Dict[str, Any],
     temperature: float,
     dataset: str,
+    pushdown: bool = False,
 ) -> Dict[str, Any]:
     def run_leaf(
         task: Dict[str, Any],
@@ -2115,7 +2173,10 @@ def _run_ui_iterative_join_pipeline(
         dataset=dataset,
         pipeline_id=ITERATIVE_PIPELINE_MODEL_ID,
         run_leaf=run_leaf,
-        build_base_retrieval_query=_build_leaf_retrieval_query,
+        build_base_retrieval_query=lambda task: _build_leaf_retrieval_query(
+            task,
+            include_pushdown=pushdown,
+        ),
         log_event=_log_event,
     )
     planner_result["annotations"] = _collect_leaf_annotations(
@@ -2245,6 +2306,77 @@ def _generate_ui_csv_files(
         delimiter=EXPLANATION_CSV_DELIMITER,
         keep_rownum=EXPLANATION_KEEP_ROWNUM,
     )
+
+def _copy_dataset_csv_files(
+    dataset: Optional[str] = None,
+    table_names: Optional[set[str]] = None,
+) -> List[str]:
+    """Stage the selected database's source tables for deterministic AP execution."""
+    config = _dataset_config(dataset)
+    source_dir = Path(config.csv_dir)
+    if not source_dir.is_dir():
+        raise RuntimeError(f"Dataset CSV directory not found: {source_dir}")
+
+    clean_bucket(EXPLANATION_BUCKET_DIR)
+    copied: List[str] = []
+    for source in sorted(source_dir.glob("*.csv")):
+        if table_names is not None and source.stem not in table_names:
+            continue
+        destination = EXPLANATION_BUCKET_DIR / source.name
+        shutil.copy2(source, destination)
+        copied.append(source.name)
+    if not copied:
+        raise RuntimeError(f"No CSV tables found for dataset '{config.name}'")
+    return copied
+
+def _apply_ui_leaf_pipeline_options(req: UiRunRequest, leaf_tasks: List[Dict[str, Any]]) -> None:
+    choices: Dict[str, str] = {}
+    for task in leaf_tasks:
+        if not isinstance(task, dict):
+            continue
+        table_name = str(task.get("table_name") or task.get("table") or "").strip()
+        pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
+        if pipeline not in {
+            RAG_PIPELINE_ID,
+            PLANNER_ONLY_PUSHDOWN_MODEL_ID,
+            PLANNER_ONLY_EXPLANATION_MODEL_ID,
+            ITERATIVE_PIPELINE_MODEL_ID,
+            LLM_INTERNAL_PIPELINE_ID,
+            SQL_TABLE_PIPELINE_ID,
+        }:
+            raise ValueError(f"Unsupported UI pipeline for {table_name}: {pipeline}")
+        options = req.leaf_pipeline_options.get(table_name)
+        if pipeline == RAG_PIPELINE_ID and options:
+            if options.iterative:
+                pipeline = ITERATIVE_PIPELINE_MODEL_ID
+            elif options.pushdown:
+                pipeline = PLANNER_ONLY_PUSHDOWN_MODEL_ID
+        choices[table_name] = pipeline
+    req.leaf_pipeline_choices = choices
+
+def _run_llm_internal_query(
+    question: str,
+    dataset: str,
+    temperature: float,
+) -> Tuple[List[Dict[str, Any]], str]:
+    def validate(text: str) -> Tuple[bool, Optional[str]]:
+        try:
+            _parse_answer_json(text)
+            return True, None
+        except ValueError as exc:
+            return False, str(exc)
+
+    prompt_template = get_internal_knowledge_prompt_template(dataset)
+    prompt = prompt_template.format(question=question)
+    raw_output = _call_model_with_retry(
+        MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID],
+        prompt,
+        temperature,
+        provider="ollama",
+        max_tries=2,
+        validator=validate,
+    )
+    return _parse_answer_json(raw_output), raw_output
 
 def _run_ui_ap_explanation_for_csv_files(
     sql_query: str,
@@ -2761,6 +2893,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
 
     try:
         dataset = _dataset_config(req.dataset).name
+        _apply_ui_leaf_pipeline_options(req, leaf_tasks)
         if _ui_uses_iterative_join_pipeline(leaf_tasks, req.leaf_pipeline_choices):
             print("\n[UI] Running iterative join-aware query pipeline\n", flush=True)
             planner_result = _run_ui_iterative_join_pipeline(
@@ -2768,6 +2901,10 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
                 plan=req.plan,
                 temperature=temperature,
                 dataset=dataset,
+                pushdown=any(
+                    options.iterative and options.pushdown
+                    for options in req.leaf_pipeline_options.values()
+                ),
             )
             leaf_outputs = planner_result.get("leaf_outputs") or []
             pipeline_choices = [
@@ -2868,6 +3005,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
 
     temperature = 0.0 if req.temperature is None else float(req.temperature)
     dataset = _dataset_config(req.dataset).name
+    _apply_ui_leaf_pipeline_options(req, leaf_tasks)
 
     def encode_event(event_type: str, payload: Dict[str, Any]) -> str:
         return json.dumps(
@@ -2912,6 +3050,10 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                     plan=req.plan,
                     temperature=temperature,
                     dataset=dataset,
+                    pushdown=any(
+                        options.iterative and options.pushdown
+                        for options in req.leaf_pipeline_options.values()
+                    ),
                 )
                 leaf_outputs = planner_result.get("leaf_outputs") or []
                 for index, leaf_output in enumerate(leaf_outputs):
@@ -2965,11 +3107,15 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         "message": f"Running {table_name} with {pipeline}.",
                     })
 
-                    if pipeline == "internal-knowledge":
+                    if pipeline in {LLM_INTERNAL_PIPELINE_ID, SQL_TABLE_PIPELINE_ID}:
                         yield encode_event("leaf_context", {
                             "table": table_name,
                             "pipeline": pipeline,
-                            "message": "No context retrieval needed for internal knowledge.",
+                            "message": (
+                                "No retrieval needed; using internal LLM knowledge."
+                                if pipeline == LLM_INTERNAL_PIPELINE_ID
+                                else "No retrieval needed; loading the complete source table."
+                            ),
                             "rows": 0,
                         })
                         leaf_output = _run_ui_leaf_pipeline(
@@ -3140,7 +3286,42 @@ def chat_completions(
     # if not specified, default to 0.0 (deterministic)
     temperature = 0.0 if req.temperature is None else float(req.temperature)
     dataset = _dataset_config(req.dataset).name
-    
+
+    if ui_model == SQL_TABLE_PIPELINE_ID:
+        try:
+            plan = build_query_plan(question)
+            if plan is None:
+                raise RuntimeError("build_query_plan returned None")
+            table_names = {
+                str(task.table_name)
+                for task in plan.leaf_tasks
+                if str(task.table_name).strip()
+            }
+            with _EXPLANATION_PIPELINE_LOCK:
+                csv_files = _copy_dataset_csv_files(dataset, table_names=table_names)
+                pipeline_result = _run_ui_ap_explanation_for_csv_files(
+                    sql_query=question,
+                    csv_files=csv_files,
+                    dataset=dataset,
+                )
+            created = _now()
+            return {
+                "id": f"chatcmpl-{created}",
+                "object": "chat.completion",
+                "created": created,
+                "model": ui_model,
+                "choices": [{
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": pipeline_result["response_text"],
+                    },
+                    "finish_reason": "stop",
+                }],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            }
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"SQL table pipeline failed: {exc}")
 
     if ui_model == PLANNER_ONLY_MODEL_ID:
 
@@ -3366,7 +3547,7 @@ def chat_completions(
                 detail=f"iterative join-aware pipeline failed: {e}",
             )
 
-    if req.model == "internal-knowledge":
+    if ui_model == LLM_INTERNAL_PIPELINE_ID:
         base_prompt = PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE.format(question=question)
         out_text = _call_model_with_retry(ollama_model, base_prompt, temperature, max_tries=2)
         response_text = _render_chat_response(out_text)
