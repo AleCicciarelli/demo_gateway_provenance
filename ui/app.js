@@ -881,6 +881,12 @@ function renderRagAnnotations(annotations) {
               <p>
                 FAISS relevance score; higher values indicate greater similarity to the retrieval query.
               </p>
+              <div class="similarity-legend" aria-label="Similarity score legend">
+                <span class="similarity-chip similarity-green">Close ≥ 0.75</span>
+                <span class="similarity-chip similarity-yellow">Relevant ≥ 0.50</span>
+                <span class="similarity-chip similarity-orange">Weak ≥ 0.25</span>
+                <span class="similarity-chip similarity-red">Far &lt; 0.25</span>
+              </div>
               <code>${escapeHtml(annotation.retrieval_query ?? "")}</code>
               ${
                 evidence.length
@@ -897,9 +903,7 @@ function renderRagAnnotations(annotations) {
                                   <td>${escapeHtml(item.rank)}</td>
                                   <td>${escapeHtml(item.table)}</td>
                                   <td>${escapeHtml(item.row_id)}</td>
-                                  <td>${escapeHtml(
-                                    Number.isFinite(item.score) ? item.score.toFixed(4) : item.score,
-                                  )}</td>
+                                  <td>${renderSimilarityScore(item.score)}</td>
                                 </tr>
                               `,
                             )
@@ -914,6 +918,34 @@ function renderRagAnnotations(annotations) {
         })
         .join("")}
     </section>
+  `;
+}
+
+function similarityBand(score) {
+  if (!Number.isFinite(score)) {
+    return { className: "similarity-unknown", label: "Unknown" };
+  }
+  if (score >= 0.75) {
+    return { className: "similarity-green", label: "Close" };
+  }
+  if (score >= 0.5) {
+    return { className: "similarity-yellow", label: "Relevant" };
+  }
+  if (score >= 0.25) {
+    return { className: "similarity-orange", label: "Weak" };
+  }
+  return { className: "similarity-red", label: "Far" };
+}
+
+function renderSimilarityScore(score) {
+  const numericScore = typeof score === "number" ? score : Number(score);
+  const band = similarityBand(numericScore);
+  const value = Number.isFinite(numericScore) ? numericScore.toFixed(4) : "N/A";
+  return `
+    <span class="similarity-score ${band.className}">
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(band.label)}</small>
+    </span>
   `;
 }
 

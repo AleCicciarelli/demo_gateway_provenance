@@ -203,6 +203,24 @@ contract. Stable row identifiers then connect final answers, provenance
 formulas, supporting-row views, exported CSVs, and the external explanation
 service.
 
+\subsection{Annotation and Confidence Management}
+
+The architecture includes an Annotation Generation and Propagation Layer that
+associates structured metadata with input data, intermediate results, and final
+outputs. Individual execution components generate annotations describing the
+result source, the pipeline used, the corresponding query scope (leaf,
+block, or subtree), and any related provenance or evidence references. As
+partial results are combined, these annotations are propagated from leaves to
+blocks and subtrees and are ultimately attached to the complete answer.
+Confidence information is interpreted according to the producing pipeline:
+ProvSQL provides formal tuple or result level probabilities together with
+provenance; Standard RAG and Planner-First use retrieval similarity scores as
+indicators of evidence relevance; and LLM results receive a
+qualitative confidence level of low, medium, or high at block or subtree level.
+Consequently, the final output comprises the answer, provenance, a
+human-readable explanation, the propagated annotations, and their associated
+probability or confidence indicators.
+
 \section{Running the Demo}
 
 The demo requires Docker with Compose support, Git, and Git LFS. From the

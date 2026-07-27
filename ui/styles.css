@@ -662,6 +662,68 @@ select {
   color: #1d4ed8;
 }
 
+.similarity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.similarity-chip,
+.similarity-score {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.similarity-chip {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.similarity-score {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 108px;
+  padding: 5px 8px;
+}
+
+.similarity-score small {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.similarity-green {
+  border-color: #86efac;
+  color: #166534;
+  background: #dcfce7;
+}
+
+.similarity-yellow {
+  border-color: #fde047;
+  color: #854d0e;
+  background: #fef9c3;
+}
+
+.similarity-orange {
+  border-color: #fdba74;
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.similarity-red {
+  border-color: #fca5a5;
+  color: #991b1b;
+  background: #fee2e2;
+}
+
+.similarity-unknown {
+  border-color: var(--line);
+  color: var(--muted);
+  background: var(--panel-soft);
+}
+
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--line);
