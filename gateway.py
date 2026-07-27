@@ -2028,8 +2028,8 @@ def _run_ui_leaf_pipeline(
     if pipeline == "manual":
         leaf_output = _manual_leaf_output(task, ctx, retrieval_query)
     else:
-        model_id = "base-llama3-8b" if pipeline == RAG_PIPELINE_ID else pipeline
-        model_provider = "ollama" if pipeline == RAG_PIPELINE_ID else PLANNER_LLM_PROVIDER
+        model_id = pipeline
+        model_provider = PLANNER_LLM_PROVIDER
         leaf_output = _run_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[model_id],
@@ -2090,8 +2090,8 @@ def _run_ui_leaf_pipeline_with_context(
     if pipeline == RAG_PIPELINE_ID:
         return _run_leaf_task(
             task=task,
-            ollama_model=MODEL_ROUTING["base-llama3-8b"],
-            model_provider="ollama",
+            ollama_model=MODEL_ROUTING[RAG_PIPELINE_ID],
+            model_provider=PLANNER_LLM_PROVIDER,
             temperature=temperature,
             ctx=ctx,
             retrieval_query=retrieval_query,
