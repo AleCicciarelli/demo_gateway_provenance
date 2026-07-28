@@ -624,8 +624,6 @@ select {
 
 .context-preview pre {
   margin: 8px 0 0;
-  max-height: 260px;
-  overflow: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 10px;

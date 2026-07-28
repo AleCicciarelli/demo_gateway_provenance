@@ -238,9 +238,8 @@ different signals are not compared as though they had identical semantics.
 \subsubsection{Implementation in the Gateway Container}
 
 The current container implementation produces retrieval-confidence annotations
-at the shared FAISS retrieval stage. This stage is used by Standard RAG,
-Planner-First, Planner-First with predicate pushdown, Planner-First Explanation,
-Manual retrieval, and the Iterative Join-Aware pipeline. Internal Knowledge is
+at the shared FAISS retrieval stage. This stage is used by RAG, RAG with
+predicate pushdown, RAG Explanation, and iterative join-aware RAG. Internal Knowledge is
 excluded because it does not retrieve external evidence. The gateway calls the
 scored FAISS similarity function, retains the relevance score and rank for each
 selected row identifier, and emits a \code{rag\_similarity} annotation. The
@@ -263,6 +262,18 @@ individual evidence fragments. Newly built FAISS documents therefore store
 \code{chunk\_id} explicitly, while existing indexes fall back to the row
 identifier. Final RAG confidence annotations propagate the relevant identifiers
 in their \code{source\_ids} field.
+
+Linked-row metadata can expand a FAISS match with relationally correlated rows.
+These rows are included in the same evidence list so the annotation describes
+the complete context available to the model, but they are not assigned invented
+similarity ranks or scores. A correlated item uses
+\code{source\_type=correlated},
+\code{retrieval\_method=relational\_correlation}, a
+\code{correlated\_<row-id>} source identifier, and records the source table and
+row from which it was expanded. The UI labels these items separately from
+``FAISS similarity.'' Final numeric RAG confidence ignores evidence without a
+numeric score, so relational expansion is visible without being misrepresented
+as a vector-search measurement.
 
 The embedding configuration is dataset-specific inside the same gateway
 container. TPC-H uses the configured \code{EMB\_MODEL}, while REL-F1 uses
@@ -450,44 +461,49 @@ generation remain largely model-controlled.
 
 \subsection{Internal-Knowledge Baseline}
 
-The \code{internal-knowledge} mode performs no source-row retrieval. It asks the
+The canonical \code{llm-internal} mode performs no source-row retrieval. It asks the
 model to answer from its internal parameters, so its provenance must not be
 treated as verified source provenance unless it is separately resolved and
-validated.
+validated. The older \code{internal-knowledge} spelling remains a compatibility
+alias.
 
-\subsection{Planner-Only}
+\subsection{RAG}
 
-The \code{planner-only} mode accepts SQL and decomposes it into table-level leaf
+The canonical \code{rag} mode accepts SQL and decomposes it into table-level leaf
 tasks. The plan identifies tables, aliases, predicates, join keys, selected and
 grouping columns, aggregates, ordering, limits, and deterministic post-operations.
 Each leaf retrieves candidate rows and asks the model to copy relevant rows under
 a strict output contract. The UI exposes the plan and leaf traces so the user can
 inspect the retrieval query, context, model output, parsed rows, and validation
-status.
+status. The names \code{planner-only}, \code{planner-first}, and their underscore
+variants remain accepted as compatibility aliases.
 
-\subsection{Planner-Only with Predicate Pushdown}
+\subsection{RAG with Predicate Pushdown}
 
-\code{planner-only-pushdown} adds the leaf's predicates and required columns to
+\code{rag-pushdown} adds the leaf's predicates and required columns to
 its retrieval query. Exposing values such as year, country, driver, or circuit
 names to FAISS can improve candidate recall for selective RELF1 questions. This
-mode is selected per leaf through the UI.
+mode is selected per leaf through the UI. The legacy
+\code{planner-only-pushdown} name remains accepted.
 
 \subsection{Iterative Join-Aware Pipeline}
 
-\code{iterative-join-aware} coordinates retrieval across joined tables. It
+\code{rag-iterative} coordinates retrieval across joined tables. It
 starts with a leaf that has useful predicates or join keys, extracts validated
 rows, propagates join-key values to connected leaves, and enriches subsequent
 retrieval queries with those bindings. This makes the evidence discovery process
 follow the join structure, although its result still depends on the recall of
-the starting leaf and the correctness of the extracted join edges.
+the starting leaf and the correctness of the extracted join edges. The legacy
+\code{iterative-join-aware} name remains accepted.
 
-\subsection{Planner-Only Explanation}
+\subsection{RAG Explanation}
 
-\code{planner-only-explanation} extends planner-only extraction by writing the
+\code{rag-explanation} extends RAG extraction by writing the
 validated rows to per-table CSV files and submitting them with the SQL query to
 the AP Explanation service. The service executes the relational and provenance
 workflow, and the UI displays its written explanation alongside the answer,
-provenance formula, and supporting rows.
+provenance formula, and supporting rows. The legacy
+\code{planner-only-explanation} name remains accepted.
 
 The modes are deliberately exposed side by side in the demo. A presenter can
 use one strategy for every leaf or mix them per table to compare a baseline,
@@ -742,9 +758,11 @@ iteration adds no new resolvable rows. Duplicate identifiers and rows that canno
 be mapped back to the selected dataset are ignored.
 
 When enabled, linked-row metadata may add correlated records up to
-\code{MAX\_CORRELATED\_CONTEXT\_ROWS}. Dense retrieval is candidate selection, not
-proof of relevance. Exact row validation prevents a model from fabricating row
-contents, but it does not guarantee that all rows required for a query were retrieved.
+\code{MAX\_CORRELATED\_CONTEXT\_ROWS}. The browser's context panel contains all
+retrieved and correlated rows; it is not truncated to a small preview. Dense
+retrieval is candidate selection, not proof of relevance. Exact row validation
+prevents a model from fabricating row contents, but it does not guarantee that
+all rows required for a query were retrieved.
 
 \section{Leaf Output Contract and Validation}
 
@@ -777,9 +795,11 @@ Validation checks that:
 \end{itemize}
 
 The model is called at most twice. On failure, the second prompt emphasizes the
-JSON-only contract. The partial parser retains individually valid rows even if the
-complete output is invalid, enabling evaluation and downstream inspection without
-silently treating malformed items as trusted data.
+JSON-only contract. Parsing can extract a balanced JSON array from surrounding
+model prose or a Markdown code fence, but the extracted array must still satisfy
+the strict schema above. The partial parser retains individually valid rows even
+if the complete output is invalid, enabling evaluation and downstream inspection
+without silently treating malformed items as trusted data.
 
 \section{API}
 
@@ -793,11 +813,9 @@ This endpoint returns logical identifiers rather than provider-specific model ta
 base-llama3-8b
 best-ft-llama3-8b-nl
 best-ft-llama3-8b-sql
-planner-only
-planner-only-pushdown
-planner-only-explanation
-internal-knowledge
-iterative-join-aware
+rag
+llm-internal
+sql-table
 \end{lstlisting}
 
 \subsubsection{\code{POST /v1/chat/completions}}
@@ -810,7 +828,7 @@ compatibility. The gateway uses only the latest message whose role is \code{user
 curl -X POST http://localhost:9006/v1/chat/completions \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "planner-only",
+    "model": "rag",
     "dataset": "tpch",
     "messages": [{"role": "user", "content": "SELECT n_name FROM nation"}],
     "temperature": 0

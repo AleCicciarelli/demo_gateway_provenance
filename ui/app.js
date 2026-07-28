@@ -921,6 +921,7 @@ function renderRagAnnotations(annotations) {
                         <thead>
                           <tr>
                             <th>Rank</th>
+                            <th>Retrieval method</th>
                             <th>Source identifier</th>
                             <th>Table</th>
                             <th>Row id</th>
@@ -933,7 +934,12 @@ function renderRagAnnotations(annotations) {
                             .map(
                               (item) => `
                                 <tr>
-                                  <td>${escapeHtml(item.rank)}</td>
+                                  <td>${escapeHtml(item.rank ?? "—")}</td>
+                                  <td>${escapeHtml(
+                                    item.retrieval_method === "relational_correlation"
+                                      ? `Correlated from ${item.source_table ?? "row"} ${item.source_row_id ?? ""}`
+                                      : "FAISS similarity",
+                                  )}</td>
                                   <td><code>${escapeHtml(item.source_id ?? "")}</code></td>
                                   <td>${escapeHtml(item.table)}</td>
                                   <td>${escapeHtml(item.row_id)}</td>

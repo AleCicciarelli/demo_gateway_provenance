@@ -1,6 +1,9 @@
 # UI - Gateway - Explanation Pipeline Architecture
 
-This note describes the request path used when the UI selects the `planner-only-explanation` model.
+This note describes the explanation request path. In the current UI, explanation
+is an option on a RAG leaf. The corresponding canonical API model is
+`rag-explanation`; the legacy `planner-only-explanation` name is still accepted
+as a compatibility alias.
 
 ## High-Level Flow
 
@@ -8,7 +11,7 @@ This note describes the request path used when the UI selects the `planner-only-
 UI
  |
  | POST /v1/chat/completions
- | model = planner-only-explanation
+ | model = rag-explanation
  v
 Gateway FastAPI app
  |
@@ -48,7 +51,7 @@ To trigger the full explanation path, the request uses:
 
 ```json
 {
-  "model": "planner-only-explanation",
+  "model": "rag-explanation",
   "messages": [
     {
       "role": "user",
@@ -62,7 +65,8 @@ To trigger the full explanation path, the request uses:
 
 File: `gateway.py`
 
-The gateway is the orchestration layer. For `planner-only-explanation`, it:
+The gateway is the orchestration layer. For `rag-explanation` (or its legacy
+alias), it:
 
 1. Extracts the SQL query from the user message.
 2. Runs the planner-only pipeline.
@@ -140,7 +144,7 @@ Relevant services from `docker-compose.yml`:
 ```text
 gateway
   FastAPI gateway
-  Host port: 9005
+  Host port: 9006
   Internal port: 9000
   Uses EXPLANATION_URL=http://explanation_app:5000
   Writes generated CSVs to /shared_bucket
@@ -189,7 +193,8 @@ CELERY_RESULT_BACKEND=redis://redis:6379/0
 ## Use Case Scenario
 
 ```text
-1. UI sends SQL query to gateway with model planner-only-explanation.
+1. UI sends a SQL query and selects RAG with explanation for the relevant leaf,
+   or an API client uses model `rag-explanation`.
 2. Gateway runs the planner-only flow and obtains planner_result.
 3. explanation_pipeline cleans /shared_bucket.
 4. json_to_csv writes table CSVs into /shared_bucket.

@@ -1,15 +1,23 @@
 # Planner-Only Logic and Evaluation
 
-This document explains the planner-only path in the demo gateway and the evaluation workflow used to measure it.
+This document explains the planner-first RAG path in the demo gateway and the
+evaluation workflow used to measure it.
 
-The planner-only mode is exposed as the OpenAI-compatible model id `planner-only`. Unlike the regular gateway path, it does not ask the model to answer the full SQL query directly. It first decomposes the SQL into table-level leaf extraction tasks, retrieves candidate rows for each leaf, asks the model to copy rows from the retrieved context, and returns the full intermediate trace. The older `planner-first` id is still accepted as a compatibility alias.
+The path is exposed under the canonical OpenAI-compatible model id `rag`.
+Unlike the regular base/fine-tuned model path, it does not ask the model to
+answer the full SQL query directly. It first decomposes the SQL into table-level
+leaf extraction tasks, retrieves candidate rows for each leaf, asks the model to
+copy rows from the retrieved context, and returns the full intermediate trace.
+The older `planner-only` and `planner-first` ids remain accepted as compatibility
+aliases, but they are not returned by `GET /v1/models`.
 
 At the current stage, planner-only is an extraction pipeline. The gateway builds and returns the plan and leaf outputs, but it does not yet execute the deterministic post-processing operators such as joins, filters, grouping, aggregation, projection, ordering, or limit.
 
 ## Main Files
 
 - `planner.py`: parses SQL and builds a structured query plan.
-- `gateway.py`: exposes the `planner-only` model route, performs retrieval, builds prompts, calls Ollama, validates leaf output, and logs debug data.
+- `gateway.py`: exposes the `rag` model route, performs retrieval, builds prompts,
+  calls the configured planner provider, validates leaf output, and logs debug data.
 - `prompt.py`: builds the leaf extraction prompt.
 - `run_planner_first_eval.py`: runs planner-only over the evaluation dataset and writes JSONL predictions.
 - `evaluate_planner_first_outputs.py`: compares predictions against ProvSQL-generated ground truth and writes metrics.
@@ -25,15 +33,15 @@ Related notes:
 
 ## Runtime Flow
 
-### 1. User Calls `planner-only`
+### 1. User Calls `rag`
 
 Send a request to the normal chat completions endpoint:
 
 ```bash
-curl -X POST http://localhost:9005/v1/chat/completions \
+curl -X POST http://localhost:9006/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "planner-only",
+    "model": "rag",
     "messages": [
       {
         "role": "user",
@@ -43,7 +51,9 @@ curl -X POST http://localhost:9005/v1/chat/completions \
   }'
 ```
 
-The visible model id `planner-only` is routed through `MODEL_ROUTING` in `gateway.py` to the actual Ollama model named by `OLLAMA_MODEL_PLANNER_FIRST`. If that environment variable is not set, the default is `llama3:8b`.
+The visible model id `rag` is routed through `MODEL_ROUTING` in `gateway.py`.
+Planner calls use `PLANNER_LLM_PROVIDER`; this may select Ollama, OpenAI, or an
+OpenAI-compatible service. Legacy aliases resolve to the same canonical route.
 
 ### 2. SQL Is Parsed Into a Plan
 

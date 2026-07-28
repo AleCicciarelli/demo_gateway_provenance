@@ -10,7 +10,9 @@ This project provides a **local demo environment** for the Provenance LLM Gatewa
 
 In the browser UI, a pipeline is selected independently for every planned leaf:
 `RAG`, `LLM internal`, or `SQL table`. Each RAG leaf also has independent
-predicate-pushdown and iterative-RAG options.
+predicate-pushdown and iterative join-aware options. The gateway reports
+retrieval and confidence annotations and keeps stable source-row identifiers
+through the final answer and provenance views.
 
 
 ---
@@ -24,6 +26,7 @@ The demo runs two services:
   - LLM internal-knowledge pipeline
   - Deterministic SQL-table pipeline
   - FAISS indexing
+  - Row-level retrieval, correlation, confidence, and provenance annotations
 
 - **Ollama**
   - Hosts the base LLM models
@@ -35,8 +38,9 @@ Both services are started using **Docker Compose**.
 
 ## RAG Documentation
 
-The RAG pipeline evolved from the earlier planner-only implementation. Its detailed
-planning and evaluation documentation is here:
+The canonical pipeline name is `rag`. Older `planner-only` and `planner-first`
+names remain accepted as compatibility aliases. Detailed planning and evaluation
+documentation is here:
 
 - [RAG planning logic and evaluation](docs/planner_first.md)
 
@@ -104,7 +108,7 @@ ollama          Up
 Query the models API:
 
 ```bash
-curl http://localhost:9005/v1/models
+curl http://localhost:9006/v1/models
 ```
 
 Expected response:
@@ -129,7 +133,7 @@ You should see the following models:
 Example request using the **RAG** model:
 
 ```bash
-curl -X POST http://localhost:9005/v1/chat/completions \
+curl -X POST http://localhost:9006/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "rag",
@@ -179,9 +183,26 @@ This means the gateway is starting correctly and the indexing process is running
 Once the indexing is complete, the **RAG pipeline** starts.
 Subsequent requests will be faster because the FAISS index has already been created.
 
+## 8. Retrieval and Annotation Behavior
+
+- FAISS matches are annotated with rank, relevance score, source identifier,
+  embedding configuration, and retrieval scope.
+- Rows added through linked-row metadata are also shown as evidence. They use
+  `retrieval_method: relational_correlation`, identify the row from which they
+  were expanded, and deliberately have no invented FAISS rank or score.
+- Final RAG confidence is calculated only from contributing evidence that has a
+  numeric FAISS score. Correlated context can support an answer without being
+  misrepresented as a similarity match.
+- The UI displays the complete retrieved context for a leaf rather than a
+  truncated table/row preview. Large contexts can therefore produce a long
+  result panel.
+- Answer parsing accepts a valid JSON array either as the complete response or
+  embedded in surrounding text or a Markdown code fence. The extracted value
+  must still satisfy the strict answer/provenance schema.
+
 ---
 
-# 8. Notes
+# 9. Notes
 
 - The gateway communicates with Ollama through the Docker network at:
 

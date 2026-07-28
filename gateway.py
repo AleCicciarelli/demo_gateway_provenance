@@ -1392,6 +1392,32 @@ def _rag_source_identifier(table: str, row_id: str, chunk_id: str) -> str:
     return f"rag_{table}_{local_part(row_id)}_{local_part(chunk_id)}"
 
 
+def _append_correlated_annotation_evidence(
+    scored_evidence: List[Dict[str, Any]],
+    correlated_additions: List[Dict[str, str]],
+) -> None:
+    """Include relationally expanded context rows without inventing FAISS scores."""
+    scored_row_ids = {
+        str(evidence.get("row_id") or "")
+        for evidence in scored_evidence
+    }
+    for addition in correlated_additions:
+        row_id = str(addition.get("rid") or "")
+        table = str(addition.get("table") or "")
+        if not row_id or not table or row_id in scored_row_ids:
+            continue
+        scored_evidence.append({
+            "table": table,
+            "row_id": row_id,
+            "source_id": f"correlated_{row_id}",
+            "source_type": "correlated",
+            "retrieval_method": "relational_correlation",
+            "source_table": addition.get("source_table") or "",
+            "source_row_id": addition.get("source_rid") or "",
+        })
+        scored_row_ids.add(row_id)
+
+
 def retrieve_context_data_iterative(
     question: str,
     dataset: Optional[str] = None,
@@ -1424,6 +1450,7 @@ def retrieve_context_data_iterative(
     ctx: Dict[str, Any] = defaultdict(dict)
     seen_docs = set()
     scored_evidence: List[Dict[str, Any]] = []
+    all_correlated_additions: List[Dict[str, str]] = []
     correlated_rows_added = 0
     k = RETRIEVER_K
 
@@ -1490,6 +1517,7 @@ def retrieve_context_data_iterative(
                 )
                 correlated_rows_added += added
                 correlated_additions.extend(additions)
+                all_correlated_additions.extend(additions)
 
         print(f"[ITERATION {iteration}] new_rows_added={new_count}", flush=True)
         if correlated_additions:
@@ -1572,6 +1600,10 @@ def retrieve_context_data_iterative(
     })
 
     if annotation_sink is not None:
+        _append_correlated_annotation_evidence(
+            scored_evidence,
+            all_correlated_additions,
+        )
         annotation_sink.append({
             "type": "rag_similarity",
             "pipeline": _canonical_pipeline_id(annotation_pipeline),
@@ -1670,6 +1702,10 @@ def _retrieve_context_data(
     })
 
     if annotation_sink is not None:
+        _append_correlated_annotation_evidence(
+            scored_evidence,
+            correlated_additions,
+        )
         annotation_sink.append({
             "type": "rag_similarity",
             "pipeline": _canonical_pipeline_id(annotation_pipeline),
@@ -2076,18 +2112,13 @@ def _context_row_count(ctx: Dict[str, Any]) -> int:
             total += len(rows)
     return total
 
-def _context_preview(
-    ctx: Dict[str, Any],
-    rows_per_table: int = 3,
-    max_tables: int = 4,
-) -> Dict[str, Any]:
-    preview: Dict[str, Any] = {}
-    for table_name, rows in list(ctx.items())[:max_tables]:
-        if isinstance(rows, dict):
-            preview[table_name] = dict(list(rows.items())[:rows_per_table])
-        elif isinstance(rows, list):
-            preview[table_name] = rows[:rows_per_table]
-    return preview
+def _context_preview(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Return all retrieved context for display in the UI."""
+    return {
+        table_name: dict(rows) if isinstance(rows, dict) else list(rows)
+        for table_name, rows in ctx.items()
+        if isinstance(rows, (dict, list))
+    }
 
 
 def _collect_leaf_annotations(leaf_outputs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -2635,6 +2666,7 @@ def _annotate_final_answer(
             evidence
             for row_id in row_ids
             for evidence in rag_evidence.get(row_id, [])
+            if isinstance(evidence.get("score"), (int, float))
         ]
         if contributing_rag:
             minimum_score = min(float(evidence["score"]) for evidence in contributing_rag)
@@ -2713,8 +2745,11 @@ def _annotate_final_answer(
 # Provenance helpers
 # =========================
 def _parse_answer_json(text: str) -> List[Dict[str, Any]]:
+    array_text, extraction_error = _extract_json_array_text(text)
+    if array_text is None:
+        raise ValueError(f"Invalid JSON: {extraction_error}")
     try:
-        obj = json.loads(text)
+        obj = json.loads(array_text)
     except Exception as e:
         raise ValueError(f"Invalid JSON: {e}")
 
