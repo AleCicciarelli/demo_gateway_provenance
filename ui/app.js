@@ -35,7 +35,6 @@ const els = {
   runStatus: document.querySelector("#run-status"),
   answerView: document.querySelector("#answer-view"),
   provenanceView: document.querySelector("#provenance-view"),
-  rowsView: document.querySelector("#rows-view"),
   tabs: document.querySelectorAll(".tab"),
 };
 
@@ -860,7 +859,6 @@ function clearOutput() {
   els.runStatus.classList.add("muted-pill");
   els.answerView.innerHTML = `<div class="empty-state">Run the selected pipelines to see final output.</div>`;
   els.provenanceView.innerHTML = `<div class="empty-state">Provenance will appear here after a run.</div>`;
-  els.rowsView.innerHTML = `<div class="empty-state">Supporting rows will appear here after a run.</div>`;
 }
 
 function renderOutput() {
@@ -876,7 +874,6 @@ function renderOutput() {
     ${renderInlineExplanation(state.output)}
   `;
   els.provenanceView.innerHTML = renderProvenance(answer);
-  els.rowsView.innerHTML = renderSupportingRows(state.output?.rows_by_id ?? {});
   bindOutputActions();
 }
 
@@ -922,7 +919,14 @@ function renderRagAnnotations(annotations) {
                   ? `<div class="table-wrap">
                       <table>
                         <thead>
-                          <tr><th>Rank</th><th>Table</th><th>Row id</th><th>Similarity score</th></tr>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Source identifier</th>
+                            <th>Table</th>
+                            <th>Row id</th>
+                            <th>Chunk id</th>
+                            <th>Similarity score</th>
+                          </tr>
                         </thead>
                         <tbody>
                           ${evidence
@@ -930,8 +934,10 @@ function renderRagAnnotations(annotations) {
                               (item) => `
                                 <tr>
                                   <td>${escapeHtml(item.rank)}</td>
+                                  <td><code>${escapeHtml(item.source_id ?? "")}</code></td>
                                   <td>${escapeHtml(item.table)}</td>
                                   <td>${escapeHtml(item.row_id)}</td>
+                                  <td>${escapeHtml(item.chunk_id ?? item.row_id)}</td>
                                   <td>${renderSimilarityScore(item.score)}</td>
                                 </tr>
                               `,
@@ -1201,6 +1207,9 @@ function renderErrors(errors) {
 function renderAnswerTable(answer) {
   const rows = answer.map((item) => item.result ?? {});
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const hasConfidence = answer.some(
+    (item) => Array.isArray(item.confidence_annotations) && item.confidence_annotations.length,
+  );
   if (!rows.length || !columns.length) {
     return `<div class="empty-state">No answer rows.</div>`;
   }
@@ -1209,18 +1218,73 @@ function renderAnswerTable(answer) {
     <div class="table-wrap">
       <table>
         <thead>
-          <tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr>
+          <tr>
+            ${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}
+            ${hasConfidence ? "<th>Final confidence</th>" : ""}
+          </tr>
         </thead>
         <tbody>
-          ${rows
+          ${answer
             .map(
-              (row) => `
-                <tr>${columns.map((column) => `<td>${escapeHtml(row[column])}</td>`).join("")}</tr>
+              (item) => `
+                <tr>
+                  ${columns
+                    .map((column) => `<td>${escapeHtml((item.result ?? {})[column])}</td>`)
+                    .join("")}
+                  ${
+                    hasConfidence
+                      ? `<td>${renderFinalAnswerConfidence(item.confidence_annotations ?? [])}</td>`
+                      : ""
+                  }
+                </tr>
               `,
             )
             .join("")}
         </tbody>
       </table>
+    </div>
+  `;
+}
+
+function renderFinalAnswerConfidence(annotations) {
+  if (!Array.isArray(annotations) || !annotations.length) {
+    return `<span class="muted">No confidence annotation</span>`;
+  }
+
+  const levelClass = {
+    close: "similarity-green",
+    relevant: "similarity-yellow",
+    weak: "similarity-orange",
+    far: "similarity-red",
+    high: "similarity-green",
+    medium: "similarity-yellow",
+    low: "similarity-red",
+    verified_execution: "final-confidence-deterministic",
+  };
+
+  return `
+    <div class="final-confidence-list">
+      ${annotations
+        .map((annotation) => {
+          const sourceLabel = {
+            rag_retrieval: "RAG",
+            llm_internal: "LLM",
+            deterministic_sql: "SQL",
+          }[annotation.source_type] ?? annotation.source_type ?? "Source";
+          const level = String(annotation.level ?? "unknown");
+          const score = Number.isFinite(annotation.score)
+            ? ` · ${annotation.score.toFixed(4)}`
+            : "";
+          return `
+            <span
+              class="final-confidence-chip ${levelClass[level] ?? "similarity-unknown"}"
+              title="${escapeHtml(annotation.reason ?? "")}"
+            >
+              ${escapeHtml(sourceLabel)}: ${escapeHtml(level)}${escapeHtml(score)}
+            </span>
+          `;
+        })
+        .join("")}
     </div>
   `;
 }
@@ -1265,41 +1329,6 @@ function formatProvenance(provenance) {
   return "";
 }
 
-function renderSupportingRows(rowsById) {
-  const rows = Object.entries(rowsById).map(([rowId, info]) => ({
-    row_id: rowId,
-    table: info.table,
-    values: JSON.stringify(info.row ?? {}, null, 0),
-  }));
-
-  if (!rows.length) {
-    return `<div class="empty-state">No supporting rows.</div>`;
-  }
-
-  return `
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Row id</th><th>Table</th><th>Values</th></tr>
-        </thead>
-        <tbody>
-          ${rows
-            .map(
-              (row) => `
-                <tr>
-                  <td>${escapeHtml(row.row_id)}</td>
-                  <td>${escapeHtml(row.table)}</td>
-                  <td>${escapeHtml(row.values)}</td>
-                </tr>
-              `,
-            )
-            .join("")}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
 function switchTab(tabName) {
   for (const tab of els.tabs) {
     tab.classList.toggle("active", tab.dataset.tab === tabName);
@@ -1307,7 +1336,6 @@ function switchTab(tabName) {
 
   els.answerView.classList.toggle("hidden", tabName !== "answer");
   els.provenanceView.classList.toggle("hidden", tabName !== "provenance");
-  els.rowsView.classList.toggle("hidden", tabName !== "rows");
 }
 
 els.planButton.addEventListener("click", generatePlan);

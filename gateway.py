@@ -1383,6 +1383,15 @@ def _get_or_build_faiss(dataset: Optional[str] = None):
 
     return runtime.faiss_manager.get_or_build()
 
+
+def _rag_source_identifier(table: str, row_id: str, chunk_id: str) -> str:
+    def local_part(value: str) -> str:
+        prefix = f"{table}_"
+        return value[len(prefix):] if value.startswith(prefix) else value
+
+    return f"rag_{table}_{local_part(row_id)}_{local_part(chunk_id)}"
+
+
 def retrieve_context_data_iterative(
     question: str,
     dataset: Optional[str] = None,
@@ -1460,9 +1469,13 @@ def retrieve_context_data_iterative(
             new_count += 1
             new_rids.append((rank, table, rid))
             if relevance_score is not None:
+                chunk_id = str(meta.get("chunk_id") or rid)
                 scored_evidence.append({
                     "table": table,
                     "row_id": rid,
+                    "chunk_id": chunk_id,
+                    "source_id": _rag_source_identifier(table, rid, chunk_id),
+                    "source_type": "rag",
                     "rank": rank,
                     "score": float(relevance_score),
                 })
@@ -1616,9 +1629,13 @@ def _retrieve_context_data(
         ctx[table][rid] = row
         used += 1
         if relevance_score is not None:
+            chunk_id = str(meta.get("chunk_id") or rid)
             scored_evidence.append({
                 "table": table,
                 "row_id": rid,
+                "chunk_id": chunk_id,
+                "source_id": _rag_source_identifier(table, rid, chunk_id),
+                "source_type": "rag",
                 "rank": rank,
                 "score": float(relevance_score),
             })
@@ -2221,6 +2238,7 @@ def _ui_rows_from_leaf_outputs(
             rows_by_id[row_id] = {
                 "table": table_name,
                 "row": values,
+                "pipeline": _canonical_pipeline_id(leaf.get("pipeline")),
             }
             answer.append({
                 "result": {
@@ -2534,6 +2552,160 @@ def _answer_from_ap_explanation(explanation: Dict[str, Any]) -> List[Dict[str, A
             "result": row,
             "provenance": derivation.get("provenance"),
         })
+    return answer
+
+
+def _provenance_row_ids(provenance: Any, known_row_ids: set[str]) -> List[str]:
+    found: List[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, str):
+            for row_id in known_row_ids:
+                if row_id in found:
+                    continue
+                if value == row_id or re.search(
+                    rf"(?<![A-Za-z0-9_]){re.escape(row_id)}(?![A-Za-z0-9_])",
+                    value,
+                ):
+                    found.append(row_id)
+            return
+        if isinstance(value, list):
+            for item in value:
+                visit(item)
+            return
+        if isinstance(value, dict):
+            for item in value.values():
+                visit(item)
+
+    visit(provenance)
+    return found
+
+
+def _retrieval_confidence_band(score: float) -> str:
+    if score >= 0.75:
+        return "close"
+    if score >= 0.50:
+        return "relevant"
+    if score >= 0.25:
+        return "weak"
+    return "far"
+
+
+def _annotate_final_answer(
+    answer: List[Dict[str, Any]],
+    leaf_outputs: List[Dict[str, Any]],
+    rows_by_id: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    leaf_annotations = _collect_leaf_annotations(leaf_outputs)
+    known_row_ids = set(rows_by_id)
+    rag_evidence: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+    llm_annotations_by_table: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+
+    for annotation in leaf_annotations:
+        annotation_type = annotation.get("type")
+        if annotation_type == "rag_similarity":
+            for evidence in annotation.get("evidence") or []:
+                if isinstance(evidence, dict) and isinstance(evidence.get("row_id"), str):
+                    rag_evidence[evidence["row_id"]].append({
+                        **evidence,
+                        "pipeline": annotation.get("pipeline"),
+                        "embedding_model": annotation.get("embedding_model"),
+                    })
+        elif annotation_type == "llm_confidence":
+            table_name = str((annotation.get("scope") or {}).get("table") or "")
+            llm_annotations_by_table[table_name].append(annotation)
+
+    level_rank = {"low": 0, "medium": 1, "high": 2}
+    for result_index, item in enumerate(answer, start=1):
+        if not isinstance(item, dict):
+            continue
+        row_ids = _provenance_row_ids(item.get("provenance"), known_row_ids)
+        if not row_ids:
+            row_ids = list(known_row_ids)
+
+        source_rows = [rows_by_id[row_id] for row_id in row_ids if row_id in rows_by_id]
+        source_pipelines = sorted({
+            str(source.get("pipeline") or "")
+            for source in source_rows
+            if source.get("pipeline")
+        })
+        confidence_annotations: List[Dict[str, Any]] = []
+
+        contributing_rag = [
+            evidence
+            for row_id in row_ids
+            for evidence in rag_evidence.get(row_id, [])
+        ]
+        if contributing_rag:
+            minimum_score = min(float(evidence["score"]) for evidence in contributing_rag)
+            confidence_annotations.append({
+                "type": "final_answer_confidence",
+                "source_type": "rag_retrieval",
+                "pipelines": sorted({
+                    str(evidence.get("pipeline") or RAG_PIPELINE_ID)
+                    for evidence in contributing_rag
+                }),
+                "metric": "faiss_relevance",
+                "score": minimum_score,
+                "level": _retrieval_confidence_band(minimum_score),
+                "aggregation": "minimum_contributing_score",
+                "source_row_ids": sorted({
+                    str(evidence["row_id"]) for evidence in contributing_rag
+                }),
+                "source_ids": sorted({
+                    str(evidence["source_id"])
+                    for evidence in contributing_rag
+                    if evidence.get("source_id")
+                }),
+                "reason": "The final result uses the weakest relevance score among its contributing retrieved rows.",
+                "scope": {"type": "result", "index": result_index},
+            })
+
+        llm_tables = {
+            str(source.get("table") or "")
+            for source in source_rows
+            if source.get("pipeline") == LLM_INTERNAL_PIPELINE_ID
+        }
+        contributing_llm = [
+            annotation
+            for table_name in llm_tables
+            for annotation in llm_annotations_by_table.get(table_name, [])
+        ]
+        if contributing_llm:
+            lowest = min(
+                contributing_llm,
+                key=lambda annotation: level_rank.get(str(annotation.get("level")), -1),
+            )
+            confidence_annotations.append({
+                "type": "final_answer_confidence",
+                "source_type": "llm_internal",
+                "pipelines": [LLM_INTERNAL_PIPELINE_ID],
+                "level": lowest.get("level"),
+                "aggregation": "lowest_contributing_level",
+                "reason": lowest.get("reason"),
+                "assessment_method": "llm_self_assessment",
+                "source_tables": sorted(llm_tables),
+                "scope": {"type": "result", "index": result_index},
+            })
+
+        sql_rows = [
+            row_id for row_id in row_ids
+            if (rows_by_id.get(row_id) or {}).get("pipeline") == SQL_TABLE_PIPELINE_ID
+        ]
+        if sql_rows:
+            confidence_annotations.append({
+                "type": "final_answer_confidence",
+                "source_type": "deterministic_sql",
+                "pipelines": [SQL_TABLE_PIPELINE_ID],
+                "level": "verified_execution",
+                "source_row_ids": sql_rows,
+                "reason": "These contributing rows were read deterministically from the selected table; this is not a probability of source-data correctness.",
+                "scope": {"type": "result", "index": result_index},
+            })
+
+        item["source_pipelines"] = source_pipelines
+        item["confidence_annotations"] = confidence_annotations
+
     return answer
 
 
@@ -3046,6 +3218,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
             )
             explanations.append(explanation)
             answer = _answer_from_ap_explanation(explanation)
+            answer = _annotate_final_answer(answer, leaf_outputs, rows_by_id)
         except Exception as e:
             errors.append(f"ap-explanation: {e}")
             _log_event({
@@ -3060,6 +3233,11 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
             "sql": sql_query,
             "plan": req.plan,
             "answer": answer,
+            "final_answer_annotations": [
+                annotation
+                for item in answer
+                for annotation in item.get("confidence_annotations") or []
+            ],
             "rows_by_id": rows_by_id,
             "leaf_answer": _leaf_answer,
             "leaf_outputs": leaf_outputs,
@@ -3286,6 +3464,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                     )
                     explanations.append(explanation)
                     answer = _answer_from_ap_explanation(explanation)
+                    answer = _annotate_final_answer(answer, leaf_outputs, rows_by_id)
                     yield encode_event("ap_explanation_done", {
                         "explanation": explanation,
                         "answer": answer,
@@ -3313,6 +3492,11 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 "sql": sql_query,
                 "plan": req.plan,
                 "answer": answer,
+                "final_answer_annotations": [
+                    annotation
+                    for item in answer
+                    for annotation in item.get("confidence_annotations") or []
+                ],
                 "rows_by_id": rows_by_id,
                 "leaf_answer": leaf_answer,
                 "leaf_outputs": leaf_outputs,

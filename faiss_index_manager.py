@@ -145,7 +145,14 @@ class FaissIndexManager:
                 batch_docs.append(
                     Document(
                         page_content=text,
-                        metadata={"table": table, "rid": rid},
+                        metadata={
+                            "table": table,
+                            "rid": rid,
+                            # The current index stores one chunk per row. Keeping
+                            # this separate allows future row splitting without
+                            # changing the annotation contract.
+                            "chunk_id": rid,
+                        },
                     )
                 )
                 table_docs += 1

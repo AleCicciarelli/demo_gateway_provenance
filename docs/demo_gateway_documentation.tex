@@ -250,6 +250,20 @@ higher values indicate greater similarity. Leaf annotations are carried in the
 leaf output, collected into the complete pipeline result, and serialized in
 both the regular and streaming UI responses.
 
+Every retrieved evidence item also receives a source identifier with the form
+\code{rag\_<table>\_<row>\_<chunk>}. For example, row \code{races\_13} in the
+\code{races} table currently receives \code{rag\_races\_13\_13}. The annotation
+stores the source identifier together with separate \code{table},
+\code{row\_id}, and \code{chunk\_id} fields. The current indexes contain one
+document chunk per relational row, so the local chunk component is equal to the
+local row component. They are deliberately represented as different fields:
+if a row is divided into multiple chunks in a future indexing strategy, the
+row component can remain stable while the chunk component distinguishes the
+individual evidence fragments. Newly built FAISS documents therefore store
+\code{chunk\_id} explicitly, while existing indexes fall back to the row
+identifier. Final RAG confidence annotations propagate the relevant identifiers
+in their \code{source\_ids} field.
+
 The embedding configuration is dataset-specific inside the same gateway
 container. TPC-H uses the configured \code{EMB\_MODEL}, while REL-F1 uses
 \code{BAAI/bge-m3} with the \code{bge-m3} strategy and its mounted FAISS index.
@@ -262,19 +276,107 @@ below $0.25$ (far). These bands are presentation aids for interpreting
 retrieval proximity; they are not calibrated probabilities and may be adjusted
 after evaluation on a representative query set.
 
-For the Internal Knowledge pipeline, the gateway performs a separate
-self-assessment call after generating the answer. The evaluator receives the
-question and generated result, but no retrieved rows or database access, and
-must return a strict JSON object containing a \code{low}, \code{medium}, or
-\code{high} level and a concise rationale. High confidence denotes stable,
-well-known, internally consistent facts with coherent provenance identifiers;
-medium denotes a plausible result with uncertainty about values, completeness,
-or provenance details; and low denotes guessed, inconsistent, unsupported, or
-instance-specific content. The gateway validates the assessment, stores it as
-an \code{llm\_confidence} annotation with the model, assessment method,
-generation stage, and leaf or query scope, and propagates it with the pipeline
-result. This label remains an LLM self-assessment rather than an externally
-verified or calibrated probability.
+\subsubsection{Internal-Knowledge Self-Assessment}
+
+The Internal Knowledge pipeline uses a two-stage LLM process. In the first
+stage, the model answers the leaf or complete query using only its internal
+knowledge and a dataset-specific schema prompt. It receives neither retrieved
+FAISS rows nor access to the CSV files or provenance database. Its generated
+JSON result and semantic provenance identifiers are validated before the
+pipeline continues. In the second stage, the gateway makes a separate
+self-assessment call using the original question and the validated generated
+output. The evaluator still has no external evidence or database access; its
+task is to assess the consistency and apparent reliability of the generated
+data itself.
+
+The assessment prompt defines the three levels as follows:
+
+\begin{itemize}
+  \item \textbf{High}: the output consists of stable, well-known facts, is
+        internally consistent and specific, and uses provenance identifiers
+        that coherently support the generated values.
+  \item \textbf{Medium}: the result is plausible and mostly consistent, but
+        some values, completeness claims, or provenance details remain
+        uncertain.
+  \item \textbf{Low}: the result appears guessed, contains unverifiable
+        instance-specific data, is internally inconsistent, or lacks adequate
+        provenance support.
+\end{itemize}
+
+An empty result may receive high confidence only when abstaining is more
+reliable than inventing instance data that cannot be known without consulting
+the database. In this case, the level expresses confidence in the decision to
+abstain, not confidence that the database query would return no rows.
+
+The evaluator must return exactly one JSON object with a level and a concise
+rationale:
+
+\begin{lstlisting}[style=codestyle]
+{
+  "level": "low|medium|high",
+  "reason": "one concise sentence"
+}
+\end{lstlisting}
+
+The gateway accepts the assessment only when the level is one of the three
+allowed values and the rationale is non-empty. Invalid output triggers a retry
+with an object-specific formatting reminder. A valid assessment is converted
+into an annotation with the following logical structure:
+
+\begin{lstlisting}[style=codestyle]
+{
+  "type": "llm_confidence",
+  "pipeline": "llm-internal",
+  "stage": "generation",
+  "level": "high",
+  "reason": "...",
+  "assessment_method": "llm_self_assessment",
+  "model": "...",
+  "scope": {"type": "leaf", "table": "region"}
+}
+\end{lstlisting}
+
+The annotation is attached to the corresponding leaf output and then collected
+into the complete pipeline result. Direct chat-completion executions use query
+scope instead of leaf scope. Both the regular and streaming UI responses carry
+the annotation. The interface displays high confidence in green, medium in
+yellow, and low in red, together with the rationale, model, assessment method,
+and execution scope.
+
+This mechanism must not be interpreted as independent verification. The model
+is evaluating an answer produced by the same model family and may remain
+overconfident, overlook missing information, or fail to detect subtle factual
+and provenance errors. The annotation is therefore explicitly marked as
+\code{llm\_self\_assessment}; it is a qualitative diagnostic signal rather
+than a formal, externally verified, or calibrated probability.
+
+\subsubsection{Confidence Attached to Final Results}
+
+Confidence annotations are also attached to each final answer tuple rather than
+being shown only at the leaf where they were generated. The gateway resolves
+the row identifiers in the final tuple's provenance and identifies which
+pipelines produced the contributing rows. It then derives source-specific final
+annotations without converting unlike confidence signals into a single
+artificial probability.
+
+For a RAG-derived result, the final relevance score is the minimum FAISS
+relevance score among the retrieved rows that contribute to that result. This
+conservative rule makes the weakest supporting retrieval visible and records
+the aggregation method as \code{minimum\_contributing\_score}. For an
+Internal-Knowledge result, the final qualitative level is the lowest
+self-assessment among the contributing LLM leaves, recorded as
+\code{lowest\_contributing\_level}. Results derived from the SQL Table pipeline
+receive a \code{verified\_execution} marker to indicate that their contributing
+rows were read and processed deterministically; this marker is not a claim
+about the correctness of the source data and is not a probability.
+
+Each final tuple therefore contains its source pipelines and a list of
+\code{confidence\_annotations}. Mixed-pipeline results may carry more than one
+annotation, for example a numeric RAG relevance annotation and a qualitative
+LLM annotation. The complete response also exposes the flattened collection as
+\code{final\_answer\_annotations}. In the answer table, these values appear in
+a dedicated Final Confidence column with the same color semantics used by the
+source annotations.
 
 \section{Running the Demo}
 
