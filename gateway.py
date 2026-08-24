@@ -2232,7 +2232,11 @@ def _run_ui_iterative_join_pipeline(
         run_leaf=run_leaf,
         build_base_retrieval_query=lambda task, iterative_pushdown: _build_leaf_retrieval_query(
             task,
-            include_pushdown=pushdown and iterative_pushdown,
+            # The iterative controller needs local predicates on its first leaf
+            # to establish useful join bindings.  Gating them behind the UI's
+            # separate pushdown option can retrieve unrelated rows, produce an
+            # empty first leaf, and leave later join leaves unbound.
+            include_pushdown=iterative_pushdown,
         ),
         log_event=_log_event,
     )
