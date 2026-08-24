@@ -5,6 +5,7 @@ import html
 import json
 import os
 import re
+import queue
 import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -2195,6 +2196,7 @@ def _run_ui_iterative_join_pipeline(
     temperature: float,
     dataset: str,
     pushdown: bool = False,
+    progress_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     def run_leaf(
         task: Dict[str, Any],
@@ -2204,6 +2206,15 @@ def _run_ui_iterative_join_pipeline(
     ) -> Dict[str, Any]:
         table_name = str(task.get("table_name") or task.get("table") or "").strip()
         annotations: List[Dict[str, Any]] = []
+        if progress_event:
+            progress_event("leaf_retrieval_start", {
+                "table": table_name,
+                "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                "message": f"Retrieving iterative context for {table_name}.",
+                "retrieval_query": retrieval_query,
+                "inherited_bindings": inherited_bindings,
+                "source_row_ids": source_row_ids,
+            })
         ctx = retrieve_context_data_iterative(
             retrieval_query,
             dataset=dataset,
@@ -2211,6 +2222,24 @@ def _run_ui_iterative_join_pipeline(
             annotation_scope={"type": "leaf", "table": table_name},
             annotation_pipeline=ITERATIVE_PIPELINE_MODEL_ID,
         )
+        if progress_event:
+            progress_event("leaf_context", {
+                "table": table_name,
+                "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                "message": f"Iterative context retrieved for {table_name}.",
+                "rows": _context_row_count(ctx),
+                "tables": sorted(ctx.keys()),
+                "retrieval_query": retrieval_query,
+                "inherited_bindings": inherited_bindings,
+                "source_row_ids": source_row_ids,
+                "context_preview": _context_preview(ctx),
+                "annotations": annotations,
+            })
+            progress_event("leaf_model_start", {
+                "table": table_name,
+                "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                "message": f"Extracting candidate rows for {table_name} with the model.",
+            })
         leaf_output = _run_iterative_join_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
@@ -2222,7 +2251,20 @@ def _run_ui_iterative_join_pipeline(
             source_row_ids=source_row_ids,
         )
         leaf_output["annotations"] = annotations
+        if progress_event:
+            parsed_rows = leaf_output.get("parsed_output") or []
+            progress_event("leaf_model_done", {
+                "table": table_name,
+                "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                "message": f"Model extraction completed for {table_name}.",
+                "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
+            })
         return leaf_output
+
+    def log_iterative_event(event: Dict[str, Any]) -> None:
+        _log_event(event)
+        if progress_event:
+            progress_event(str(event.get("type") or "iterative_progress"), event)
 
     planner_result = run_iterative_join_pipeline(
         sql_query=sql_query,
@@ -2238,7 +2280,7 @@ def _run_ui_iterative_join_pipeline(
             # empty first leaf, and leave later join leaves unbound.
             include_pushdown=iterative_pushdown,
         ),
-        log_event=_log_event,
+        log_event=log_iterative_event,
     )
     planner_result["annotations"] = _collect_leaf_annotations(
         planner_result.get("leaf_outputs") or []
@@ -3357,49 +3399,62 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                     "index": 1,
                     "message": "Running iterative join-aware query pipeline.",
                 })
-                planner_result = _run_ui_iterative_join_pipeline(
-                    sql_query=sql_query,
-                    plan=req.plan,
-                    temperature=temperature,
-                    dataset=dataset,
-                    pushdown=any(
-                        options.iterative and options.pushdown
-                        for options in req.leaf_pipeline_options.values()
-                    ),
-                )
+                progress_queue: queue.Queue[Tuple[str, Any]] = queue.Queue()
+
+                def forward_progress(event_type: str, payload: Dict[str, Any]) -> None:
+                    ui_payload = dict(payload)
+                    if "step" in ui_payload and "iterative_step" not in ui_payload:
+                        ui_payload["iterative_step"] = ui_payload["step"]
+                    progress_queue.put(("event", (event_type, ui_payload)))
+
+                def run_iterative_worker() -> None:
+                    try:
+                        result = _run_ui_iterative_join_pipeline(
+                            sql_query=sql_query,
+                            plan=req.plan,
+                            temperature=temperature,
+                            dataset=dataset,
+                            pushdown=any(
+                                options.iterative and options.pushdown
+                                for options in req.leaf_pipeline_options.values()
+                            ),
+                            progress_event=forward_progress,
+                        )
+                        progress_queue.put(("result", result))
+                    except Exception as exc:
+                        progress_queue.put(("error", exc))
+
+                worker = threading.Thread(target=run_iterative_worker, daemon=True)
+                worker.start()
+                planner_result: Optional[Dict[str, Any]] = None
+                last_event_at = time.monotonic()
+                while planner_result is None:
+                    try:
+                        item_type, item = progress_queue.get(timeout=1.0)
+                    except queue.Empty:
+                        if time.monotonic() - last_event_at >= 15.0:
+                            yield encode_event("heartbeat", {
+                                "message": "Iterative pipeline is still working.",
+                                "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                            })
+                            last_event_at = time.monotonic()
+                        continue
+
+                    last_event_at = time.monotonic()
+                    if item_type == "event":
+                        event_type, payload = item
+                        yield encode_event(event_type, payload)
+                    elif item_type == "result":
+                        planner_result = item
+                    else:
+                        raise item
+
                 leaf_outputs = planner_result.get("leaf_outputs") or []
-                for index, leaf_output in enumerate(leaf_outputs):
+                for leaf_output in leaf_outputs:
                     table_name = str(leaf_output.get("table_name") or "")
-                    iterative_meta = leaf_output.get("iterative_join") or {}
                     pipeline_choices.append({
                         "table": table_name,
                         "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
-                    })
-                    ctx = leaf_output.get("context_data") or {}
-                    parsed_rows = leaf_output.get("parsed_output") or []
-                    yield encode_event("leaf_context", {
-                        "table": table_name,
-                        "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
-                        "message": f"Iterative context retrieved for {table_name}.",
-                        "rows": _context_row_count(ctx),
-                        "tables": sorted(ctx.keys()),
-                        "retrieval_query": leaf_output.get("retrieval_query", ""),
-                        "iterative_step": iterative_meta.get("step", index + 1),
-                        "inherited_bindings": iterative_meta.get("inherited_bindings") or {},
-                        "source_row_ids": iterative_meta.get("source_row_ids") or [],
-                        "source_row_summaries": iterative_meta.get("source_row_summaries") or [],
-                        "context_preview": _context_preview(ctx),
-                        "annotations": leaf_output.get("annotations") or [],
-                    })
-                    yield encode_event("leaf_done", {
-                        "table": table_name,
-                        "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
-                        "iterative_step": iterative_meta.get("step", index + 1),
-                        "inherited_bindings": iterative_meta.get("inherited_bindings") or {},
-                        "source_row_ids": iterative_meta.get("source_row_ids") or [],
-                        "source_row_summaries": iterative_meta.get("source_row_summaries") or [],
-                        "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
-                        "message": f"{table_name} iterative leaf step completed.",
                     })
             else:
                 for index, task in enumerate(leaf_tasks):

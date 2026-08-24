@@ -698,10 +698,20 @@ function applyRunEvent(event) {
 
   if (event.type === "leaf_start") {
     pushProgress(event);
+  } else if (event.type === "iterative_join_leaf_start") {
+    pushProgress(event);
+  } else if (event.type === "leaf_retrieval_start") {
+    pushProgress(event);
   } else if (event.type === "leaf_context") {
     if (Array.isArray(event.annotations) && event.annotations.length) {
       state.output.annotations.push(...event.annotations);
     }
+    pushProgress(event, "success");
+  } else if (event.type === "leaf_model_start") {
+    pushProgress(event);
+  } else if (event.type === "leaf_model_done") {
+    pushProgress(event, "success");
+  } else if (event.type === "iterative_join_leaf_done") {
     pushProgress(event, "success");
   } else if (event.type === "leaf_done") {
     pushProgress(event, "success");
@@ -730,6 +740,8 @@ function applyRunEvent(event) {
     state.output.progress = state.progress;
     els.runStatus.textContent = "Complete";
   } else if (event.type === "start") {
+    pushProgress(event);
+  } else if (event.type === "heartbeat") {
     pushProgress(event);
   }
 
