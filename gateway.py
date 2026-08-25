@@ -2238,7 +2238,10 @@ def _run_ui_iterative_join_pipeline(
             progress_event("leaf_model_start", {
                 "table": table_name,
                 "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
-                "message": f"Extracting candidate rows for {table_name} with the model.",
+                "message": f"Waiting for model extraction for {table_name}.",
+                "stage": "model_extraction",
+                "model": MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
+                "model_provider": PLANNER_LLM_PROVIDER,
             })
         leaf_output = _run_iterative_join_leaf_task(
             task=task,
@@ -3428,14 +3431,34 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 worker.start()
                 planner_result: Optional[Dict[str, Any]] = None
                 last_event_at = time.monotonic()
+                active_stage = "iterative_pipeline"
+                active_table = ""
+                active_model = ""
+                active_provider = ""
+                active_stage_started_at = last_event_at
                 while planner_result is None:
                     try:
                         item_type, item = progress_queue.get(timeout=1.0)
                     except queue.Empty:
                         if time.monotonic() - last_event_at >= 15.0:
+                            elapsed_seconds = int(time.monotonic() - active_stage_started_at)
+                            stage_label = (
+                                "model extraction"
+                                if active_stage == "model_extraction"
+                                else "iterative processing"
+                            )
+                            table_suffix = f" for {active_table}" if active_table else ""
                             yield encode_event("heartbeat", {
-                                "message": "Iterative pipeline is still working.",
+                                "message": (
+                                    f"Waiting for {stage_label}{table_suffix} "
+                                    f"({elapsed_seconds}s elapsed)."
+                                ),
                                 "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                                "table": active_table,
+                                "stage": active_stage,
+                                "elapsed_seconds": elapsed_seconds,
+                                "model": active_model,
+                                "model_provider": active_provider,
                             })
                             last_event_at = time.monotonic()
                         continue
@@ -3443,6 +3466,12 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                     last_event_at = time.monotonic()
                     if item_type == "event":
                         event_type, payload = item
+                        if event_type in {"leaf_retrieval_start", "leaf_model_start"}:
+                            active_stage = str(payload.get("stage") or event_type)
+                            active_table = str(payload.get("table") or "")
+                            active_model = str(payload.get("model") or "")
+                            active_provider = str(payload.get("model_provider") or "")
+                            active_stage_started_at = time.monotonic()
                         yield encode_event(event_type, payload)
                     elif item_type == "result":
                         planner_result = item

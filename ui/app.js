@@ -684,7 +684,36 @@ function pushProgress(event, tone = "info") {
     sourceRowIds: event.source_row_ids,
     sourceRowSummaries: event.source_row_summaries,
     contextPreview: event.context_preview,
+    stage: event.stage,
+    elapsedSeconds: event.elapsed_seconds,
+    model: event.model,
+    modelProvider: event.model_provider,
   });
+}
+
+function updateWaitingProgress(event) {
+  const existing = [...state.progress]
+    .reverse()
+    .find((item) => (
+      item.type === "heartbeat"
+      || (item.type === "leaf_model_start" && item.table === event.table)
+    ));
+  const update = {
+    type: event.type,
+    tone: "info",
+    message: event.message,
+    table: event.table,
+    pipeline: event.pipeline,
+    stage: event.stage,
+    elapsedSeconds: event.elapsed_seconds,
+    model: event.model,
+    modelProvider: event.model_provider,
+  };
+  if (existing) {
+    Object.assign(existing, update);
+  } else {
+    state.progress.push(update);
+  }
 }
 
 function applyRunEvent(event) {
@@ -710,6 +739,7 @@ function applyRunEvent(event) {
   } else if (event.type === "leaf_model_start") {
     pushProgress(event);
   } else if (event.type === "leaf_model_done") {
+    state.progress = state.progress.filter((item) => item.type !== "heartbeat");
     pushProgress(event, "success");
   } else if (event.type === "iterative_join_leaf_done") {
     pushProgress(event, "success");
@@ -742,7 +772,7 @@ function applyRunEvent(event) {
   } else if (event.type === "start") {
     pushProgress(event);
   } else if (event.type === "heartbeat") {
-    pushProgress(event);
+    updateWaitingProgress(event);
   }
 
   state.output.progress = state.progress;
@@ -1117,8 +1147,11 @@ function renderProgressDetails(item) {
   const hasSources = Array.isArray(item.sourceRowIds) && item.sourceRowIds.length;
   const hasSourceSummaries = Array.isArray(item.sourceRowSummaries) && item.sourceRowSummaries.length;
   const hasStep = Number.isFinite(item.iterativeStep);
+  const hasModel = typeof item.model === "string" && item.model.trim();
+  const hasProvider = typeof item.modelProvider === "string" && item.modelProvider.trim();
 
-  if (!hasRetrieval && !hasBindings && !hasSources && !hasSourceSummaries && !hasStep) {
+  if (!hasRetrieval && !hasBindings && !hasSources && !hasSourceSummaries && !hasStep
+      && !hasModel && !hasProvider) {
     return "";
   }
 
@@ -1129,6 +1162,8 @@ function renderProgressDetails(item) {
       ${hasBindings ? renderProgressDetail("Inherited bindings", JSON.stringify(item.inheritedBindings)) : ""}
       ${hasSources ? renderProgressDetail("Source rows", item.sourceRowIds.join(", ")) : ""}
       ${hasSourceSummaries ? renderProgressDetail("Source values", item.sourceRowSummaries.join(" | ")) : ""}
+      ${hasModel ? renderProgressDetail("Model", item.model) : ""}
+      ${hasProvider ? renderProgressDetail("Provider", item.modelProvider) : ""}
     </div>
   `;
 }
