@@ -688,6 +688,7 @@ function pushProgress(event, tone = "info") {
     elapsedSeconds: event.elapsed_seconds,
     model: event.model,
     modelProvider: event.model_provider,
+    requestStatus: event.request_status,
   });
 }
 
@@ -696,7 +697,8 @@ function updateWaitingProgress(event) {
     .reverse()
     .find((item) => (
       item.type === "heartbeat"
-      || (item.type === "leaf_model_start" && item.table === event.table)
+      || (["leaf_model_start", "model_request_start", "model_fallback_start", "model_response_received"].includes(item.type)
+        && item.table === event.table)
     ));
   const update = {
     type: event.type,
@@ -708,6 +710,7 @@ function updateWaitingProgress(event) {
     elapsedSeconds: event.elapsed_seconds,
     model: event.model,
     modelProvider: event.model_provider,
+    requestStatus: event.request_status,
   };
   if (existing) {
     Object.assign(existing, update);
@@ -738,6 +741,12 @@ function applyRunEvent(event) {
     pushProgress(event, "success");
   } else if (event.type === "leaf_model_start") {
     pushProgress(event);
+  } else if (event.type === "model_request_start") {
+    updateWaitingProgress(event);
+  } else if (event.type === "model_fallback_start") {
+    updateWaitingProgress(event);
+  } else if (event.type === "model_response_received") {
+    updateWaitingProgress(event);
   } else if (event.type === "leaf_model_done") {
     state.progress = state.progress.filter((item) => item.type !== "heartbeat");
     pushProgress(event, "success");
@@ -1149,6 +1158,12 @@ function renderProgressDetails(item) {
   const hasStep = Number.isFinite(item.iterativeStep);
   const hasModel = typeof item.model === "string" && item.model.trim();
   const hasProvider = typeof item.modelProvider === "string" && item.modelProvider.trim();
+  const modelLabel = item.requestStatus === "response_received"
+    ? "Active model"
+    : item.requestStatus === "fallback_started" ? "Fallback model" : "Requested model";
+  const providerLabel = item.requestStatus === "response_received"
+    ? "Active provider"
+    : item.requestStatus === "fallback_started" ? "Fallback provider" : "Requested provider";
 
   if (!hasRetrieval && !hasBindings && !hasSources && !hasSourceSummaries && !hasStep
       && !hasModel && !hasProvider) {
@@ -1162,8 +1177,8 @@ function renderProgressDetails(item) {
       ${hasBindings ? renderProgressDetail("Inherited bindings", JSON.stringify(item.inheritedBindings)) : ""}
       ${hasSources ? renderProgressDetail("Source rows", item.sourceRowIds.join(", ")) : ""}
       ${hasSourceSummaries ? renderProgressDetail("Source values", item.sourceRowSummaries.join(" | ")) : ""}
-      ${hasModel ? renderProgressDetail("Model", item.model) : ""}
-      ${hasProvider ? renderProgressDetail("Provider", item.modelProvider) : ""}
+      ${hasModel ? renderProgressDetail(modelLabel, item.model) : ""}
+      ${hasProvider ? renderProgressDetail(providerLabel, item.modelProvider) : ""}
     </div>
   `;
 }

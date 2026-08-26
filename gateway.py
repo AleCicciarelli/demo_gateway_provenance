@@ -987,14 +987,38 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
         f"Failed calling LLM model '{model}' at {url}. Tried {model_candidates}. Last error: {last_error}"
     )
 
-def _generate_model(provider: str, model: str, prompt: str, temperature: float) -> str:
+def _generate_model(
+    provider: str,
+    model: str,
+    prompt: str,
+    temperature: float,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+) -> str:
     provider = provider.strip().lower()
     if provider in {"openai", "openai-compatible"}:
         try:
-            return _openai_compatible_generate(model, prompt, temperature)
+            output = _openai_compatible_generate(model, prompt, temperature)
+            if status_event:
+                status_event("model_response_received", {
+                    "message": f"Response received from {model}.",
+                    "model": model,
+                    "model_provider": provider,
+                    "request_status": "response_received",
+                })
+            return output
         except Exception as primary_error:
             if not PLANNER_LLM_FALLBACK_ENABLED:
                 raise
+            if status_event:
+                status_event("model_fallback_start", {
+                    "message": (
+                        f"No response from {model}; falling back to "
+                        f"Ollama {PLANNER_LLM_FALLBACK_MODEL}."
+                    ),
+                    "model": PLANNER_LLM_FALLBACK_MODEL,
+                    "model_provider": "ollama",
+                    "request_status": "fallback_started",
+                })
             try:
                 output = _ollama_generate(PLANNER_LLM_FALLBACK_MODEL, prompt, temperature)
             except Exception as fallback_error:
@@ -1002,9 +1026,24 @@ def _generate_model(provider: str, model: str, prompt: str, temperature: float) 
                     f"Primary LLM failed ({primary_error}); Ollama fallback "
                     f"'{PLANNER_LLM_FALLBACK_MODEL}' also failed ({fallback_error})"
                 ) from fallback_error
+            if status_event:
+                status_event("model_response_received", {
+                    "message": f"Response received from Ollama {PLANNER_LLM_FALLBACK_MODEL}.",
+                    "model": PLANNER_LLM_FALLBACK_MODEL,
+                    "model_provider": "ollama",
+                    "request_status": "response_received",
+                })
             return output
     if provider == "ollama":
-        return _ollama_generate(model, prompt, temperature)
+        output = _ollama_generate(model, prompt, temperature)
+        if status_event:
+            status_event("model_response_received", {
+                "message": f"Response received from Ollama {model}.",
+                "model": model,
+                "model_provider": provider,
+                "request_status": "response_received",
+            })
+        return output
     raise RuntimeError(f"Unsupported model provider: {provider}")
 
 def _is_valid_json_array(text: str) -> Tuple[bool, Optional[str]]:
@@ -1050,6 +1089,7 @@ def _call_model_with_retry(
     validator: Optional[Callable[[str], Tuple[bool, Optional[str]]]] = None,
     scorer: Optional[Callable[[str], int]] = None,
     retry_suffix: str = RETRY_SUFFIX,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> str:
     """
     Call to the model with the given prompt. If the output is not a valid JSON array, retry up to max_tries times by appending the RETRY_SUFFIX to the prompt.
@@ -1063,7 +1103,21 @@ def _call_model_with_retry(
     best_score = -1
     validate = validator or _is_valid_json_array
     for attempt in range(1, max_tries + 1):
-        out = _generate_model(provider, ollama_model, prompt, temperature)
+        if status_event:
+            status_event("model_request_start", {
+                "message": f"Attempting {ollama_model}; no response received yet.",
+                "model": ollama_model,
+                "model_provider": provider,
+                "request_status": "attempting",
+                "attempt": attempt,
+            })
+        out = _generate_model(
+            provider,
+            ollama_model,
+            prompt,
+            temperature,
+            status_event=status_event,
+        )
         last = out
         ok, err = validate(out)
         score = scorer(out) if scorer is not None else (1 if ok else 0)
@@ -1843,6 +1897,7 @@ def _run_iterative_join_leaf_task(
     retrieval_query: str,
     inherited_bindings: Dict[str, List[str]],
     source_row_ids: List[str],
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
@@ -1860,6 +1915,7 @@ def _run_iterative_join_leaf_task(
         max_tries=2,
         validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
         scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id)[2] or []),
+        status_event=status_event,
     )
     valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
         out_text,
@@ -2238,11 +2294,26 @@ def _run_ui_iterative_join_pipeline(
             progress_event("leaf_model_start", {
                 "table": table_name,
                 "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
-                "message": f"Waiting for model extraction for {table_name}.",
+                "message": (
+                    f"Attempting {MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID]} for {table_name}; "
+                    "no response received yet."
+                ),
                 "stage": "model_extraction",
                 "model": MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
                 "model_provider": PLANNER_LLM_PROVIDER,
+                "request_status": "attempting",
             })
+
+        def forward_model_status(event_type: str, payload: Dict[str, Any]) -> None:
+            if not progress_event:
+                return
+            progress_event(event_type, {
+                **payload,
+                "table": table_name,
+                "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
+                "stage": "model_extraction",
+            })
+
         leaf_output = _run_iterative_join_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
@@ -2252,6 +2323,7 @@ def _run_ui_iterative_join_pipeline(
             retrieval_query=retrieval_query,
             inherited_bindings=inherited_bindings,
             source_row_ids=source_row_ids,
+            status_event=forward_model_status,
         )
         leaf_output["annotations"] = annotations
         if progress_event:
@@ -3450,8 +3522,8 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             table_suffix = f" for {active_table}" if active_table else ""
                             yield encode_event("heartbeat", {
                                 "message": (
-                                    f"Waiting for {stage_label}{table_suffix} "
-                                    f"({elapsed_seconds}s elapsed)."
+                                    f"Attempting {active_model or stage_label}{table_suffix}; "
+                                    f"no response received yet ({elapsed_seconds}s elapsed)."
                                 ),
                                 "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
                                 "table": active_table,
@@ -3459,6 +3531,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                                 "elapsed_seconds": elapsed_seconds,
                                 "model": active_model,
                                 "model_provider": active_provider,
+                                "request_status": "attempting",
                             })
                             last_event_at = time.monotonic()
                         continue
@@ -3466,7 +3539,12 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                     last_event_at = time.monotonic()
                     if item_type == "event":
                         event_type, payload = item
-                        if event_type in {"leaf_retrieval_start", "leaf_model_start"}:
+                        if event_type in {
+                            "leaf_retrieval_start",
+                            "leaf_model_start",
+                            "model_request_start",
+                            "model_fallback_start",
+                        }:
                             active_stage = str(payload.get("stage") or event_type)
                             active_table = str(payload.get("table") or "")
                             active_model = str(payload.get("model") or "")
