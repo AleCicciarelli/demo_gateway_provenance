@@ -362,6 +362,10 @@ directly to the configured Ollama fallback for
 `LLM_CIRCUIT_BREAKER_SECONDS` (300 seconds by default). This avoids repeating a
 long request to a VPN-only endpoint for every leaf.
 
+The Ollama fallback keeps a longer request timeout (`OLLAMA_REQUEST_TIMEOUT=700`)
+because CPU generation of complete row objects may take several minutes. The
+remote Kimi connection still fails fast without cancelling healthy local work.
+
 Retrieval requests the complete candidate budget in one FAISS call. The former
 progressive `k`, `2k`, ... loop embedded and searched the same query repeatedly,
 even though its final result already contained the earlier neighbors. Configure
