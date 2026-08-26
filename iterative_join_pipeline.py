@@ -242,21 +242,7 @@ def _build_join_step_retrieval_query(
     base_query: str,
 ) -> str:
     table = _task_table(task)
-    parts = [_clean_retrieval_query(base_query)]
-
-    binding_fragments = []
-    for column, values in inherited_bindings.items():
-        if len(values) == 1:
-            binding_fragments.append(f"{column} = {values[0]}")
-        elif values:
-            binding_fragments.append(f"{column} in ({', '.join(values)})")
-
-    if binding_fragments:
-        parts.append("join bindings: " + " and ".join(binding_fragments))
-    if source_row_ids:
-        parts.append("linked to source rows: " + ", ".join(source_row_ids))
-    if source_row_summaries:
-        parts.append("source row values: " + " | ".join(source_row_summaries))
+    parts = [f"Table: {table}" if table else _clean_retrieval_query(base_query)]
 
     columns = _dedupe_strings(
         [
@@ -267,11 +253,26 @@ def _build_join_step_retrieval_query(
             *(task.get("columns") or []),
         ]
     )
-    if columns and "needed columns:" not in base_query:
-        parts.append("needed columns: " + ", ".join(columns))
+    if columns:
+        parts.append("Columns: " + ", ".join(columns))
 
-    if table:
-        parts.append(f"target table: {table}")
+    predicates = _dedupe_strings(task.get("local_predicates") or [])
+    if predicates:
+        parts.append("Filters: " + " and ".join(predicates))
+
+    binding_fragments = []
+    for column, values in inherited_bindings.items():
+        if len(values) == 1:
+            binding_fragments.append(f"{column} = {values[0]}")
+        elif values:
+            binding_fragments.append(f"{column} in ({', '.join(values)})")
+
+    if binding_fragments:
+        parts.append("Join filter: " + " and ".join(binding_fragments))
+
+    # Source row ids and summaries are provenance, not retrieval criteria. They
+    # remain in iterative state and UI events but are deliberately excluded
+    # from the text embedded by the semantic retriever.
     return ". ".join(part for part in parts if part)
 
 

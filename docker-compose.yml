@@ -61,12 +61,17 @@ services:
       # Fall back locally when Kimi is unreachable or rejects the request.
       PLANNER_LLM_FALLBACK_ENABLED: "true"
       PLANNER_LLM_FALLBACK_MODEL: llama3:8b
+      OLLAMA_REQUEST_TIMEOUT: "180"
       LLM_API_BASE: https://172.16.59.5:32443/api
       LLM_API_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImZjNWM2NmZhLTA1ZTYtNGQyMS1iMjc2LWUxNWFjMzRiODUzOSIsImp0aSI6ImZkM2NmYWRmLTRmOTEtNDA1NS1iZTk1LTEzZjg2NTllZDc3MSJ9.Df6Esb9c1FrwIrHfBoQqb6LwMxBweVQ6myCAyjDWVeU
       LLM_API_MODEL: openai/kimi-k2.6
       LLM_API_MODEL_ALIASES: kimi-k2.6
       LLM_SSL_VERIFY: "false"
-      LLM_REQUEST_TIMEOUT: "1800"
+      LLM_CONNECT_TIMEOUT: "5"
+      LLM_READ_TIMEOUT: "120"
+      LLM_CIRCUIT_BREAKER_SECONDS: "300"
+      VERBOSE_MODEL_LOGS: "false"
+      RETRIEVER_CANDIDATE_K: "10"
       EMB_LOCAL_FILES_ONLY: "true"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"

@@ -173,42 +173,38 @@ After `results` produces a `driverId` binding, `drivers` becomes the next leaf.
 
 ### 5. A Dynamic Retrieval Query Is Built
 
-The controller calls the existing gateway retrieval-query builder with pushdown
-enabled, then enriches the result with join bindings and source row ids.
+The controller builds a compact retrieval description containing only the
+target table, needed columns, local filters, and join bindings. Source row ids
+and source-row summaries remain available as provenance, but are not embedded
+into the semantic retrieval query.
 
 For the first leaf:
 
 ```text
-Retrieve rows from table 'races'
-where year = 2021 and name = 'Monaco Grand Prix'
-needed columns: raceId, year, name
-target table: races
+Table: races. Columns: raceId, year, name.
+Filters: year = 2021 and name = 'Monaco Grand Prix'
 ```
 
 After a `races` row is selected, the `results` leaf receives a more specific
 retrieval query:
 
 ```text
-Retrieve rows from table 'results'
-where positionOrder = 1
-join bindings: raceId = 1056
-linked to source rows: races_1042
-needed columns: raceId, driverId, positionOrder
-target table: results
+Table: results. Columns: raceId, driverId, positionOrder.
+Filters: positionOrder = 1. Join filter: raceId = 1056
 ```
 
 After a `results` row is selected, the `drivers` leaf receives:
 
 ```text
-Retrieve rows from table 'drivers'
-join bindings: driverId = 830
-linked to source rows: results_25042
-needed columns: surname, driverId
-target table: drivers
+Table: drivers. Columns: surname, driverId. Join filter: driverId = 830
 ```
 
-Retrieval is still used for every leaf. The difference is that retrieval is no
-longer blind to the rows found earlier in the query.
+Every leaf uses FAISS semantic retrieval over the shared multi-table index.
+Later leaves include compact inherited join bindings in the retrieval text,
+while source-row provenance remains outside the embedded query. Retrieved rows
+from other tables remain in context as relational evidence; the leaf model uses
+the target table and bindings as prompt constraints and emits only target-table
+rows.
 
 ### 6. Leaf Execution Uses Existing Gateway Logic
 
@@ -230,11 +226,10 @@ This means each iterative leaf still uses the existing:
 - model call and retry logic;
 - strict JSON validation and partial parsing.
 
-The retrieval query may include source-row values from previous leaves, such as
-race name and date, because those values can help FAISS find linked `results`
-documents. Rows from non-target tables can remain in `CONTEXT_DATA` and can be
-used by the model as evidence. The prompt still requires the output rows to come
-only from the target table.
+Source-row values from previous leaves are kept in iterative state and UI
+events for traceability. They are not included in FAISS text. Retrieval context
+may contain several tables and relationally correlated rows, while the prompt
+requires output rows to come only from the target table.
 
 ### 7. Row Selection Happens in the Leaf Prompt
 
@@ -352,6 +347,34 @@ rows in `parsed_output`.
 
 The AP explanation service then executes the SQL over these generated CSVs and
 computes the final answer and provenance.
+
+## Runtime and Failure Handling
+
+The OpenAI-compatible provider uses separate connection and response budgets:
+
+```text
+LLM_CONNECT_TIMEOUT=5
+LLM_READ_TIMEOUT=120
+```
+
+After a provider failure, a circuit breaker sends subsequent model calls
+directly to the configured Ollama fallback for
+`LLM_CIRCUIT_BREAKER_SECONDS` (300 seconds by default). This avoids repeating a
+long request to a VPN-only endpoint for every leaf.
+
+Retrieval requests the complete candidate budget in one FAISS call. The former
+progressive `k`, `2k`, ... loop embedded and searched the same query repeatedly,
+even though its final result already contained the earlier neighbors. Configure
+the one-call budget with `RETRIEVER_CANDIDATE_K`.
+
+For iterative leaves, the model returns the selected row IDs together with the
+complete source-row values. The gateway validates both the IDs and exact row
+contents against target-table context before binding propagation and CSV
+generation.
+
+Full prompt and model-output logging is disabled by default. Set
+`VERBOSE_MODEL_LOGS=true` only for detailed debugging. Progress events include
+retrieval and model durations for UI diagnosis.
 
 ## Division of Responsibility
 

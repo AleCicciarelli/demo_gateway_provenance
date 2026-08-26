@@ -689,6 +689,7 @@ function pushProgress(event, tone = "info") {
     model: event.model,
     modelProvider: event.model_provider,
     requestStatus: event.request_status,
+    durationSeconds: event.duration_seconds,
   });
 }
 
@@ -711,6 +712,7 @@ function updateWaitingProgress(event) {
     model: event.model,
     modelProvider: event.model_provider,
     requestStatus: event.request_status,
+    durationSeconds: event.duration_seconds,
   };
   if (existing) {
     Object.assign(existing, update);
@@ -1158,6 +1160,7 @@ function renderProgressDetails(item) {
   const hasStep = Number.isFinite(item.iterativeStep);
   const hasModel = typeof item.model === "string" && item.model.trim();
   const hasProvider = typeof item.modelProvider === "string" && item.modelProvider.trim();
+  const hasDuration = Number.isFinite(item.durationSeconds);
   const modelLabel = item.requestStatus === "response_received"
     ? "Active model"
     : item.requestStatus === "fallback_started" ? "Fallback model" : "Requested model";
@@ -1166,7 +1169,7 @@ function renderProgressDetails(item) {
     : item.requestStatus === "fallback_started" ? "Fallback provider" : "Requested provider";
 
   if (!hasRetrieval && !hasBindings && !hasSources && !hasSourceSummaries && !hasStep
-      && !hasModel && !hasProvider) {
+      && !hasModel && !hasProvider && !hasDuration) {
     return "";
   }
 
@@ -1179,6 +1182,7 @@ function renderProgressDetails(item) {
       ${hasSourceSummaries ? renderProgressDetail("Source values", item.sourceRowSummaries.join(" | ")) : ""}
       ${hasModel ? renderProgressDetail(modelLabel, item.model) : ""}
       ${hasProvider ? renderProgressDetail(providerLabel, item.modelProvider) : ""}
+      ${hasDuration ? renderProgressDetail("Duration", `${item.durationSeconds.toFixed(2)}s`) : ""}
     </div>
   `;
 }

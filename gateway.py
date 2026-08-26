@@ -60,6 +60,10 @@ LLM_API_MODEL_ALIASES = [
 ]
 LLM_SSL_VERIFY = _env_bool("LLM_SSL_VERIFY", True)
 LLM_REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", str(OLLAMA_REQUEST_TIMEOUT)))
+LLM_CONNECT_TIMEOUT = float(os.getenv("LLM_CONNECT_TIMEOUT", "5"))
+LLM_READ_TIMEOUT = float(os.getenv("LLM_READ_TIMEOUT", "120"))
+LLM_CIRCUIT_BREAKER_SECONDS = float(os.getenv("LLM_CIRCUIT_BREAKER_SECONDS", "300"))
+VERBOSE_MODEL_LOGS = _env_bool("VERBOSE_MODEL_LOGS", False)
 PLANNER_LLM_PROVIDER = os.getenv("PLANNER_LLM_PROVIDER", "ollama").strip().lower()
 PLANNER_LLM_FALLBACK_ENABLED = _env_bool("PLANNER_LLM_FALLBACK_ENABLED", True)
 PLANNER_LLM_FALLBACK_MODEL = os.getenv("PLANNER_LLM_FALLBACK_MODEL", "llama3:8b")
@@ -108,6 +112,10 @@ EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
 RETRIEVER_K = int(os.getenv("RETRIEVER_K", "12"))
 MAX_ITERATIVE_RETRIEVALS = int(os.getenv("MAX_ITERATIVE_RETRIEVALS", "2"))
+RETRIEVER_CANDIDATE_K = int(os.getenv(
+    "RETRIEVER_CANDIDATE_K",
+    str(RETRIEVER_K * max(MAX_ITERATIVE_RETRIEVALS, 1)),
+))
 
 # For ap-explanation service:
 EXPLANATION_URL = os.getenv("EXPLANATION_URL", "http://explanation_app:5000")
@@ -126,6 +134,9 @@ EXPLANATION_POSTGRES_PASSWORD = os.getenv("EXPLANATION_POSTGRES_PASSWORD", "prov
 
 # una pipeline explanation alla volta per evitare che due pipeline concorrenti scrivano i csv nella stessa cartella del bucket
 _EXPLANATION_PIPELINE_LOCK = threading.Lock()
+_LLM_CIRCUIT_LOCK = threading.Lock()
+_LLM_CIRCUIT_OPEN_UNTIL = 0.0
+_LLM_CIRCUIT_LAST_ERROR = ""
 RAG_PIPELINE_ID = "rag"
 LLM_INTERNAL_PIPELINE_ID = "llm-internal"
 SQL_TABLE_PIPELINE_ID = "sql-table"
@@ -967,7 +978,7 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
             url,
             json=payload,
             headers=headers,
-            timeout=LLM_REQUEST_TIMEOUT,
+            timeout=(LLM_CONNECT_TIMEOUT, LLM_READ_TIMEOUT),
             verify=LLM_SSL_VERIFY,
         )
         if not r.ok:
@@ -987,6 +998,26 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
         f"Failed calling LLM model '{model}' at {url}. Tried {model_candidates}. Last error: {last_error}"
     )
 
+
+def _llm_circuit_status() -> Tuple[bool, str, int]:
+    with _LLM_CIRCUIT_LOCK:
+        remaining = max(int(_LLM_CIRCUIT_OPEN_UNTIL - time.monotonic()), 0)
+        return remaining > 0, _LLM_CIRCUIT_LAST_ERROR, remaining
+
+
+def _open_llm_circuit(error: Exception) -> None:
+    global _LLM_CIRCUIT_OPEN_UNTIL, _LLM_CIRCUIT_LAST_ERROR
+    with _LLM_CIRCUIT_LOCK:
+        _LLM_CIRCUIT_OPEN_UNTIL = time.monotonic() + LLM_CIRCUIT_BREAKER_SECONDS
+        _LLM_CIRCUIT_LAST_ERROR = str(error)
+
+
+def _close_llm_circuit() -> None:
+    global _LLM_CIRCUIT_OPEN_UNTIL, _LLM_CIRCUIT_LAST_ERROR
+    with _LLM_CIRCUIT_LOCK:
+        _LLM_CIRCUIT_OPEN_UNTIL = 0.0
+        _LLM_CIRCUIT_LAST_ERROR = ""
+
 def _generate_model(
     provider: str,
     model: str,
@@ -996,17 +1027,27 @@ def _generate_model(
 ) -> str:
     provider = provider.strip().lower()
     if provider in {"openai", "openai-compatible"}:
+        circuit_open, circuit_error, circuit_remaining = _llm_circuit_status()
         try:
+            if circuit_open:
+                raise RuntimeError(
+                    f"LLM endpoint circuit is open for {circuit_remaining}s after: {circuit_error}"
+                )
+            request_started_at = time.monotonic()
             output = _openai_compatible_generate(model, prompt, temperature)
+            _close_llm_circuit()
             if status_event:
                 status_event("model_response_received", {
                     "message": f"Response received from {model}.",
                     "model": model,
                     "model_provider": provider,
                     "request_status": "response_received",
+                    "duration_seconds": round(time.monotonic() - request_started_at, 4),
                 })
             return output
         except Exception as primary_error:
+            if not circuit_open:
+                _open_llm_circuit(primary_error)
             if not PLANNER_LLM_FALLBACK_ENABLED:
                 raise
             if status_event:
@@ -1020,6 +1061,7 @@ def _generate_model(
                     "request_status": "fallback_started",
                 })
             try:
+                fallback_started_at = time.monotonic()
                 output = _ollama_generate(PLANNER_LLM_FALLBACK_MODEL, prompt, temperature)
             except Exception as fallback_error:
                 raise RuntimeError(
@@ -1032,9 +1074,11 @@ def _generate_model(
                     "model": PLANNER_LLM_FALLBACK_MODEL,
                     "model_provider": "ollama",
                     "request_status": "response_received",
+                    "duration_seconds": round(time.monotonic() - fallback_started_at, 4),
                 })
             return output
     if provider == "ollama":
+        request_started_at = time.monotonic()
         output = _ollama_generate(model, prompt, temperature)
         if status_event:
             status_event("model_response_received", {
@@ -1042,6 +1086,7 @@ def _generate_model(
                 "model": model,
                 "model_provider": provider,
                 "request_status": "response_received",
+                "duration_seconds": round(time.monotonic() - request_started_at, 4),
             })
         return output
     raise RuntimeError(f"Unsupported model provider: {provider}")
@@ -1095,14 +1140,18 @@ def _call_model_with_retry(
     Call to the model with the given prompt. If the output is not a valid JSON array, retry up to max_tries times by appending the RETRY_SUFFIX to the prompt.
     """
     prompt = base_prompt
-    print("\n========== PROMPT START ==========\n", flush=True)
-    print(prompt, flush=True)
-    print("\n========== PROMPT END ==========\n", flush=True)
+    if VERBOSE_MODEL_LOGS:
+        print("\n========== PROMPT START ==========\n", flush=True)
+        print(prompt, flush=True)
+        print("\n========== PROMPT END ==========\n", flush=True)
+    else:
+        print(f"[MODEL] prompt_chars={len(prompt)} model={ollama_model}", flush=True)
     last = ""
     best = ""
     best_score = -1
     validate = validator or _is_valid_json_array
     for attempt in range(1, max_tries + 1):
+        attempt_started_at = time.monotonic()
         if status_event:
             status_event("model_request_start", {
                 "message": f"Attempting {ollama_model}; no response received yet.",
@@ -1124,7 +1173,7 @@ def _call_model_with_retry(
         if score > best_score:
             best = out
             best_score = score
-        _log_event({
+        attempt_event = {
             "type": "attempt",
             "model_provider": provider,
             "ollama_model": ollama_model,
@@ -1132,11 +1181,14 @@ def _call_model_with_retry(
             "ok_json_array": ok,
             "error": err,
             "score": score,
-            "prompt": prompt,
             "prompt_chars": len(prompt),
-            "output": out,
             "output_chars": len(out),
-        })
+            "duration_seconds": round(time.monotonic() - attempt_started_at, 4),
+        }
+        if VERBOSE_MODEL_LOGS:
+            attempt_event["prompt"] = prompt
+            attempt_event["output"] = out
+        _log_event(attempt_event)
         if ok:
             return out
         prompt = (
@@ -1155,6 +1207,7 @@ def _validate_leaf_json_array(
 ) -> Tuple[bool, Optional[str]]:
     valid, error, _ = _parse_leaf_json_array_partial(text, expected_rows_by_id)
     return valid, error
+
 
 def _parse_leaf_json_array_partial(
     text: str,
@@ -1482,10 +1535,8 @@ def retrieve_context_data_iterative(
     annotation_scope: Optional[Dict[str, str]] = None,
     annotation_pipeline: str = "rag",
 ) -> Dict[str, Any]:
-    """
-    Iterative retrieval: start with k=RETRIEVER_K, then increase k by RETRIEVER_K
-    in each iteration, until no new rows are retrieved or MAX_ITERATIVE_RETRIEVALS is reached.
-    """
+    """Retrieve the configured candidate budget with one FAISS query embedding."""
+    retrieval_started_at = time.monotonic()
     config = _dataset_config(dataset)
     runtime = _dataset_runtime(config.name)
     _load_csvs_once(config.name)
@@ -1507,9 +1558,11 @@ def retrieve_context_data_iterative(
     scored_evidence: List[Dict[str, Any]] = []
     all_correlated_additions: List[Dict[str, str]] = []
     correlated_rows_added = 0
-    k = RETRIEVER_K
+    # The old progressive k, 2k, ... loop embedded and searched the identical
+    # query repeatedly. Its last call already contained all earlier results.
+    k = RETRIEVER_CANDIDATE_K
 
-    for iteration in range(1, MAX_ITERATIVE_RETRIEVALS + 1):
+    for iteration in range(1, 2):
         if annotation_sink is not None:
             scored_docs = vs.similarity_search_with_relevance_scores(question, k=k)
         else:
@@ -1624,12 +1677,6 @@ def retrieve_context_data_iterative(
             "target_tables": sorted(target_table_set),
         })
 
-        if new_count == 0:
-            print(f"[ITERATION {iteration}] stopping: no new rows added", flush=True)
-            break
-
-        k += RETRIEVER_K
-
     preview = {table: list(rows.keys())[:3] for table, rows in ctx.items()}
     final_rids = {table: list(rows.keys()) for table, rows in ctx.items()}
 
@@ -1650,6 +1697,7 @@ def retrieve_context_data_iterative(
         "correlated_rows_added": correlated_rows_added,
         "context_data": final_context_data,
         "context_rows_total": sum(len(rows) for rows in final_context_data.values()),
+        "duration_seconds": round(time.monotonic() - retrieval_started_at, 4),
         "question": question,
         "target_tables": sorted(target_table_set),
     })
@@ -2262,15 +2310,17 @@ def _run_ui_iterative_join_pipeline(
     ) -> Dict[str, Any]:
         table_name = str(task.get("table_name") or task.get("table") or "").strip()
         annotations: List[Dict[str, Any]] = []
+        retrieval_method = "semantic RAG search"
         if progress_event:
             progress_event("leaf_retrieval_start", {
                 "table": table_name,
                 "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
-                "message": f"Retrieving iterative context for {table_name}.",
+                "message": f"Retrieving {table_name} rows using {retrieval_method}.",
                 "retrieval_query": retrieval_query,
                 "inherited_bindings": inherited_bindings,
                 "source_row_ids": source_row_ids,
             })
+        retrieval_started_at = time.monotonic()
         ctx = retrieve_context_data_iterative(
             retrieval_query,
             dataset=dataset,
@@ -2282,8 +2332,11 @@ def _run_ui_iterative_join_pipeline(
             progress_event("leaf_context", {
                 "table": table_name,
                 "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
-                "message": f"Iterative context retrieved for {table_name}.",
+                "message": (
+                    f"Retrieved {table_name} context using {retrieval_method}."
+                ),
                 "rows": _context_row_count(ctx),
+                "duration_seconds": round(time.monotonic() - retrieval_started_at, 4),
                 "tables": sorted(ctx.keys()),
                 "retrieval_query": retrieval_query,
                 "inherited_bindings": inherited_bindings,
@@ -2314,6 +2367,7 @@ def _run_ui_iterative_join_pipeline(
                 "stage": "model_extraction",
             })
 
+        extraction_started_at = time.monotonic()
         leaf_output = _run_iterative_join_leaf_task(
             task=task,
             ollama_model=MODEL_ROUTING[ITERATIVE_PIPELINE_MODEL_ID],
@@ -2333,6 +2387,7 @@ def _run_ui_iterative_join_pipeline(
                 "pipeline": ITERATIVE_PIPELINE_MODEL_ID,
                 "message": f"Model extraction completed for {table_name}.",
                 "rows": len(parsed_rows) if isinstance(parsed_rows, list) else 0,
+                "duration_seconds": round(time.monotonic() - extraction_started_at, 4),
             })
         return leaf_output
 
