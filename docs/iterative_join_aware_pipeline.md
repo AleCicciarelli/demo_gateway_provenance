@@ -348,6 +348,11 @@ rows in `parsed_output`.
 The AP explanation service then executes the SQL over these generated CSVs and
 computes the final answer and provenance.
 
+The service is also configured with the OpenAI-compatible Kimi endpoint. When
+that private endpoint is reachable, it converts the computed provenance into a
+natural-language explanation. Without LLM configuration, the service uses its
+`NoOpExplainer` and returns `"No explanation"`.
+
 ## Runtime and Failure Handling
 
 The OpenAI-compatible provider uses separate connection and response budgets:

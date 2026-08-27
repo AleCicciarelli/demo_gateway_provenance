@@ -324,3 +324,23 @@ Execute final SQL and provenance processing
 
 - `docs/iterative_join_aware_pipeline.md`
   - updated retrieval and runtime architecture.
+
+## 15. Natural-Language Provenance Explanations
+
+The AP explanation service is configured with the same OpenAI-compatible Kimi
+endpoint as the gateway:
+
+```yaml
+LLM_API_BASE: https://172.16.59.5:32443/api
+LLM_API_MODEL: openai/kimi-k2.6
+LLM_SSL_VERIFY: "false"
+```
+
+When these variables were absent, the service selected its `NoOpExplainer` and
+returned `"No explanation"` even though structured provenance derivations were
+computed successfully. After recreating `explanation_app`, successful tasks use
+Kimi to translate those derivations into a natural-language explanation.
+
+The endpoint is available only when the container can reach the required
+private network or VPN route. Structured provenance computation and the Kimi
+explanation call are separate stages.
