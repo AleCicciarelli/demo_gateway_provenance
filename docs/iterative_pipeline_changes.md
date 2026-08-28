@@ -364,3 +364,15 @@ the question represents `SELECT *`. It does not request provenance. The gateway
 normalizes each returned row to `{result: row, provenance: []}` for compatibility
 with existing rendering and downstream data structures. TPC-H behavior is
 unchanged.
+
+## 17. Kimi Routing for Internal Knowledge
+
+The `llm-internal` answer and confidence-assessment calls use the same provider
+routing as the RAG/planner pipeline. With `PLANNER_LLM_PROVIDER=openai`, they
+first request `PLANNER_LLM_MODEL` (currently `openai/kimi-k2.6`). If that
+private endpoint is unreachable, the shared circuit breaker and Ollama fallback
+apply exactly as they do for RAG extraction.
+
+When `PLANNER_LLM_PROVIDER=ollama`, internal knowledge uses
+`OLLAMA_MODEL_INTERNAL_KNOWLEDGE` directly. Confidence annotations record both
+the requested model and provider.

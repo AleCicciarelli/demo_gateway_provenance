@@ -2657,11 +2657,17 @@ def _run_llm_internal_query(
 
     prompt_template = get_internal_knowledge_prompt_template(dataset)
     prompt = prompt_template.format(question=question)
+    internal_provider = PLANNER_LLM_PROVIDER
+    internal_model = (
+        PLANNER_LLM_MODEL
+        if internal_provider in {"openai", "openai-compatible"}
+        else MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID]
+    )
     raw_output = _call_model_with_retry(
-        MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID],
+        internal_model,
         prompt,
         temperature,
-        provider="ollama",
+        provider=internal_provider,
         max_tries=2,
         validator=validate,
     )
@@ -2676,6 +2682,8 @@ def _run_llm_internal_query(
         question=question,
         generated_output=answer,
         temperature=temperature,
+        model=internal_model,
+        provider=internal_provider,
     )
     return answer, raw_output, confidence
 
@@ -2684,6 +2692,8 @@ def _assess_llm_internal_confidence(
     question: str,
     generated_output: List[Dict[str, Any]],
     temperature: float,
+    model: str,
+    provider: str,
 ) -> Dict[str, Any]:
     def parse_assessment(text: str) -> Dict[str, str]:
         decoder = json.JSONDecoder()
@@ -2737,10 +2747,10 @@ GENERATED OUTPUT:
 {json.dumps(generated_output, ensure_ascii=False)}
 """
     raw_assessment = _call_model_with_retry(
-        MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID],
+        model,
         assessment_prompt,
         temperature,
-        provider="ollama",
+        provider=provider,
         max_tries=2,
         validator=validate_assessment,
         retry_suffix=(
@@ -2756,7 +2766,8 @@ GENERATED OUTPUT:
         "level": assessment["level"],
         "reason": assessment["reason"],
         "assessment_method": "llm_self_assessment",
-        "model": MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID],
+        "model": model,
+        "model_provider": provider,
     }
 
 def _run_ui_ap_explanation_for_csv_files(
@@ -4157,7 +4168,8 @@ def chat_completions(
             "dataset": dataset,
             "ui_model": req.model,
             "request_id": request_id,
-            "ollama_model": ollama_model,
+            "requested_model": confidence.get("model"),
+            "model_provider": confidence.get("model_provider"),
             "temperature": temperature,
             "stream": req.stream,
             "question": question,
