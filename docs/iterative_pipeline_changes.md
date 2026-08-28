@@ -344,3 +344,23 @@ Kimi to translate those derivations into a natural-language explanation.
 The endpoint is available only when the container can reach the required
 private network or VPN route. Structured provenance computation and the Kimi
 explanation call are separate stages.
+
+## 16. Minimal REL-F1 Internal-Knowledge Prompt
+
+When `llm-internal` is selected with the REL-F1 dataset, the gateway uses a
+concise Formula 1 prompt. It sends a natural-language question, includes the
+REL-F1 logical table schemas, and requests a JSON array of structurally valid
+result rows.
+
+For a `circuits` leaf without predicates, the generated question is:
+
+```text
+List all the circuits related to Formula 1.
+```
+
+The prompt requires table-valid column names, forbids mixed-table row objects
+and local `_rownum`/`__rid__` fields, and asks for complete logical rows when
+the question represents `SELECT *`. It does not request provenance. The gateway
+normalizes each returned row to `{result: row, provenance: []}` for compatibility
+with existing rendering and downstream data structures. TPC-H behavior is
+unchanged.

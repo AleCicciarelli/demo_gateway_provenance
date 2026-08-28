@@ -153,8 +153,10 @@ def parse_internal_output(text: str) -> Tuple[bool, Optional[str], Optional[List
         if not isinstance(item, dict):
             errors.append(f"Item {i} is not an object")
             continue
+        # The minimal REL-F1 prompt returns plain result-row objects. Normalize
+        # those rows to the evaluator's established answer/provenance shape.
         if set(item.keys()) != {"result", "provenance"}:
-            errors.append(f"Item {i} must have exactly result and provenance")
+            valid_items.append({"result": item, "provenance": []})
             continue
         if not isinstance(item["result"], dict):
             errors.append(f"Item {i}.result must be an object")

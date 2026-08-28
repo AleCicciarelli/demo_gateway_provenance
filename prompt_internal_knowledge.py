@@ -169,13 +169,56 @@ QUESTION:
 """
 
 
+PROMPT_RELF1_MINIMAL_INTERNAL_KNOWLEDGE_TEMPLATE = """
+The QUESTION is related to Formula 1.
+
+Answer the QUESTION using your internal knowledge and return the result.
+
+Use the following REL-F1 schema to produce structurally valid result rows:
+
+- circuits(circuitId, circuitRef, name, location, country, lat, lng, alt)
+- constructors(constructorId, constructorRef, name, nationality)
+- drivers(driverId, driverRef, code, forename, surname, dob, nationality)
+- races(raceId, year, round, circuitId, name, date, time)
+- results(resultId, raceId, driverId, constructorId, number, grid, position,
+  positionOrder, points, laps, milliseconds, fastestLap, rank, statusId, date)
+- qualifying(qualifyId, raceId, driverId, constructorId, number, position, date)
+- standings(driverStandingsId, raceId, driverId, points, position, wins, date)
+- constructor_results(constructorResultsId, raceId, constructorId, points, date)
+- constructor_standings(constructorStandingsId, raceId, constructorId, points,
+  position, wins, date)
+
+ROW RULES:
+- Every result object must represent one logical row from the table requested by
+  the QUESTION.
+- Use only column names defined for that table in the schema above.
+- Do not mix columns from different tables in one result object.
+- Preserve the schema's capitalization, for example circuitId and raceId.
+- Return the columns requested by the QUESTION. If the QUESTION asks for all
+  rows or uses the meaning of SELECT *, return complete logical rows with all
+  columns defined for that table.
+- Do not add local project fields such as __rid__ or columns ending in _rownum.
+- Do not invent unknown values. If you cannot produce a valid requested row
+  from internal knowledge, return [].
+
+Return ONLY valid JSON and no introductory text, explanations, markdown, or
+code fences.
+
+The entire output must be a JSON array. Each array item must be one result row
+represented as a JSON object. If you do not know the result, return [].
+
+QUESTION:
+{question}
+"""
+
+
 PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE = PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
 
 
 def get_internal_knowledge_prompt_template(domain: str) -> str:
     normalized = domain.strip().lower()
     if normalized in {"relf", "relf1", "rel-f1", "f1", "formula1", "formula-1"}:
-        return PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE
+        return PROMPT_RELF1_MINIMAL_INTERNAL_KNOWLEDGE_TEMPLATE
     if normalized in {"tpch", "tpc-h"}:
         return PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
     raise ValueError(f"Unsupported internal-knowledge prompt domain: {domain}")

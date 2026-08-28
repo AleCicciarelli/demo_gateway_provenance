@@ -2121,7 +2121,7 @@ def _llm_internal_leaf_output(
     temperature: float,
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
-    leaf_question = _leaf_question_sql(task)
+    leaf_question = _leaf_question_nl_internal(task)
     answer, raw_output, confidence = _run_llm_internal_query(
         leaf_question,
         dataset,
@@ -2478,6 +2478,42 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
         sql += " WHERE " + " AND ".join(predicates)
     return sql + ";"
 
+
+def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
+    existing = str(task.get("question_nl") or "").strip()
+    if existing:
+        return existing
+
+    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    if not table_name:
+        return "List the relevant Formula 1 information."
+
+    readable_table = table_name.replace("_", " ")
+    predicates = [
+        str(predicate).strip()
+        for predicate in task.get("local_predicates") or []
+        if str(predicate).strip()
+    ]
+    if predicates:
+        def predicate_to_nl(predicate: str) -> str:
+            replacements = [
+                (" >= ", " greater than or equal to "),
+                (" <= ", " less than or equal to "),
+                (" <> ", " not equal to "),
+                (" != ", " not equal to "),
+                (" = ", " equal to "),
+                (" > ", " greater than "),
+                (" < ", " less than "),
+            ]
+            text = predicate
+            for operator, words in replacements:
+                text = text.replace(operator, words)
+            return text
+
+        conditions = " and ".join(predicate_to_nl(predicate) for predicate in predicates)
+        return f"List the Formula 1 {readable_table} where {conditions}."
+    return f"List all the {readable_table} related to Formula 1."
+
 def _run_ui_ap_explanation(
     sql_query: str,
     plan: Dict[str, Any],
@@ -2593,9 +2629,28 @@ def _run_llm_internal_query(
     dataset: str,
     temperature: float,
 ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
+    use_plain_relf1_results = dataset.strip().lower() in {
+        "relf", "relf1", "rel-f1", "f1", "formula1", "formula-1",
+    }
+
+    def parse_plain_results(text: str) -> List[Dict[str, Any]]:
+        array_text, extraction_error = _extract_json_array_text(text)
+        if array_text is None:
+            raise ValueError(f"Invalid JSON: {extraction_error}")
+        value = json.loads(array_text)
+        if not isinstance(value, list):
+            raise ValueError("Model output is not a JSON array")
+        for index, row in enumerate(value):
+            if not isinstance(row, dict):
+                raise ValueError(f"Item {index} is not a result-row object")
+        return value
+
     def validate(text: str) -> Tuple[bool, Optional[str]]:
         try:
-            _parse_answer_json(text)
+            if use_plain_relf1_results:
+                parse_plain_results(text)
+            else:
+                _parse_answer_json(text)
             return True, None
         except ValueError as exc:
             return False, str(exc)
@@ -2610,7 +2665,13 @@ def _run_llm_internal_query(
         max_tries=2,
         validator=validate,
     )
-    answer = _parse_answer_json(raw_output)
+    if use_plain_relf1_results:
+        answer = [
+            {"result": row, "provenance": []}
+            for row in parse_plain_results(raw_output)
+        ]
+    else:
+        answer = _parse_answer_json(raw_output)
     confidence = _assess_llm_internal_confidence(
         question=question,
         generated_output=answer,
