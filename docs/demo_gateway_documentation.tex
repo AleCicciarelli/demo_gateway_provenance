@@ -63,7 +63,7 @@ tuple back to its supporting rows.
 
 Large language models can translate questions, synthesize answers, and manipulate
 structured representations, but a fluent answer alone does not show which source
-records support it. For question answering task, a system
+records support it. For a question-answering task, a system
 should output both the answer and the evidence used to derive it.
 
 This demo has the following objectives:
@@ -100,15 +100,14 @@ circuit record, how the year and country filters were applied, which execution
 pipeline handled each table, and which exact source rows support each result.
 
 This scenario demonstrates the full use of the gateway. Before executing the
-query, it shows a relational plan split into tables leaf tasks. The user
-can accept the default planner-only pipeline or select a different strategy for
+query, it shows a relational plan split into table-level leaf tasks. The user
+can accept the default \code{rag} pipeline or select a different strategy for
 each leaf. During execution, the interface reports retrieval and processing
 progress.
-For the explanation part, the gateway exports the selected rows as
-CSV files and invokes the AP Explanation service. This executes the query on ProvSQL, creating a new d
-postgres database on which the query is run and the provenance is computed, also a written
-explanation for the provenance.
-It presents three  result views:
+For the explanation stage, the gateway exports the selected rows as CSV files
+and invokes the AP Explanation service. The service loads the files into
+PostgreSQL, executes the query with ProvSQL, computes provenance, and returns a
+human-readable explanation. The interface presents three result views:
 
 \begin{itemize}
   \item \textbf{Answer}: the final tuples returned by the query;
@@ -142,12 +141,14 @@ demo.
   \item \textbf{Inspect the leaf tasks.} Each leaf card shows the
         scan type, local predicate, join keys, selected columns, and leaf SQL.
 
-  \item \textbf{Choose a pipeline for each leaf.} Leave \code{Planner only} for
-        a short baseline run, or select \code{Planner only + explanation} to
-        include the AP explanation stage. Other choices support comparisons with
-        predicate pushdown, iterative join-aware retrieval, standard RAG,
-        internal knowledge, or manual review. Pipeline choices are made per
-        table, so a single run can combine strategies.
+  \item \textbf{Choose a pipeline for each leaf.} The selector exposes
+        \code{rag}, \code{llm-internal}, and \code{sql-table}. When
+        \code{rag} is selected, the Pushdown and Iterative RAG checkboxes enable
+        the derived \code{rag-pushdown} and \code{rag-iterative} execution
+        modes. Pipeline choices are made per table, although enabling iterative
+        RAG runs the query through the join-aware controller. The AP explanation
+        stage runs after the selected leaves and is not a separate selector
+        entry.
 
   \item \textbf{Run the selection.} Select \textit{Run selected pipelines}. The
         status badge changes from \textit{Waiting} to \textit{Running}, and the
@@ -157,6 +158,11 @@ demo.
 
   \item \textbf{Read the answer.} When the status becomes \textit{Complete}, use
         the \textit{Answer} tab to show the answer produced.
+        If a leaf used \code{llm-internal}, the
+        \textit{Internal-knowledge model output} section shows the exact raw
+        answer returned by the model in a scrollable, preformatted card. This
+        diagnostic text is separate from both the parsed answer table and the
+        confidence annotation.
         If CSVs were generated, \textit{View generated CSVs} opens the exact
         csv files passed to the explanation service. If an AP explanation
         was requested, \textit{Show AP explanation} shows it.
@@ -214,8 +220,9 @@ partial results are combined, these annotations are propagated from leaves to
 blocks and subtrees and are ultimately attached to the complete answer.
 Confidence information is interpreted according to the producing pipeline:
 ProvSQL provides formal tuple or result level probabilities together with
-provenance; Standard RAG and Planner-First use retrieval similarity scores as
-indicators of evidence relevance; and LLM results receive a
+provenance; \code{rag}, \code{rag-pushdown}, and \code{rag-iterative} use
+retrieval similarity scores as indicators of evidence relevance; and
+\code{llm-internal} results receive a
 qualitative confidence level of low, medium, or high at block or subtree level.
 Consequently, the final output comprises the answer, provenance, a
 human-readable explanation, the propagated annotations, and their associated
@@ -238,9 +245,10 @@ different signals are not compared as though they had identical semantics.
 \subsubsection{Implementation in the Gateway Container}
 
 The current container implementation produces retrieval-confidence annotations
-at the shared FAISS retrieval stage. This stage is used by RAG, RAG with
-predicate pushdown, RAG Explanation, and iterative join-aware RAG. Internal Knowledge is
-excluded because it does not retrieve external evidence. The gateway calls the
+at the shared FAISS retrieval stage. This stage is used by \code{rag} and its
+derived \code{rag-pushdown} and \code{rag-iterative} modes.
+\code{llm-internal} and \code{sql-table} are excluded because they do not
+retrieve FAISS evidence. The gateway calls the
 scored FAISS similarity function, retains the relevance score and rank for each
 selected row identifier, and emits a \code{rag\_similarity} annotation. The
 annotation also records the producing pipeline, dataset, query-tree scope,
@@ -293,8 +301,10 @@ The Internal Knowledge pipeline uses a two-stage LLM process. In the first
 stage, the model answers the leaf or complete query using only its internal
 knowledge and a dataset-specific schema prompt. It receives neither retrieved
 FAISS rows nor access to the CSV files or provenance database. Its generated
-JSON result and semantic provenance identifiers are validated before the
-pipeline continues. In the second stage, the gateway makes a separate
+JSON is structurally validated before the pipeline continues. The exact output
+contract is dataset-specific, as detailed below; structural validation must not
+be confused with verification against the database. In the second stage, the
+gateway makes a separate
 self-assessment call using the original question and the validated generated
 output. The evaluator still has no external evidence or database access; its
 task is to assess the consistency and apparent reliability of the generated
@@ -314,6 +324,12 @@ The assessment prompt defines the three levels as follows:
         provenance support.
 \end{itemize}
 
+The self-assessment prompt currently uses the same level definitions for both
+datasets, including its reference to coherent provenance identifiers. For
+REL-F1, however, the normalized provenance is intentionally empty. The resulting
+confidence remains a model self-assessment of the generated data and abstention
+behavior; it is not a provenance-verification result.
+
 An empty result may receive high confidence only when abstaining is more
 reliable than inventing instance data that cannot be known without consulting
 the database. In this case, the level expresses confidence in the decision to
@@ -329,6 +345,31 @@ rationale:
 }
 \end{lstlisting}
 
+The answer-generation contract differs between the two current datasets:
+
+\begin{itemize}
+  \item For \code{tpch}, the model returns the gateway's answer objects, each
+        containing \code{result} and \code{provenance}. The gateway parses this
+        shape, but identifiers generated from internal knowledge are still not
+        evidence verified against retrieved or source rows.
+  \item For \code{rel-f1}, the model returns a plain JSON array of result-row
+        objects. Every array element must be an object, and the prompt instructs
+        the model to return an empty array rather than invent unknown values.
+        The gateway normalizes every accepted row to an object containing the
+        row under \code{result} and an empty \code{provenance} array.
+        Consequently, REL-F1 Internal Knowledge deliberately carries no source
+        provenance.
+\end{itemize}
+
+When Internal Knowledge runs as a UI leaf, normalized answers are converted to
+leaf rows for the common orchestration path. A synthetic identifier such as
+\code{races\_internal\_1} is used when no provenance identifier exists. It is an
+internal correlation key for rendering and composition, not a source-CSV row
+identifier or verified provenance. The leaf response retains
+\code{output\_text}, the exact raw model answer. The browser renders this value
+only for \code{llm-internal} leaves, escapes it as text, preserves whitespace,
+and places long output in a scrollable card above the final answer table.
+
 The gateway accepts the assessment only when the level is one of the three
 allowed values and the rationale is non-empty. Invalid output triggers a retry
 with an object-specific formatting reminder. A valid assessment is converted
@@ -343,6 +384,7 @@ into an annotation with the following logical structure:
   "reason": "...",
   "assessment_method": "llm_self_assessment",
   "model": "...",
+  "model_provider": "openai|openai-compatible|ollama",
   "scope": {"type": "leaf", "table": "region"}
 }
 \end{lstlisting}
@@ -367,8 +409,7 @@ Confidence annotations are also attached to each final answer tuple rather than
 being shown only at the leaf where they were generated. The gateway resolves
 the row identifiers in the final tuple's provenance and identifies which
 pipelines produced the contributing rows. It then derives source-specific final
-annotations without converting unlike confidence signals into a single
-artificial probability.
+annotations while preserving the metric and pipeline that produced each value.
 
 For a RAG-derived result, the final relevance score is the minimum FAISS
 relevance score among the retrieved rows that contribute to that result. This
@@ -379,7 +420,7 @@ self-assessment among the contributing LLM leaves, recorded as
 \code{lowest\_contributing\_level}. Results derived from the SQL Table pipeline
 receive a \code{verified\_execution} marker to indicate that their contributing
 rows were read and processed deterministically; this marker is not a claim
-about the correctness of the source data and is not a probability.
+about the correctness of the source data.
 
 Each final tuple therefore contains its source pipelines and a list of
 \code{confidence\_annotations}. Mixed-pipeline results may carry more than one
@@ -388,6 +429,98 @@ LLM annotation. The complete response also exposes the flattened collection as
 \code{final\_answer\_annotations}. In the answer table, these values appear in
 a dedicated Final Confidence column with the same color semantics used by the
 source annotations.
+
+\subsubsection{Final Provenance-Source Annotation}
+
+The provenance returned by the external explanation service identifies the
+source row identifiers that support each final result. After receiving this
+provenance, the gateway joins those identifiers with the row metadata retained
+during leaf execution. It adds one
+\code{final\_answer\_provenance\_source} annotation to every result. The
+annotation records the distinct contributing pipelines and maps each
+provenance row to its table and originating pipeline:
+
+\begin{lstlisting}[style=codestyle]
+{
+  "type": "final_answer_provenance_source",
+  "source_type": "pipeline",
+  "pipelines": ["rag", "sql-table"],
+  "source_rows": [
+    {"row_id": "races_1", "table": "races", "pipeline": "rag"},
+    {"row_id": "drivers_2", "table": "drivers", "pipeline": "sql-table"}
+  ],
+  "scope": {"type": "result", "index": 1}
+}
+\end{lstlisting}
+
+Only row identifiers actually resolved from the service provenance are listed.
+The gateway does not attribute every intermediate leaf row to a result when its
+provenance is empty or cannot be resolved. The annotation is stored in the
+result's \code{provenance\_annotations} list, included in the flattened
+\code{final\_answer\_annotations} response field, and rendered beside the
+provenance formula in the browser.
+
+\subsubsection{Final Answer Probability Annotation}
+
+Every final result also receives a \code{final\_answer\_probability}
+annotation. The gateway assigns a probability to each contributing provenance
+row according to its originating pipeline:
+
+\begin{itemize}
+  \item A row produced by the \code{sql-table} pipeline has probability
+        \code{1.0}, because its execution is deterministic.
+  \item A row produced by a RAG-based pipeline reuses its available numeric
+        FAISS relevance value. The annotation retains
+        \code{metric=faiss\_relevance} so this operational probability is not
+        confused with a calibrated probability of factual correctness.
+  \item A pipeline that exposes only a qualitative value, such as the current
+        Internal-Knowledge low/medium/high assessment, is not assigned an
+        invented numeric probability.
+\end{itemize}
+
+The final probability is the minimum of the contributing row probabilities,
+recorded as \code{minimum\_contributing\_probability}. Thus an all-SQL result
+has probability \code{1.0}, while a mixed SQL and RAG result takes the weakest
+contributing RAG value. The full annotation retains every row-level input so
+the calculation is auditable:
+
+\begin{lstlisting}[style=codestyle]
+{
+  "type": "final_answer_probability",
+  "source_type": "pipeline_probability",
+  "probability": 0.72,
+  "available_probability": 0.72,
+  "aggregation": "minimum_contributing_probability",
+  "source_probabilities": [
+    {
+      "row_id": "races_1",
+      "pipeline": "rag",
+      "probability": 0.72,
+      "metric": "faiss_relevance"
+    },
+    {
+      "row_id": "drivers_2",
+      "pipeline": "sql-table",
+      "probability": 1.0,
+      "metric": "deterministic_execution"
+    }
+  ],
+  "source_row_ids": ["races_1", "drivers_2"],
+  "missing_probability_row_ids": [],
+  "complete": true,
+  "scope": {"type": "result", "index": 1}
+}
+\end{lstlisting}
+
+If any contributing row has no numeric pipeline probability, \code{complete}
+is false and the final \code{probability} is null. The minimum over the values
+that are available remains visible as \code{available\_probability}, and
+\code{missing\_probability\_row\_ids} identifies the uncovered rows. This
+prevents a partial calculation from being presented as the probability of the
+complete answer. Probability annotations are stored in each result's
+\code{probability\_annotations}, flattened into
+\code{final\_answer\_annotations}, and displayed in the Final Confidence
+column.
 
 \section{Running the Demo}
 
@@ -450,22 +583,52 @@ This distinction is central to our use of the idea. While Galois studies how SQL
 
 \section{Pipeline Modes}
 
-\subsection{Standard RAG}
+The following identifiers are the authoritative pipeline contract implemented
+by the gateway:
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.20\textwidth} >{\raggedright\arraybackslash}p{0.18\textwidth} >{\raggedright\arraybackslash}p{0.52\textwidth}}
+\toprule
+Identifier & Availability & Meaning \\
+\midrule
+\endhead
+\code{rag} & UI selector & Default retrieval-and-validated-row-extraction pipeline. \\
+\code{llm-internal} & UI selector & Model-only baseline without source-row retrieval. \\
+\code{sql-table} & UI selector & Deterministic source-table row selection. \\
+\code{rag-pushdown} & Derived RAG mode & Produced when Pushdown is enabled for a RAG leaf. \\
+\code{rag-iterative} & Derived RAG mode & Produced when Iterative RAG is enabled; uses the join-aware controller. \\
+\code{rag-explanation} & Compatibility only & Accepted by the backend for older clients, but not shown in the current UI selector. AP explanation now runs after leaf execution for every selected pipeline combination. \\
+\bottomrule
+\end{longtable}
+
+Names beginning with \code{planner-only}, \code{planner-first},
+\code{internal-knowledge}, and \code{iterative-join-aware} are compatibility
+aliases. The gateway canonicalizes them before execution and annotations always
+record the canonical identifier. Likewise, \code{base-llama3-8b},
+\code{best-ft-llama3-8b-nl}, and \code{best-ft-llama3-8b-sql} are model IDs
+exposed by the OpenAI-compatible endpoint; they are not leaf-pipeline choices
+in the current browser UI.
+
+\subsection{Direct Model Baselines}
 
 The model identifiers \code{base-llama3-8b}, \code{best-ft-llama3-8b-nl}, and
-\code{best-ft-llama3-8b-sql} use the standard path. The gateway retrieves rows
+\code{best-ft-llama3-8b-sql} use the direct chat-completion path. The gateway retrieves rows
 using the complete question, serializes the exact source rows into a prompt, and
 asks the selected model to return the answer and provenance. This provides a
 useful end-to-end baseline, although reasoning, row selection, and provenance
-generation remain largely model-controlled.
+generation remain largely model-controlled. These model IDs must not be written
+into a final leaf provenance-source annotation as pipeline identifiers.
 
 \subsection{Internal-Knowledge Baseline}
 
-The canonical \code{llm-internal} mode performs no source-row retrieval. It asks the
-model to answer from its internal parameters, so its provenance must not be
-treated as verified source provenance unless it is separately resolved and
-validated. The older \code{internal-knowledge} spelling remains a compatibility
-alias.
+The canonical \code{llm-internal} mode performs no source-row retrieval. It asks
+the configured planner provider to answer from model parameters and then makes a
+second call through the same route for qualitative self-assessment. Its output
+must not be treated as verified source provenance. In particular, REL-F1 returns
+plain result rows that the gateway normalizes with empty provenance, whereas
+TPC-H retains the legacy \code{result}/\code{provenance} answer shape. The UI
+shows the raw leaf answer separately from the normalized final answer and its
+confidence annotation. The older \code{internal-knowledge} spelling remains a
+compatibility alias.
 
 \subsection{RAG}
 
@@ -496,19 +659,21 @@ follow the join structure, although its result still depends on the recall of
 the starting leaf and the correctness of the extracted join edges. The legacy
 \code{iterative-join-aware} name remains accepted.
 
-\subsection{RAG Explanation}
+\subsection{AP Explanation and the Legacy RAG-Explanation ID}
 
-\code{rag-explanation} extends RAG extraction by writing the
-validated rows to per-table CSV files and submitting them with the SQL query to
-the AP Explanation service. The service executes the relational and provenance
+After all selected leaf pipelines finish, the gateway writes their validated
+rows to per-table CSV files and submits them with the SQL query to the AP
+Explanation service. The service executes the relational and provenance
 workflow, and the UI displays its written explanation alongside the answer,
-provenance formula, and supporting rows. The legacy
-\code{planner-only-explanation} name remains accepted.
+provenance formula, and supporting rows. This final stage applies to every
+current UI pipeline combination. \code{rag-explanation} remains a canonical
+backend compatibility ID, and \code{planner-only-explanation} remains its
+legacy alias, but neither is a current UI selector choice.
 
-The modes are deliberately exposed side by side in the demo. A presenter can
-use one strategy for every leaf or mix them per table to compare a baseline,
-predicate-aware retrieval, join-guided retrieval, and external provenance
-explanation under the same query plan.
+The three selector pipelines are deliberately exposed side by side in the demo.
+A presenter can use one strategy for every leaf or mix them per table, and can
+enable the RAG options to compare baseline retrieval, predicate-aware retrieval,
+and join-guided retrieval under the same query plan.
 
 \appendix
 
@@ -693,6 +858,24 @@ can be resolved, the serializer adds human-readable target attributes, preferrin
 columns whose names contain terms such as \code{name}, \code{title},
 \code{status}, \code{type}, \code{region}, \code{country}, or \code{date}.
 
+For comparison experiments, \code{build\_row\_index.py} also provides the
+opt-in \code{semantic-join} textualization strategy, inspired by the compact
+record verbalization used in semantic-join literature. It emits only the
+record's non-provenance fields as \code{column is value} assertions separated
+by semicolons:
+
+\begin{lstlisting}[style=codestyle]
+circuitId is 1; circuitRef is albert_park;
+name is Albert Park Grand Prix Circuit; country is Australia
+\end{lstlisting}
+
+This alternative changes only \code{page\_content}. It preserves one document
+and one vector per row, the complete metadata contract, BGE-M3 normalization,
+batching, FAISS construction, and retrieval logic. Linked-row information
+remains in metadata but is deliberately omitted from the compact embedded text.
+The default remains \code{rich}; separate document and index output paths allow
+both variants to coexist for evaluation.
+
 The rich document metadata stores \code{doc\_type}, table, generated row ID,
 row-number column and value, primary-key values, the complete non-provenance row,
 and structured linked-row information. Before building FAISS,
@@ -871,11 +1054,28 @@ Server-Sent Events and not the OpenAI streaming protocol.
 \section{Model Routing and Providers}
 
 Logical identifiers keep clients stable while environment variables select
-concrete models. Base and fine-tuned modes normally route to Ollama. Planner leaf
-calls use \code{PLANNER\_LLM\_PROVIDER}, which may be \code{ollama},
-\code{openai}, or \code{openai-compatible}. A compatible remote provider uses
-\code{LLM\_API\_BASE}, \code{LLM\_API\_KEY}, \code{LLM\_API\_MODEL}, request
-timeout, and TLS verification settings.
+concrete models. Base and fine-tuned modes normally route to Ollama. Planner
+leaf calls and both Internal Knowledge calls use
+\code{PLANNER\_LLM\_PROVIDER}, which may be \code{ollama}, \code{openai}, or
+\code{openai-compatible}. With a compatible remote provider, the requested
+model is \code{PLANNER\_LLM\_MODEL}; if that variable is unset, it defaults to
+\code{LLM\_API\_MODEL} when available. The current Compose configuration routes
+these calls to \code{openai/kimi-k2.6}. The remote client may also retry the
+configured aliases and the model name without its provider prefix.
+
+Remote calls use \code{LLM\_API\_BASE}, \code{LLM\_API\_KEY}, connect/read
+timeouts, and TLS verification settings. A remote failure opens the shared
+circuit breaker for \code{LLM\_CIRCUIT\_BREAKER\_SECONDS}. While it is open,
+subsequent compatible-provider calls skip the remote request. If
+\code{PLANNER\_LLM\_FALLBACK\_ENABLED} is true, the failed or skipped call is
+sent to Ollama using \code{PLANNER\_LLM\_FALLBACK\_MODEL}; otherwise the error
+is propagated. If the selected provider is \code{ollama}, Internal Knowledge
+uses \code{OLLAMA\_MODEL\_INTERNAL\_KNOWLEDGE} directly and does not enter the
+remote-provider fallback path. Confidence annotations and request logs record
+the configured requested model and provider. Planner paths that supply a status
+callback also emit progress events when an actual fallback occurs; the Internal
+Knowledge confidence annotation itself records the requested route, not a
+separate field identifying whether fallback served that particular call.
 
 Temperature defaults to $0.0$. Authentication headers received by the gateway are
 not used to protect these endpoints; deployment-level access control is required
@@ -892,8 +1092,8 @@ Dataset & \code{DEFAULT\_DATASET}, \code{CSV\_DIR}, \code{RELF1\_CSV\_DIR}, \cod
 FAISS & \code{FAISS\_INDEX\_FOLDER}, \code{RELF1\_FAISS\_INDEX\_FOLDER}, \code{INDEX\_TABLES}, \code{RELF1\_INDEX\_TABLES}, \code{INDEX\_BATCH\_SIZE}. \\
 Embeddings & \code{EMB\_MODEL}, \code{EMB\_STRATEGY}, \code{EMB\_DEVICE}, \code{RELF1\_EMB\_MODEL}, \code{RELF1\_EMB\_STRATEGY}. \\
 Retrieval & \code{RETRIEVER\_K}, \code{MAX\_ITERATIVE\_RETRIEVALS}, \code{MAX\_CONTEXT\_ROWS}, \code{MAX\_TABLES}, \code{INCLUDE\_CORRELATED\_CONTEXT\_ROWS}, \code{MAX\_CORRELATED\_CONTEXT\_ROWS}. \\
-Ollama & \code{OLLAMA\_HOST}, \code{OLLAMA\_NUM\_CTX}, \code{OLLAMA\_REQUEST\_TIMEOUT}, and model-specific \code{OLLAMA\_MODEL\_*} variables. \\
-Compatible LLM & \code{PLANNER\_LLM\_PROVIDER}, \code{PLANNER\_LLM\_MODEL}, \code{LLM\_API\_BASE}, \code{LLM\_API\_KEY}, \code{LLM\_API\_MODEL}, \code{LLM\_SSL\_VERIFY}, \code{LLM\_REQUEST\_TIMEOUT}. \\
+Ollama & \code{OLLAMA\_HOST}, \code{OLLAMA\_NUM\_CTX}, \code{OLLAMA\_REQUEST\_TIMEOUT}, \code{OLLAMA\_MODEL\_INTERNAL\_KNOWLEDGE}, and other model-specific \code{OLLAMA\_MODEL\_*} variables. \\
+Compatible LLM & \code{PLANNER\_LLM\_PROVIDER}, \code{PLANNER\_LLM\_MODEL}, \code{PLANNER\_LLM\_FALLBACK\_ENABLED}, \code{PLANNER\_LLM\_FALLBACK\_MODEL}, \code{LLM\_API\_BASE}, \code{LLM\_API\_KEY}, \code{LLM\_API\_MODEL}, \code{LLM\_API\_MODEL\_ALIASES}, \code{LLM\_SSL\_VERIFY}, \code{LLM\_CONNECT\_TIMEOUT}, \code{LLM\_READ\_TIMEOUT}, \code{LLM\_REQUEST\_TIMEOUT}, and \code{LLM\_CIRCUIT\_BREAKER\_SECONDS}. \\
 Explanation & \code{EXPLANATION\_URL}, \code{EXPLANATION\_ENDPOINT}, \code{EXPLANATION\_BUCKET\_DIR}, \code{EXPLANATION\_REQUEST\_TIMEOUT}, \code{EXPLANATION\_CSV\_DELIMITER}, \code{EXPLANATION\_KEEP\_ROWNUM}. \\
 Rendering and logging & \code{GATEWAY\_RESPONSE\_FORMAT}, \code{GATEWAY\_MARKDOWN\_INCLUDE\_RAW}, \code{GATEWAY\_MARKDOWN\_MAX\_ROWS}, \code{GATEWAY\_LOG\_PATH}. \\
 \bottomrule

@@ -635,6 +635,21 @@ select {
   word-break: break-word;
 }
 
+.internal-output-card pre {
+  margin: 8px 0 0;
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px;
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .inline-explanation {
   margin-top: 12px;
 }

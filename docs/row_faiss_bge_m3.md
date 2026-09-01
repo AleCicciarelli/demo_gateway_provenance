@@ -1,7 +1,7 @@
 # Row FAISS Index with BGE-M3
 
-This document explains how the row-level FAISS index over the TPC-H CSV files in
-`tpch_no_provsql/` is built. Each indexed document represents one source row plus useful
+This document explains how the row-level FAISS index over the REL-F1 CSV files in
+`rel-f1-csv/` is built. Each indexed document represents one source row plus useful
 metadata such as table name, primary key, rownum/rid, column values, and selected
 foreign-key links.
 
@@ -50,6 +50,37 @@ The current `documents.jsonl` contains `866602` row documents.
 - embeds documents in batches with `BAAI/bge-m3`;
 - saves periodic checkpoints;
 - saves the final LangChain FAISS index.
+
+### Alternative compact textualization
+
+The document builder also supports an opt-in `semantic-join` textualization for
+controlled comparison with the default `rich` format. It turns a record such as
+`(circuitId: 1, name: Albert Park)` into:
+
+```text
+circuitId is 1; name is Albert Park
+```
+
+It still creates exactly one document and one vector per CSV row. Provenance
+columns are excluded, while document metadata—including `table`, `row_id`,
+`rownum_value`, complete structured values, and linked-row metadata—remains the
+same. Foreign-key-linked values are not inserted into the compact text. The
+embedding model, normalization, batching, FAISS construction, and gateway
+retrieval behavior are unchanged.
+
+The current rich index remains the default. Build a second index without
+overwriting it using:
+
+```bash
+ROW_TEXTUALIZATION_STRATEGY=semantic-join \
+ROW_DOCUMENTS_OUT=faiss_index_relf1_rows_bge_m3_semantic_join_docs/row_documents_relf1.jsonl \
+ROW_INDEX_FOLDER=faiss_index_relf1_rows_bge_m3_semantic_join \
+bash build_row_ind.sh
+```
+
+Point `RELF1_FAISS_INDEX_FOLDER` at either index to compare retrieval under the
+same gateway logic. The selected strategy is also written to each document's
+`metadata.textualization_strategy` field.
 
 Embeddings are created with:
 

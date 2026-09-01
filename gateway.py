@@ -2898,7 +2898,8 @@ def _annotate_final_answer(
     for result_index, item in enumerate(answer, start=1):
         if not isinstance(item, dict):
             continue
-        row_ids = _provenance_row_ids(item.get("provenance"), known_row_ids)
+        provenance_row_ids = _provenance_row_ids(item.get("provenance"), known_row_ids)
+        row_ids = provenance_row_ids
         if not row_ids:
             row_ids = list(known_row_ids)
 
@@ -2908,6 +2909,21 @@ def _annotate_final_answer(
             for source in source_rows
             if source.get("pipeline")
         })
+        provenance_annotations = [{
+            "type": "final_answer_provenance_source",
+            "source_type": "pipeline",
+            "pipelines": source_pipelines,
+            "source_rows": [
+                {
+                    "row_id": row_id,
+                    "table": str((rows_by_id.get(row_id) or {}).get("table") or ""),
+                    "pipeline": str((rows_by_id.get(row_id) or {}).get("pipeline") or ""),
+                }
+                for row_id in provenance_row_ids
+                if row_id in rows_by_id
+            ],
+            "scope": {"type": "result", "index": result_index},
+        }]
         confidence_annotations: List[Dict[str, Any]] = []
 
         contributing_rag = [
@@ -2983,7 +2999,63 @@ def _annotate_final_answer(
                 "scope": {"type": "result", "index": result_index},
             })
 
+        row_probabilities: List[Dict[str, Any]] = []
+        missing_probability_row_ids: List[str] = []
+        for row_id in provenance_row_ids:
+            source = rows_by_id.get(row_id) or {}
+            pipeline = str(source.get("pipeline") or "")
+            if pipeline == SQL_TABLE_PIPELINE_ID:
+                row_probabilities.append({
+                    "row_id": row_id,
+                    "pipeline": pipeline,
+                    "probability": 1.0,
+                    "metric": "deterministic_execution",
+                })
+                continue
+
+            available_scores = [
+                float(evidence["score"])
+                for evidence in rag_evidence.get(row_id, [])
+                if isinstance(evidence.get("score"), (int, float))
+            ]
+            if available_scores:
+                row_probabilities.append({
+                    "row_id": row_id,
+                    "pipeline": pipeline,
+                    "probability": min(available_scores),
+                    "metric": "faiss_relevance",
+                })
+            else:
+                missing_probability_row_ids.append(row_id)
+
+        available_probabilities = [
+            float(source["probability"])
+            for source in row_probabilities
+        ]
+        probability_complete = bool(provenance_row_ids) and not missing_probability_row_ids
+        available_probability = (
+            min(available_probabilities) if available_probabilities else None
+        )
+        probability_annotations = [{
+            "type": "final_answer_probability",
+            "source_type": "pipeline_probability",
+            "probability": available_probability if probability_complete else None,
+            "available_probability": available_probability,
+            "aggregation": "minimum_contributing_probability",
+            "source_probabilities": row_probabilities,
+            "source_row_ids": provenance_row_ids,
+            "missing_probability_row_ids": missing_probability_row_ids,
+            "complete": probability_complete,
+            "reason": (
+                "SQL rows contribute probability 1.0; other rows reuse their pipeline's "
+                "available numeric probability, with the minimum used for the final answer."
+            ),
+            "scope": {"type": "result", "index": result_index},
+        }]
+
         item["source_pipelines"] = source_pipelines
+        item["provenance_annotations"] = provenance_annotations
+        item["probability_annotations"] = probability_annotations
         item["confidence_annotations"] = confidence_annotations
 
     return answer
@@ -3519,7 +3591,11 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
             "final_answer_annotations": [
                 annotation
                 for item in answer
-                for annotation in item.get("confidence_annotations") or []
+                for annotation in (
+                    (item.get("provenance_annotations") or [])
+                    + (item.get("probability_annotations") or [])
+                    + (item.get("confidence_annotations") or [])
+                )
             ],
             "rows_by_id": rows_by_id,
             "leaf_answer": _leaf_answer,
@@ -3823,7 +3899,11 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 "final_answer_annotations": [
                     annotation
                     for item in answer
-                    for annotation in item.get("confidence_annotations") or []
+                    for annotation in (
+                        (item.get("provenance_annotations") or [])
+                        + (item.get("probability_annotations") or [])
+                        + (item.get("confidence_annotations") or [])
+                    )
                 ],
                 "rows_by_id": rows_by_id,
                 "leaf_answer": leaf_answer,

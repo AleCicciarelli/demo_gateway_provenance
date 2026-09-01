@@ -13,6 +13,8 @@ from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 
+TEXTUALIZATION_STRATEGIES = ("rich", "semantic-join")
+
 
 def is_provenance_column(col: str) -> bool:
     return re.fullmatch(r".*_rownum", str(col).lower().strip()) is not None
@@ -237,10 +239,32 @@ def build_page_content(
     return "\n".join(lines), linked_rows
 
 
+def build_semantic_join_page_content(
+    row: pd.Series,
+    max_value_cols: int = 40,
+) -> str:
+    """Textualize one record as compact natural-language field assertions."""
+    fields = []
+    for col in row.index:
+        if is_provenance_column(col):
+            continue
+        fields.append(f"{col} is {value_to_text(row[col])}")
+        if len(fields) >= max_value_cols:
+            break
+    return "; ".join(fields)
+
+
 def build_documents(
     tables: dict[str, pd.DataFrame],
     schema_profile: dict[str, Any],
+    textualization_strategy: str = "rich",
 ) -> list[Document]:
+    if textualization_strategy not in TEXTUALIZATION_STRATEGIES:
+        raise ValueError(
+            f"Unknown textualization strategy '{textualization_strategy}'. "
+            f"Choose one of: {', '.join(TEXTUALIZATION_STRATEGIES)}"
+        )
+
     docs = []
     foreign_keys = schema_profile.get("foreign_key_candidates", [])
     target_indexes = build_target_indexes(tables, foreign_keys)
@@ -264,6 +288,8 @@ def build_documents(
                 outgoing_fks=outgoing_fks,
                 target_indexes=target_indexes,
             )
+            if textualization_strategy == "semantic-join":
+                page_content = build_semantic_join_page_content(row)
 
             values = {
                 col: clean_value(row[col])
@@ -285,6 +311,7 @@ def build_documents(
                 "primary_key": primary_key,
                 "values": values,
                 "linked_rows": linked_rows,
+                "textualization_strategy": textualization_strategy,
             }
 
             docs.append(Document(page_content=page_content, metadata=metadata))
@@ -293,6 +320,7 @@ def build_documents(
 
 
 def save_jsonl(docs: list[Document], out_path: Path) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
         for doc in docs:
             f.write(json.dumps({
@@ -310,6 +338,15 @@ def main() -> None:
     parser.add_argument("--faiss_out", default="faiss_index_bge_m3_rows")
     parser.add_argument("--embedding_model", default="BAAI/bge-m3")
     parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--textualization-strategy",
+        choices=TEXTUALIZATION_STRATEGIES,
+        default="rich",
+        help=(
+            "Row text format. 'rich' preserves the current table/PK/FK format; "
+            "'semantic-join' emits compact 'column is value; ...' records."
+        ),
+    )
     parser.add_argument("--documents-only", action="store_true")
     args = parser.parse_args()
 
@@ -317,7 +354,11 @@ def main() -> None:
     schema_profile = json.loads(Path(args.schema_profile).read_text(encoding="utf-8"))
 
     tables = read_tables(csv_dir, sep=args.sep)
-    docs = build_documents(tables, schema_profile)
+    docs = build_documents(
+        tables,
+        schema_profile,
+        textualization_strategy=args.textualization_strategy,
+    )
 
     print(f"Built {len(docs)} row documents")
 

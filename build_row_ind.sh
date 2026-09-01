@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd "$HOME/demo_gateway"   
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-source .venv/bin/activate
+VENV_DIR="${VENV_DIR:-$SCRIPT_DIR/.venv}"
+if [[ -f "$VENV_DIR/bin/activate" ]]; then
+  source "$VENV_DIR/bin/activate"
+else
+  echo "No virtual environment found at $VENV_DIR; using the current Python environment."
+fi
 
 
 JOB_TMP="${TMPDIR:-/tmp}/faiss_${OAR_JOB_ID:-manual}"
@@ -18,6 +24,10 @@ LOG_PATH="$JOB_TMP/faiss_build_events.jsonl"
 CHECKPOINT_EVERY_BATCHES="${FAISS_CHECKPOINT_EVERY_BATCHES:-25}"
 ENCODE_BATCH_SIZE="${FAISS_ENCODE_BATCH_SIZE:-64}"
 FAISS_DEVICE="${FAISS_DEVICE:-cpu}"
+ROW_TEXTUALIZATION_STRATEGY="${ROW_TEXTUALIZATION_STRATEGY:-rich}"
+ROW_DOCUMENTS_OUT="${ROW_DOCUMENTS_OUT:-faiss_index_relf1_rows_bge_m3_docs/row_documents_relf1.jsonl}"
+ROW_INDEX_FOLDER="${ROW_INDEX_FOLDER:-faiss_index_relf1_rows_bge_m3}"
+ROW_CHECKPOINT_FOLDER="${ROW_CHECKPOINT_FOLDER:-${ROW_INDEX_FOLDER}.checkpoint}"
 
 echo "=== Rebuilding FAISS vectors from row documents ==="
 mkdir -p faiss_index_relf1_rows_bge_m3_docs
@@ -26,13 +36,14 @@ python3 build_row_index.py \
      --csv_dir rel-f1-csv \
      --schema_profile rel-f1-csv/schema_profile_relf1.json \
      --sep "," \
-     --documents_out faiss_index_relf1_rows_bge_m3_docs/row_documents_relf1.jsonl \
+     --documents_out "$ROW_DOCUMENTS_OUT" \
+     --textualization-strategy "$ROW_TEXTUALIZATION_STRATEGY" \
      --documents-only
 
 python3 build_row_faiss_index.py \
-     --documents faiss_index_relf1_rows_bge_m3_docs/row_documents_relf1.jsonl \
-     --index-folder faiss_index_relf1_rows_bge_m3 \
-     --checkpoint-folder faiss_index_relf1_rows_bge_m3.checkpoint \
+     --documents "$ROW_DOCUMENTS_OUT" \
+     --index-folder "$ROW_INDEX_FOLDER" \
+     --checkpoint-folder "$ROW_CHECKPOINT_FOLDER" \
      --embedding-model BAAI/bge-m3 \
      --device "$FAISS_DEVICE" \
      --batch-size 256 \

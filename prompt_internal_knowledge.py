@@ -188,18 +188,8 @@ Use the following REL-F1 schema to produce structurally valid result rows:
 - constructor_standings(constructorStandingsId, raceId, constructorId, points,
   position, wins, date)
 
-ROW RULES:
-- Every result object must represent one logical row from the table requested by
-  the QUESTION.
-- Use only column names defined for that table in the schema above.
-- Do not mix columns from different tables in one result object.
-- Preserve the schema's capitalization, for example circuitId and raceId.
-- Return the columns requested by the QUESTION. If the QUESTION asks for all
-  rows or uses the meaning of SELECT *, return complete logical rows with all
-  columns defined for that table.
-- Do not add local project fields such as __rid__ or columns ending in _rownum.
-- Do not invent unknown values. If you cannot produce a valid requested row
-  from internal knowledge, return [].
+Do not invent unknown values. If you cannot produce a valid requested row
+from internal knowledge, return [].
 
 Return ONLY valid JSON and no introductory text, explanations, markdown, or
 code fences.

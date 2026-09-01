@@ -923,11 +923,44 @@ function renderOutput() {
     ${renderProgress(state.output?.progress ?? [])}
     ${renderRagAnnotations(state.output?.annotations ?? [])}
     ${renderLlmConfidenceAnnotations(state.output?.annotations ?? [])}
+    ${renderInternalKnowledgeOutputs(state.output?.leaf_outputs ?? [])}
     ${renderAnswerTable(answer)}
     ${renderInlineExplanation(state.output)}
   `;
   els.provenanceView.innerHTML = renderProvenance(answer);
   bindOutputActions();
+}
+
+function renderInternalKnowledgeOutputs(leafOutputs) {
+  if (!Array.isArray(leafOutputs)) {
+    return "";
+  }
+
+  const internalOutputs = leafOutputs.filter((leaf) => (
+    leaf?.pipeline === "llm-internal"
+    && typeof leaf.output_text === "string"
+    && leaf.output_text.trim()
+  ));
+  if (!internalOutputs.length) {
+    return "";
+  }
+
+  return `
+    <section class="annotation-section" aria-label="Internal-knowledge model output">
+      <h3>Internal-knowledge model output</h3>
+      ${internalOutputs
+        .map((leaf) => `
+          <div class="annotation-card internal-output-card">
+            <div class="annotation-heading">
+              <strong>${escapeHtml(leaf.table_name ?? "query")} · raw model answer</strong>
+              <span class="annotation-badge">Plain text</span>
+            </div>
+            <pre>${escapeHtml(leaf.output_text)}</pre>
+          </div>
+        `)
+        .join("")}
+    </section>
+  `;
 }
 
 function renderRagAnnotations(annotations) {
@@ -1280,7 +1313,9 @@ function renderAnswerTable(answer) {
   const rows = answer.map((item) => item.result ?? {});
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
   const hasConfidence = answer.some(
-    (item) => Array.isArray(item.confidence_annotations) && item.confidence_annotations.length,
+    (item) =>
+      (Array.isArray(item.probability_annotations) && item.probability_annotations.length) ||
+      (Array.isArray(item.confidence_annotations) && item.confidence_annotations.length),
   );
   if (!rows.length || !columns.length) {
     return `<div class="empty-state">No answer rows.</div>`;
@@ -1305,7 +1340,10 @@ function renderAnswerTable(answer) {
                     .join("")}
                   ${
                     hasConfidence
-                      ? `<td>${renderFinalAnswerConfidence(item.confidence_annotations ?? [])}</td>`
+                      ? `<td>${renderFinalAnswerConfidence([
+                          ...(item.probability_annotations ?? []),
+                          ...(item.confidence_annotations ?? []),
+                        ])}</td>`
                       : ""
                   }
                 </tr>
@@ -1339,13 +1377,24 @@ function renderFinalAnswerConfidence(annotations) {
       ${annotations
         .map((annotation) => {
           const sourceLabel = {
+            pipeline_probability: "Probability",
             rag_retrieval: "RAG",
             llm_internal: "LLM",
             deterministic_sql: "SQL",
           }[annotation.source_type] ?? annotation.source_type ?? "Source";
-          const level = String(annotation.level ?? "unknown");
-          const score = Number.isFinite(annotation.score)
-            ? ` · ${annotation.score.toFixed(4)}`
+          const level = String(
+            annotation.level ??
+              (annotation.type === "final_answer_probability"
+                ? annotation.complete
+                  ? "complete"
+                  : "unavailable"
+                : "unknown"),
+          );
+          const numericValue = Number.isFinite(annotation.probability)
+            ? annotation.probability
+            : annotation.score;
+          const score = Number.isFinite(numericValue)
+            ? ` · ${numericValue.toFixed(4)}`
             : "";
           return `
             <span
@@ -1371,10 +1420,24 @@ function renderProvenance(answer) {
       ${answer
         .map((item, index) => {
           const formula = formatProvenance(item.provenance);
+          const sourceRows = (item.provenance_annotations ?? [])
+            .flatMap((annotation) => annotation.source_rows ?? []);
           return `
             <div class="formula-card">
               <strong>Result ${index + 1}</strong>
               <code>${escapeHtml(formula || "no provenance")}</code>
+              ${
+                sourceRows.length
+                  ? `<div class="provenance-sources">
+                      ${sourceRows
+                        .map(
+                          (source) =>
+                            `<span class="final-confidence-chip">${escapeHtml(source.row_id)} · ${escapeHtml(source.pipeline || "unknown pipeline")}</span>`,
+                        )
+                        .join("")}
+                    </div>`
+                  : ""
+              }
             </div>
           `;
         })
