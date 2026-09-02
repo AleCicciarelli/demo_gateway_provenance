@@ -88,6 +88,9 @@ services:
 
     volumes:
       - ./gateway.py:/app/gateway.py:ro
+      - ./build_row_ind.sh:/app/build_row_ind.sh:ro
+      - ./build_row_index.py:/app/build_row_index.py:ro
+      - ./build_row_faiss_index.py:/app/build_row_faiss_index.py:ro
       - ./iterative_join_pipeline.py:/app/iterative_join_pipeline.py:ro
       - ./prompt.py:/app/prompt.py:ro
       - ./prompt_internal_knowledge.py:/app/prompt_internal_knowledge.py:ro

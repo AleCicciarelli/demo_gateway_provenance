@@ -20,6 +20,14 @@ export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/transformers}"
 export SENTENCE_TRANSFORMERS_HOME="${SENTENCE_TRANSFORMERS_HOME:-$JOB_TMP/sentence_transformers}"
 export TORCH_HOME="${TORCH_HOME:-$JOB_TMP/torch}"
 export TQDM_DISABLE=1
+
+# The gateway image preloads BGE-M3 in HF_HOME/hub. Older Transformers
+# configuration may point at a separate, incomplete TRANSFORMERS_CACHE tree.
+if [[ -f "$HF_HOME/hub/models--BAAI--bge-m3/refs/main" ]]; then
+  export TRANSFORMERS_CACHE="$HF_HOME/hub"
+  export SENTENCE_TRANSFORMERS_HOME="$HF_HOME/hub"
+fi
+
 LOG_PATH="$JOB_TMP/faiss_build_events.jsonl"
 CHECKPOINT_EVERY_BATCHES="${FAISS_CHECKPOINT_EVERY_BATCHES:-25}"
 ENCODE_BATCH_SIZE="${FAISS_ENCODE_BATCH_SIZE:-64}"

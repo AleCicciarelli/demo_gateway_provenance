@@ -100,7 +100,7 @@ INDEX_SET = set(t.strip() for t in INDEX_TABLES.split(",") if t.strip())
 BATCH_SIZE = int(os.getenv("INDEX_BATCH_SIZE", "500"))
 
 RELF1_CSV_DIR = os.getenv("RELF1_CSV_DIR", "/app/rel-f1-csv")
-RELF1_FAISS_INDEX_FOLDER = os.getenv("RELF1_FAISS_INDEX_FOLDER", "/app/faiss_index_relf1_rows_bge_m3")
+RELF1_FAISS_INDEX_FOLDER = os.getenv("RELF1_FAISS_INDEX_FOLDER", "/app/faiss_index_relf1_rows_bge_m3_semantic_join")
 RELF1_EMB_MODEL = os.getenv("RELF1_EMB_MODEL", "BAAI/bge-m3")
 RELF1_EMB_STRATEGY = os.getenv("RELF1_EMB_STRATEGY", "bge-m3")
 RELF1_INDEX_TABLES = os.getenv("RELF1_INDEX_TABLES", "")
@@ -1902,6 +1902,7 @@ def _run_leaf_task(
     temperature: float,
     ctx: Dict[str, Any],
     retrieval_query: str,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
 
@@ -1916,6 +1917,7 @@ def _run_leaf_task(
         max_tries=2,
         validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
         scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id)[2] or []),
+        status_event=status_event,
     )
 
     valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
@@ -2119,6 +2121,7 @@ def _llm_internal_leaf_output(
     task: Dict[str, Any],
     dataset: str,
     temperature: float,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     leaf_question = _leaf_question_nl_internal(task)
@@ -2126,6 +2129,7 @@ def _llm_internal_leaf_output(
         leaf_question,
         dataset,
         temperature,
+        status_event=status_event,
     )
     parsed_output: List[Dict[str, Any]] = []
     for index, item in enumerate(answer, start=1):
@@ -2161,6 +2165,7 @@ def _run_ui_leaf_pipeline(
     sql_query: str,
     temperature: float,
     dataset: Optional[str] = None,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     pipeline = _canonical_pipeline_id(pipeline)
     selected_dataset = _dataset_config(dataset).name
@@ -2170,7 +2175,9 @@ def _run_ui_leaf_pipeline(
     )
 
     if pipeline == LLM_INTERNAL_PIPELINE_ID:
-        return _llm_internal_leaf_output(task, selected_dataset, temperature)
+        return _llm_internal_leaf_output(
+            task, selected_dataset, temperature, status_event=status_event
+        )
     if pipeline == SQL_TABLE_PIPELINE_ID:
         return _sql_table_leaf_output(task, selected_dataset)
 
@@ -2243,6 +2250,7 @@ def _run_ui_leaf_pipeline_with_context(
     temperature: float,
     retrieval_query: str,
     ctx: Dict[str, Any],
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     pipeline = _canonical_pipeline_id(pipeline)
 
@@ -2257,6 +2265,7 @@ def _run_ui_leaf_pipeline_with_context(
             temperature=temperature,
             ctx=ctx,
             retrieval_query=retrieval_query,
+            status_event=status_event,
         )
 
     if pipeline == PLANNER_ONLY_EXPLANATION_MODEL_ID:
@@ -2267,6 +2276,7 @@ def _run_ui_leaf_pipeline_with_context(
             temperature=temperature,
             ctx=ctx,
             retrieval_query=retrieval_query,
+            status_event=status_event,
         )
 
     if pipeline not in {PLANNER_ONLY_MODEL_ID, PLANNER_ONLY_PUSHDOWN_MODEL_ID}:
@@ -2279,6 +2289,7 @@ def _run_ui_leaf_pipeline_with_context(
         temperature=temperature,
         ctx=ctx,
         retrieval_query=retrieval_query,
+        status_event=status_event,
     )
 
 def _ui_uses_iterative_join_pipeline(
@@ -2628,6 +2639,7 @@ def _run_llm_internal_query(
     question: str,
     dataset: str,
     temperature: float,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
     use_plain_relf1_results = dataset.strip().lower() in {
         "relf", "relf1", "rel-f1", "f1", "formula1", "formula-1",
@@ -2670,8 +2682,24 @@ def _run_llm_internal_query(
         provider=internal_provider,
         max_tries=2,
         validator=validate,
+        status_event=status_event,
     )
-    if use_plain_relf1_results:
+    output_is_valid, validation_error = validate(raw_output)
+    if not output_is_valid:
+        _log_event({
+            "type": "llm_internal_invalid_output",
+            "dataset": dataset,
+            "model": internal_model,
+            "model_provider": internal_provider,
+            "error": validation_error,
+            "output_chars": len(raw_output),
+            "fallback_answer": [],
+        })
+        # Internal-knowledge mode explicitly prefers abstaining over inventing
+        # data. After all JSON retries are exhausted, keep the UI run alive and
+        # represent that abstention as an empty result.
+        answer = []
+    elif use_plain_relf1_results:
         answer = [
             {"result": row, "provenance": []}
             for row in parse_plain_results(raw_output)
@@ -2684,6 +2712,7 @@ def _run_llm_internal_query(
         temperature=temperature,
         model=internal_model,
         provider=internal_provider,
+        status_event=status_event,
     )
     return answer, raw_output, confidence
 
@@ -2694,6 +2723,7 @@ def _assess_llm_internal_confidence(
     temperature: float,
     model: str,
     provider: str,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     def parse_assessment(text: str) -> Dict[str, str]:
         decoder = json.JSONDecoder()
@@ -2757,6 +2787,7 @@ GENERATED OUTPUT:
             "Return ONLY one JSON object with exactly the keys level and reason. "
             "The level must be low, medium, or high."
         ),
+        status_event=status_event,
     )
     assessment = parse_assessment(raw_assessment)
     return {
@@ -3784,6 +3815,34 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         "message": f"Running {table_name} with {pipeline}.",
                     })
 
+                    def forward_leaf_model_status(
+                        event_type: str,
+                        payload: Dict[str, Any],
+                    ) -> None:
+                        emit(event_type, {
+                            **payload,
+                            "table": table_name,
+                            "pipeline": pipeline,
+                            "stage": "model_extraction",
+                        })
+
+                    if pipeline != SQL_TABLE_PIPELINE_ID:
+                        requested_model = (
+                            PLANNER_LLM_MODEL
+                            if pipeline == LLM_INTERNAL_PIPELINE_ID
+                            and PLANNER_LLM_PROVIDER in {"openai", "openai-compatible"}
+                            else MODEL_ROUTING.get(pipeline, MODEL_ROUTING[LLM_INTERNAL_PIPELINE_ID])
+                        )
+                        yield encode_event("leaf_model_start", {
+                            "table": table_name,
+                            "pipeline": pipeline,
+                            "stage": "model_extraction",
+                            "message": f"Preparing {requested_model} for {table_name}.",
+                            "model": requested_model,
+                            "model_provider": PLANNER_LLM_PROVIDER,
+                            "request_status": "attempting",
+                        })
+
                     if pipeline in {LLM_INTERNAL_PIPELINE_ID, SQL_TABLE_PIPELINE_ID}:
                         yield encode_event("leaf_context", {
                             "table": table_name,
@@ -3801,6 +3860,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             sql_query=sql_query,
                             temperature=temperature,
                             dataset=dataset,
+                            status_event=forward_leaf_model_status,
                         )
                     else:
                         retrieval_query = _build_leaf_retrieval_query(
@@ -3832,9 +3892,14 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             temperature=temperature,
                             retrieval_query=retrieval_query,
                             ctx=ctx,
+                            status_event=forward_leaf_model_status,
                         )
                         if annotations:
                             leaf_output["annotations"] = annotations
+
+                    for pending_event in pending_events:
+                        yield pending_event
+                    pending_events.clear()
 
                     leaf_output["pipeline"] = pipeline
                     leaf_outputs.append(leaf_output)

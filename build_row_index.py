@@ -11,7 +11,10 @@ from typing import Any
 import pandas as pd
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ModuleNotFoundError:  # Compatibility with the existing gateway image.
+    from langchain_community.embeddings import HuggingFaceEmbeddings
 
 TEXTUALIZATION_STRATEGIES = ("rich", "semantic-join")
 

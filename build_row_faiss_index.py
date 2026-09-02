@@ -9,7 +9,10 @@ from typing import Any
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import FAISS
-from langchain_huggingface import HuggingFaceEmbeddings
+try:
+    from langchain_huggingface import HuggingFaceEmbeddings
+except ModuleNotFoundError:  # Compatibility with the existing gateway image.
+    from langchain_community.embeddings import HuggingFaceEmbeddings
 
 
 def normalize_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
