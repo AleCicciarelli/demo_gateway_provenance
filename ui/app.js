@@ -1432,7 +1432,7 @@ function renderProvenance(answer) {
                       ${sourceRows
                         .map(
                           (source) =>
-                            `<span class="final-confidence-chip">${escapeHtml(source.row_id)} · ${escapeHtml(source.pipeline || "unknown pipeline")}</span>`,
+                            `<span class="final-confidence-chip">${escapeHtml(source.source_identifier || source.row_id)} · ${escapeHtml(source.pipeline || "unknown pipeline")}</span>`,
                         )
                         .join("")}
                     </div>`

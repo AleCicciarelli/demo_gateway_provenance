@@ -2891,6 +2891,67 @@ def _provenance_row_ids(provenance: Any, known_row_ids: set[str]) -> List[str]:
     return found
 
 
+def _page_zero_provenance_aliases(
+    leaf_outputs: List[Dict[str, Any]],
+) -> Dict[str, str]:
+    """Map AP/ProvSQL page-zero tuple names back to gateway row identifiers.
+
+    CSV rows are inserted in ``parsed_output`` order. PostgreSQL tuple offsets
+    on heap page zero therefore use that same one-based order. The AP service
+    normally returns the row data (including ``*_rownum``), but can omit it
+    while retaining a formula token such as ``races@p0r1``. These aliases keep
+    that source row attributable in the final answer.
+    """
+    aliases: Dict[str, str] = {}
+    seen_row_ids: Dict[str, set[str]] = defaultdict(set)
+    for leaf in leaf_outputs:
+        table_name = str(leaf.get("table_name") or "").strip()
+        if not table_name:
+            continue
+        page_zero_offset = 0
+        for item in leaf.get("parsed_output") or []:
+            if not isinstance(item, dict):
+                continue
+            row_id = item.get("row_id")
+            values = item.get("values")
+            if not isinstance(row_id, str) or not isinstance(values, dict):
+                continue
+            if row_id in seen_row_ids[table_name]:
+                continue
+            seen_row_ids[table_name].add(row_id)
+            page_zero_offset += 1
+            aliases[f"{table_name}@p0r{page_zero_offset}"] = row_id
+    return aliases
+
+
+def _provenance_alias_row_ids(
+    provenance: Any,
+    aliases: Dict[str, str],
+) -> List[str]:
+    found: List[str] = []
+
+    def visit(value: Any) -> None:
+        if isinstance(value, str):
+            for alias, row_id in aliases.items():
+                if row_id in found:
+                    continue
+                if re.search(
+                    rf"(?<![A-Za-z0-9_]){re.escape(alias)}(?![A-Za-z0-9_])",
+                    value,
+                ):
+                    found.append(row_id)
+            return
+        if isinstance(value, list):
+            for child in value:
+                visit(child)
+        elif isinstance(value, dict):
+            for child in value.values():
+                visit(child)
+
+    visit(provenance)
+    return found
+
+
 def _retrieval_confidence_band(score: float) -> str:
     if score >= 0.75:
         return "close"
@@ -2908,6 +2969,7 @@ def _annotate_final_answer(
 ) -> List[Dict[str, Any]]:
     leaf_annotations = _collect_leaf_annotations(leaf_outputs)
     known_row_ids = set(rows_by_id)
+    provenance_aliases = _page_zero_provenance_aliases(leaf_outputs)
     rag_evidence: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     llm_annotations_by_table: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -2930,6 +2992,9 @@ def _annotate_final_answer(
         if not isinstance(item, dict):
             continue
         provenance_row_ids = _provenance_row_ids(item.get("provenance"), known_row_ids)
+        for row_id in _provenance_alias_row_ids(item.get("provenance"), provenance_aliases):
+            if row_id in known_row_ids and row_id not in provenance_row_ids:
+                provenance_row_ids.append(row_id)
         row_ids = provenance_row_ids
         if not row_ids:
             row_ids = list(known_row_ids)
@@ -2949,6 +3014,14 @@ def _annotate_final_answer(
                     "row_id": row_id,
                     "table": str((rows_by_id.get(row_id) or {}).get("table") or ""),
                     "pipeline": str((rows_by_id.get(row_id) or {}).get("pipeline") or ""),
+                    "source_identifier": next(
+                        (
+                            str(evidence.get("source_id"))
+                            for evidence in rag_evidence.get(row_id, [])
+                            if evidence.get("source_id")
+                        ),
+                        row_id,
+                    ),
                 }
                 for row_id in provenance_row_ids
                 if row_id in rows_by_id
@@ -3064,22 +3137,25 @@ def _annotate_final_answer(
             for source in row_probabilities
         ]
         probability_complete = bool(provenance_row_ids) and not missing_probability_row_ids
-        available_probability = (
-            min(available_probabilities) if available_probabilities else None
-        )
+        available_probability: Optional[float] = None
+        if available_probabilities:
+            available_probability = 1.0
+            for source_probability in available_probabilities:
+                available_probability *= source_probability
         probability_annotations = [{
             "type": "final_answer_probability",
             "source_type": "pipeline_probability",
             "probability": available_probability if probability_complete else None,
             "available_probability": available_probability,
-            "aggregation": "minimum_contributing_probability",
+            "aggregation": "product_contributing_probability",
             "source_probabilities": row_probabilities,
             "source_row_ids": provenance_row_ids,
             "missing_probability_row_ids": missing_probability_row_ids,
             "complete": probability_complete,
             "reason": (
                 "SQL rows contribute probability 1.0; other rows reuse their pipeline's "
-                "available numeric probability, with the minimum used for the final answer."
+                "available numeric probability, with all contributing row probabilities "
+                "multiplied for the final answer."
             ),
             "scope": {"type": "result", "index": result_index},
         }]
