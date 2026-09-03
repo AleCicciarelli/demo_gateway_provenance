@@ -159,10 +159,9 @@ demo.
   \item \textbf{Read the answer.} When the status becomes \textit{Complete}, use
         the \textit{Answer} tab to show the answer produced.
         If a leaf used \code{llm-internal}, the
-        \textit{Internal-knowledge model output} section shows the exact raw
-        answer returned by the model in a scrollable, preformatted card. This
-        diagnostic text is separate from both the parsed answer table and the
-        confidence annotation.
+        \textit{Internal-knowledge model output} section combines the parsed
+        pipeline answer, its automatic confidence level and rationale, and a
+        collapsible view of the exact rendered prompt sent to the model.
         If CSVs were generated, \textit{View generated CSVs} opens the exact
         csv files passed to the explanation service. If an AP explanation
         was requested, \textit{Show AP explanation} shows it.

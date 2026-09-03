@@ -2102,7 +2102,7 @@ def _llm_internal_leaf_output(
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     leaf_question = _leaf_question_nl_internal(task)
-    answer, raw_output, confidence = _run_llm_internal_query(
+    answer, raw_output, confidence, prompt = _run_llm_internal_query(
         leaf_question,
         dataset,
         temperature,
@@ -2120,7 +2120,7 @@ def _llm_internal_leaf_output(
         "task": task,
         "retrieval_query": "",
         "context_data": {},
-        "prompt": "LLM INTERNAL MODE",
+        "prompt": prompt,
         "output_text": raw_output,
         "parsed_output": parsed_output,
         "parse_error": None,
@@ -2618,7 +2618,7 @@ def _run_llm_internal_query(
     dataset: str,
     temperature: float,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
-) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any]]:
+) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any], str]:
     use_plain_relf1_results = dataset.strip().lower() in {
         "relf", "relf1", "rel-f1", "f1", "formula1", "formula-1",
     }
@@ -2692,7 +2692,7 @@ def _run_llm_internal_query(
         provider=internal_provider,
         status_event=status_event,
     )
-    return answer, raw_output, confidence
+    return answer, raw_output, confidence, prompt
 
 
 def _assess_llm_internal_confidence(
@@ -4356,7 +4356,7 @@ def chat_completions(
             )
 
     if ui_model == LLM_INTERNAL_PIPELINE_ID:
-        answer, out_text, confidence = _run_llm_internal_query(
+        answer, out_text, confidence, prompt = _run_llm_internal_query(
             question,
             dataset,
             temperature,
@@ -4395,6 +4395,7 @@ def chat_completions(
                 }
             ],
             "annotations": annotations,
+            "prompt": prompt,
             "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 

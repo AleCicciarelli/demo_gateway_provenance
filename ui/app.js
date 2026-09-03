@@ -974,6 +974,10 @@ function renderInternalKnowledgeOutputs(leafOutputs, annotations) {
                 <strong>${escapeHtml(leaf.table_name ?? "query")} · internal-knowledge answer</strong>
                 <span class="annotation-badge">LLM output</span>
               </div>
+              <details class="context-preview internal-prompt">
+                <summary>View prompt sent to the model</summary>
+                <pre>${escapeHtml(leaf.prompt ?? "Prompt unavailable.")}</pre>
+              </details>
               ${renderAnswerTable(pipelineAnswer)}
               <div class="internal-confidence-summary">
                 <span class="confidence-level ${levelClass}">${escapeHtml(level)}</span>
