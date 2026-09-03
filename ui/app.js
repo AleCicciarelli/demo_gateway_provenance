@@ -1376,7 +1376,9 @@ function renderFinalAnswerConfidence(annotations) {
       ...source,
       type: "probability_component",
       source_type: "probability_component",
-      display_label: `${source.metric === "deterministic_execution" ? "SQL" : "RAG"} ${index + 1}`,
+      display_label: `${source.metric === "deterministic_execution" ? "SQL" : "RAG"}${
+        source.table ? ` · ${source.table}` : ` ${index + 1}`
+      }`,
       reason: `Probability contributed by ${source.row_id || `source ${index + 1}`}.`,
     }));
 

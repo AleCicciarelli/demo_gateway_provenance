@@ -3120,6 +3120,7 @@ def _annotate_final_answer(
             if pipeline == SQL_TABLE_PIPELINE_ID:
                 row_probabilities.append({
                     "row_id": row_id,
+                    "table": str(source.get("table") or ""),
                     "pipeline": pipeline,
                     "probability": 1.0,
                     "metric": "deterministic_execution",
@@ -3134,6 +3135,7 @@ def _annotate_final_answer(
             if available_scores:
                 row_probabilities.append({
                     "row_id": row_id,
+                    "table": str(source.get("table") or ""),
                     "pipeline": pipeline,
                     "probability": min(available_scores),
                     "metric": "faiss_relevance",
