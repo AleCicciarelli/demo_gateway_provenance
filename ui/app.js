@@ -1364,16 +1364,52 @@ function renderFinalAnswerConfidence(annotations) {
     verified_execution: "final-confidence-deterministic",
   };
 
+  const renderedAnnotations = annotations.flatMap((annotation) => {
+    if (annotation.type !== "final_answer_probability") {
+      return [annotation];
+    }
+
+    const sourceProbabilities = Array.isArray(annotation.source_probabilities)
+      ? annotation.source_probabilities.filter((source) => Number.isFinite(source?.probability))
+      : [];
+    const sourceEntries = sourceProbabilities.map((source, index) => ({
+      ...source,
+      type: "probability_component",
+      source_type: "probability_component",
+      display_label: `${source.metric === "deterministic_execution" ? "SQL" : "RAG"} ${index + 1}`,
+      reason: `Probability contributed by ${source.row_id || `source ${index + 1}`}.`,
+    }));
+
+    // An incomplete probability has no defensible final product. Keep any
+    // known components visible, but do not display an "unavailable" badge.
+    if (!annotation.complete || !Number.isFinite(annotation.probability)) {
+      return sourceEntries;
+    }
+    return [
+      ...sourceEntries,
+      {
+        ...annotation,
+        display_label: "Final probability",
+        level: "product",
+      },
+    ];
+  });
+
+  if (!renderedAnnotations.length) {
+    return "";
+  }
+
   return `
     <div class="final-confidence-list">
-      ${annotations
+      ${renderedAnnotations
         .map((annotation) => {
-          const sourceLabel = {
+          const sourceLabel = annotation.display_label ?? ({
             pipeline_probability: "Probability",
+            probability_component: "RAG",
             rag_retrieval: "RAG",
             llm_internal: "LLM",
             deterministic_sql: "SQL",
-          }[annotation.source_type] ?? annotation.source_type ?? "Source";
+          }[annotation.source_type] ?? annotation.source_type ?? "Source");
           const level = String(
             annotation.level ??
               (annotation.type === "final_answer_probability"
@@ -1388,12 +1424,15 @@ function renderFinalAnswerConfidence(annotations) {
           const score = Number.isFinite(numericValue)
             ? ` · ${numericValue.toFixed(4)}`
             : "";
+          const levelText = annotation.type === "probability_component" || level === "product"
+            ? ""
+            : `: ${level}`;
           return `
             <span
               class="final-confidence-chip ${levelClass[level] ?? "similarity-unknown"}"
               title="${escapeHtml(annotation.reason ?? "")}"
             >
-              ${escapeHtml(sourceLabel)}: ${escapeHtml(level)}${escapeHtml(score)}
+              ${escapeHtml(sourceLabel)}${escapeHtml(levelText)}${escapeHtml(score)}
             </span>
           `;
         })
