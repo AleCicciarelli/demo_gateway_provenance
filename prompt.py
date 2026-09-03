@@ -1,10 +1,28 @@
 from typing import Dict, Any
 import json
 
+
+def required_leaf_columns(task: Dict[str, Any]) -> list[str]:
+    """Return the smallest column set needed to execute this leaf query."""
+    columns: list[str] = []
+    for key in (
+        "columns",
+        "select_columns",
+        "join_keys",
+        "group_by_columns",
+        "aggregate_columns",
+    ):
+        for column in task.get(key) or []:
+            name = str(column).strip()
+            if name and name != "*" and name not in columns:
+                columns.append(name)
+    return columns
+
 def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "first") -> str:
     table = task["table_name"]
-    id_col = f"{table}_rownum"
     context_json = json.dumps(ctx, ensure_ascii=False, indent=2)
+    columns = required_leaf_columns(task)
+    columns_json = json.dumps(columns, ensure_ascii=False)
     #columns = task["columns"]
     #preds = task.get("local_predicates", [])
 
@@ -41,14 +59,14 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
     TARGET_TABLE:
     nation
 
+    REQUIRED_COLUMNS:
+    ["n_name"]
+
     CONTEXT_DATA:
     {
       "nation": {
         "nation_2": {
-          "nation_rownum": "nation_2",
-          "n_name": "ARGENTINA",
-          "n_nationkey": "1",
-          "__rid__": "nation_2"
+          "n_name": "ARGENTINA"
         }
       },
       "supplier": {
@@ -65,10 +83,7 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
       {
         "row_id": "nation_2",
         "values": {
-          "nation_rownum": "nation_2",
-          "n_name": "ARGENTINA",
-          "n_nationkey": "1",
-          "__rid__": "nation_2"
+          "n_name": "ARGENTINA"
         }
       }
     ]
@@ -109,11 +124,14 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
 
     Ignore every other table in CONTEXT_DATA.
 
+    REQUIRED_COLUMNS:
+    {columns_json}
+
     If CONTEXT_DATA does not contain the key "{table}", return [].
 
     Do NOT evaluate SQL joins.
     Do NOT apply WHERE filters or pushed predicates.
-    Do NOT aggregate, group, sort, limit, project, or compute final query results.
+    Do NOT aggregate, group, sort, limit, or compute final query results.
     A deterministic component will handle those operations later.
 
     --------------------------------------------------
@@ -128,38 +146,16 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
 
     {{
       "row_id": "<the row dictionary key, e.g. {table}_123>",
-      "values": <the full row object copied exactly>
+      "values": <an object containing exactly REQUIRED_COLUMNS>
     }}
 
     "row_id" is an output wrapper field.
     It may not exist as a column inside the row.
     Its value must equal the CONTEXT_DATA dictionary key for that row.
-    For this dataset, that same identifier also appears inside the row as "{id_col}" and "__rid__".
-
-    For example, if CONTEXT_DATA["{table}"] contains this entry:
-
-    "{table}_22": {{
-      "{id_col}": "{table}_22",
-      "some_column": "some value",
-      "__rid__": "{table}_22"
-    }}
-
-    then the output item must be:
-
-    {{
-      "row_id": "{table}_22",
-      "values": {{
-        "{id_col}": "{table}_22",
-        "some_column": "some value",
-        "__rid__": "{table}_22"
-      }}
-    }}
-
-    The "values" object must contain the FULL row.
+    The "values" object must contain exactly REQUIRED_COLUMNS and no others.
+    Copy each required value from the identified context row.
     The top-level object must NOT be the row itself.
     The only top-level keys are "row_id" and "values".
-    Do not remove columns.
-    Do not select columns.
     Do not rename columns.
     Do not change values.
     Do not trim spaces.
@@ -174,7 +170,7 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
     2. Ignore all other tables.
     3. Each output item corresponds to exactly one input row.
     4. "row_id" must be the dictionary key of the row, such as "{table}_123".
-    5. "values" must be the complete row object.
+    5. "values" must contain exactly REQUIRED_COLUMNS.
     6. Copy strings exactly, including spaces.
     7. Return [] if the target table is missing.
     8. Return JSON only. No markdown. No comments. No text.
@@ -198,8 +194,9 @@ def build_iterative_join_leaf_prompt(
     source_row_ids: list[str] | None = None,
 ) -> str:
     table = task["table_name"]
-    id_col = f"{table}_rownum"
     context_json = json.dumps(ctx, ensure_ascii=False, indent=2)
+    columns = required_leaf_columns(task)
+    columns_json = json.dumps(columns, ensure_ascii=False)
     predicates = [
         str(predicate).strip()
         for predicate in task.get("local_predicates") or []
@@ -243,6 +240,9 @@ Use the constraints below, the inherited bindings, and the other retrieved table
 CONSTRAINTS:
 {constraints_block}
 
+REQUIRED_COLUMNS:
+{columns_json}
+
 Selection rules:
 - Prefer rows that satisfy all LOCAL_PREDICATES.
 - Prefer rows whose columns match the INHERITED_JOIN_BINDINGS.
@@ -251,7 +251,7 @@ Selection rules:
 - It is valid and useful to compare target-table rows with linked/source rows from other tables.
 - If no row clearly satisfies the constraints, return [].
 - Do not compute the final SQL answer.
-- Do not execute joins, aggregation, grouping, ordering, limit, or projection.
+- Do not execute joins, aggregation, grouping, ordering, or limit.
 - Do not invent rows outside CONTEXT_DATA.
 - Do not output rows from non-target tables.
 
@@ -260,18 +260,17 @@ Output rules:
 - The output must be a JSON array.
 - Each output item must have exactly "row_id" and "values".
 - "row_id" must be a row dictionary key from CONTEXT_DATA["{table}"], such as "{table}_123".
-- "values" must be the full row object copied exactly.
+- "values" must contain exactly REQUIRED_COLUMNS and no other columns.
+- Copy every required value exactly from the identified context row.
 - Copy strings exactly, including spaces.
-- Do not remove, rename, trim, or modify columns.
+- Do not rename, trim, or modify columns.
 - Do not add explanations, markdown, comments, or extra keys.
 
 Example item:
 {{
   "row_id": "{table}_22",
   "values": {{
-    "{id_col}": "{table}_22",
-    "some_column": "some value",
-    "__rid__": "{table}_22"
+    "some_column": "some value"
   }}
 }}
 

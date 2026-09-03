@@ -63,7 +63,11 @@ def planner_result_to_csv_files(
 
             row.pop("__rid__", None)
 
-            if not keep_rownum:
+            if keep_rownum and row_id:
+                # row_id stays outside the model's query-column projection, but
+                # the explanation service still needs it in the materialized CSV.
+                row.setdefault(f"{table_name}_rownum", row_id)
+            else:
                 row.pop(f"{table_name}_rownum", None)
 
             tables[table_name].append(row)

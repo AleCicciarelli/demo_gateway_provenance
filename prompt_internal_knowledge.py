@@ -174,19 +174,7 @@ The QUESTION is related to Formula 1.
 
 Answer the QUESTION using your internal knowledge and return the result.
 
-Use the following REL-F1 schema to produce structurally valid result rows:
-
-- circuits(circuitId, circuitRef, name, location, country, lat, lng, alt)
-- constructors(constructorId, constructorRef, name, nationality)
-- drivers(driverId, driverRef, code, forename, surname, dob, nationality)
-- races(raceId, year, round, circuitId, name, date, time)
-- results(resultId, raceId, driverId, constructorId, number, grid, position,
-  positionOrder, points, laps, milliseconds, fastestLap, rank, statusId, date)
-- qualifying(qualifyId, raceId, driverId, constructorId, number, position, date)
-- standings(driverStandingsId, raceId, driverId, points, position, wins, date)
-- constructor_results(constructorResultsId, raceId, constructorId, points, date)
-- constructor_standings(constructorStandingsId, raceId, constructorId, points,
-  position, wins, date)
+Use the REL-F1  dataset schema to produce rows
 
 Do not invent unknown values. If you cannot produce a valid requested row
 from internal knowledge, return [].
@@ -212,3 +200,38 @@ def get_internal_knowledge_prompt_template(domain: str) -> str:
     if normalized in {"tpch", "tpc-h"}:
         return PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
     raise ValueError(f"Unsupported internal-knowledge prompt domain: {domain}")
+
+
+
+
+'''
+The QUESTION is related to Formula 1.
+
+Answer the QUESTION using your internal knowledge and return the result.
+
+Use the following REL-F1 schema to produce structurally valid result rows:
+
+- circuits(circuitId, circuitRef, name, location, country, lat, lng, alt)
+- constructors(constructorId, constructorRef, name, nationality)
+- drivers(driverId, driverRef, code, forename, surname, dob, nationality)
+- races(raceId, year, round, circuitId, name, date, time)
+- results(resultId, raceId, driverId, constructorId, number, grid, position,
+  positionOrder, points, laps, milliseconds, fastestLap, rank, statusId, date)
+- qualifying(qualifyId, raceId, driverId, constructorId, number, position, date)
+- standings(driverStandingsId, raceId, driverId, points, position, wins, date)
+- constructor_results(constructorResultsId, raceId, constructorId, points, date)
+- constructor_standings(constructorStandingsId, raceId, constructorId, points,
+  position, wins, date)
+
+Do not invent unknown values. If you cannot produce a valid requested row
+from internal knowledge, return [].
+
+Return ONLY valid JSON and no introductory text, explanations, markdown, or
+code fences.
+
+The entire output must be a JSON array. Each array item must be one result row
+represented as a JSON object. If you do not know the result, return [].
+
+QUESTION:
+{question}
+'''

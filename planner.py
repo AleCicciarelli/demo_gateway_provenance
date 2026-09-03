@@ -474,22 +474,28 @@ def build_query_plan(sql: str) -> QueryPlan:
     #SELECT columns
     for item in select_items:
         for col in item.columns:
-            if col.table_name is None:
+            table_name = col.table_name
+            if table_name is None and len(leaf_map) == 1:
+                table_name = next(iter(leaf_map))
+            if table_name is None:
                 continue
-            _ensure_leaf(leaf_map, col.table_name, col.table_alias)
-            _add_unique_str(leaf_map[col.table_name].columns, col.column_name)
-            _add_unique_str(leaf_map[col.table_name].select_columns, col.column_name)
+            _ensure_leaf(leaf_map, table_name, col.table_alias)
+            _add_unique_str(leaf_map[table_name].columns, col.column_name)
+            _add_unique_str(leaf_map[table_name].select_columns, col.column_name)
             if item.is_aggregate:
-                _add_unique_str(leaf_map[col.table_name].aggregate_columns, col.column_name)
+                _add_unique_str(leaf_map[table_name].aggregate_columns, col.column_name)
 
     #GROUP BY columns
     for g in group_by:
         for col in g.columns:
-            if col.table_name is None:
+            table_name = col.table_name
+            if table_name is None and len(leaf_map) == 1:
+                table_name = next(iter(leaf_map))
+            if table_name is None:
                 continue
-            _ensure_leaf(leaf_map, col.table_name, col.table_alias)
-            _add_unique_str(leaf_map[col.table_name].columns, col.column_name)
-            _add_unique_str(leaf_map[col.table_name].group_by_columns, col.column_name)
+            _ensure_leaf(leaf_map, table_name, col.table_alias)
+            _add_unique_str(leaf_map[table_name].columns, col.column_name)
+            _add_unique_str(leaf_map[table_name].group_by_columns, col.column_name)
 
     #JOIN columns
     for j in joins:
@@ -589,4 +595,3 @@ if __name__ == "__main__":
     print("Leaf tasks:")
     for task in leaf_tasks:
         print(json.dumps(asdict(task), indent=2))
-        

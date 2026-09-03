@@ -23,7 +23,7 @@ from explanation_pipeline import run_planner_first_explanation_pipeline
 from json_to_csv import clean_bucket, planner_result_to_csv_files
 from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
-from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt
+from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required_leaf_columns
 from prompt_internal_knowledge import (
     PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE,
     get_internal_knowledge_prompt_template,
@@ -1204,14 +1204,18 @@ def _call_model_with_retry(
 def _validate_leaf_json_array(
     text: str,
     expected_rows_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    required_columns: Optional[List[str]] = None,
 ) -> Tuple[bool, Optional[str]]:
-    valid, error, _ = _parse_leaf_json_array_partial(text, expected_rows_by_id)
+    valid, error, _ = _parse_leaf_json_array_partial(
+        text, expected_rows_by_id, required_columns
+    )
     return valid, error
 
 
 def _parse_leaf_json_array_partial(
     text: str,
     expected_rows_by_id: Optional[Dict[str, Dict[str, Any]]] = None,
+    required_columns: Optional[List[str]] = None,
 ) -> Tuple[bool, Optional[str], Optional[List[Dict[str, Any]]]]:
     """
     Validate a leaf JSON array, but keep row items that are individually valid.
@@ -1260,9 +1264,19 @@ def _parse_leaf_json_array_partial(
             errors.append(f"Item {i}.values must be an object")
             continue
 
-        if expected_rows_by_id is not None and values != expected_rows_by_id[row_id]:
-            errors.append(f"Item {i}.values does not exactly match CONTEXT_DATA row '{row_id}'")
-            continue
+        if expected_rows_by_id is not None:
+            expected_row = expected_rows_by_id[row_id]
+            expected_values = (
+                {column: expected_row[column] for column in required_columns if column in expected_row}
+                if required_columns is not None
+                else expected_row
+            )
+            if values != expected_values:
+                errors.append(
+                    f"Item {i}.values does not exactly match the required projection "
+                    f"of CONTEXT_DATA row '{row_id}'"
+                )
+                continue
 
         value_rid = values.get("__rid__")
         if value_rid is not None and value_rid != row_id:
@@ -1876,6 +1890,7 @@ def _run_leaf_task(
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
 
     expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
+    required_columns = required_leaf_columns(task)
 
     prompt = build_leaf_prompt(task, ctx, mode="first")
     out_text = _call_model_with_retry(
@@ -1884,14 +1899,13 @@ def _run_leaf_task(
         temperature,
         provider=model_provider,
         max_tries=2,
-        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
-        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id)[2] or []),
+        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id, required_columns),
+        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id, required_columns)[2] or []),
         status_event=status_event,
     )
 
     valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
-        out_text,
-        expected_rows_by_id,
+        out_text, expected_rows_by_id, required_columns,
     )
     parse_error = None if valid_leaf_output else validation_error
 
@@ -1920,6 +1934,7 @@ def _run_iterative_join_leaf_task(
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
+    required_columns = required_leaf_columns(task)
     prompt = build_iterative_join_leaf_prompt(
         task=task,
         ctx=ctx,
@@ -1932,13 +1947,12 @@ def _run_iterative_join_leaf_task(
         temperature,
         provider=model_provider,
         max_tries=2,
-        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id),
-        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id)[2] or []),
+        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id, required_columns),
+        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id, required_columns)[2] or []),
         status_event=status_event,
     )
     valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
-        out_text,
-        expected_rows_by_id,
+        out_text, expected_rows_by_id, required_columns,
     )
     parse_error = None if valid_leaf_output else validation_error
 
@@ -2015,10 +2029,11 @@ def _manual_leaf_output(
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     rows_by_id = _leaf_rows_by_id(ctx, table_name)
+    columns = required_leaf_columns(task)
     parsed_output = [
         {
             "row_id": row_id,
-            "values": row,
+            "values": {column: row[column] for column in columns if column in row},
         }
         for row_id, row in rows_by_id.items()
     ]
@@ -2071,6 +2086,7 @@ def _sql_table_leaf_output(
     if rows is None:
         raise ValueError(f"SQL table leaf references unknown table: {table_name}")
     parsed_output = []
+    columns = required_leaf_columns(task)
     for index, row in enumerate(rows, start=1):
         row_id = str(
             row.get(f"{table_name}_rownum")
@@ -2080,7 +2096,7 @@ def _sql_table_leaf_output(
         parsed_output.append({
             "row_id": row_id,
             "source_id": f"sql_{row_id}",
-            "values": dict(row),
+            "values": {column: row[column] for column in columns if column in row},
         })
     return {
         "table_name": table_name,
@@ -2102,6 +2118,7 @@ def _llm_internal_leaf_output(
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     leaf_question = _leaf_question_nl_internal(task)
+    columns = required_leaf_columns(task)
     answer, raw_output, confidence, prompt = _run_llm_internal_query(
         leaf_question,
         dataset,
@@ -2114,7 +2131,11 @@ def _llm_internal_leaf_output(
         row_id = f"{table_name}_internal_{index}"
         if provenance and isinstance(provenance[0], list) and provenance[0]:
             row_id = str(provenance[0][0])
-        parsed_output.append({"row_id": row_id, "values": item["result"]})
+        result = item["result"]
+        projected_result = {
+            column: result[column] for column in columns if column in result
+        }
+        parsed_output.append({"row_id": row_id, "values": projected_result})
     return {
         "table_name": table_name,
         "task": task,
@@ -2449,12 +2470,13 @@ def _ui_rows_from_leaf_outputs(
 
 def _leaf_question_sql(task: Dict[str, Any]) -> str:
     existing = str(task.get("question_sql") or task.get("sql") or "").strip()
-    if existing:
+    columns = required_leaf_columns(task)
+    if existing and "*" not in existing:
         return existing
 
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     if not table_name:
-        return "SELECT *;"
+        return "SELECT " + ", ".join(columns) + ";" if columns else "SELECT 1;"
 
     predicates = [
         str(predicate).strip()
@@ -2462,7 +2484,8 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
         if str(predicate).strip()
     ]
 
-    sql = f"SELECT * FROM {table_name}"
+    projection = ", ".join(columns) if columns else "1"
+    sql = f"SELECT {projection} FROM {table_name}"
     if predicates:
         sql += " WHERE " + " AND ".join(predicates)
     return sql + ";"
@@ -2470,12 +2493,18 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
 
 def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
     existing = str(task.get("question_nl") or "").strip()
+    columns = required_leaf_columns(task)
+    projection_instruction = (
+        " Return only these columns in each result object: " + ", ".join(columns) + "."
+        if columns
+        else ""
+    )
     if existing:
-        return existing
+        return existing + projection_instruction
 
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     if not table_name:
-        return "List the relevant Formula 1 information."
+        return "List the relevant Formula 1 information." + projection_instruction
 
     readable_table = table_name.replace("_", " ")
     predicates = [
@@ -2500,8 +2529,8 @@ def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
             return text
 
         conditions = " and ".join(predicate_to_nl(predicate) for predicate in predicates)
-        return f"List the Formula 1 {readable_table} where {conditions}."
-    return f"List all the {readable_table} related to Formula 1."
+        return f"List the Formula 1 {readable_table} where {conditions}." + projection_instruction
+    return f"List all the {readable_table} related to Formula 1." + projection_instruction
 
 def _run_ui_ap_explanation(
     sql_query: str,
