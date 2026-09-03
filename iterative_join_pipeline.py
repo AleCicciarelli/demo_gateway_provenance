@@ -61,11 +61,13 @@ def run_iterative_join_pipeline(
         inherited = _bindings_for_table(state, table)
         source_row_ids = _source_row_ids_for_table(state, table)
         source_row_summaries = _source_row_summaries_for_table(state, table)
+        inherited_text = _inherited_text_for_table(state, table)
         retrieval_query = _build_join_step_retrieval_query(
             task=task,
             inherited_bindings=inherited,
             source_row_ids=source_row_ids,
             source_row_summaries=source_row_summaries,
+            inherited_text=inherited_text,
             base_query=build_base_retrieval_query(task, True),
         )
 
@@ -81,6 +83,7 @@ def run_iterative_join_pipeline(
                 "bindings": inherited,
                 "source_row_ids": source_row_ids,
                 "source_row_summaries": source_row_summaries,
+                "inherited_text": inherited_text,
             })
 
         leaf_output = run_leaf(task, retrieval_query, inherited, source_row_ids)
@@ -90,6 +93,7 @@ def run_iterative_join_pipeline(
             "inherited_bindings": inherited,
             "source_row_ids": source_row_ids,
             "source_row_summaries": source_row_summaries,
+            "inherited_text": inherited_text,
         }
 
         leaf_outputs.append(leaf_output)
@@ -234,12 +238,63 @@ def _find_selected_row_by_id(
     return None
 
 
+def _inherited_text_for_table(
+    state: IterativeJoinState,
+    table: str,
+    max_rows: int = 4,
+) -> List[str]:
+    """Build semantic handoff text from rows that produced join bindings.
+
+    Human-readable strings (especially names and titles) are much more useful
+    to the vector retriever than opaque join ids. If a source row has no text
+    value, pass a compact rendering of the complete row instead.
+    """
+    inherited_text: List[str] = []
+    for source_id in _source_row_ids_for_table(state, table):
+        found = _find_selected_row_by_id(state, source_id)
+        if found is None:
+            continue
+        source_table, row = found
+        text_fields: List[Tuple[int, str, str]] = []
+        for column, value in row.items():
+            if column == "__rid__" or str(column).endswith("_rownum"):
+                continue
+            if not isinstance(value, str) or not value.strip():
+                continue
+            column_text = str(column)
+            normalized = column_text.lower().replace("_", "")
+            priority = 0 if ("name" in normalized or "title" in normalized) else 1
+            text_fields.append((priority, column_text, value.strip()))
+
+        if text_fields:
+            text_fields.sort(key=lambda item: item[0])
+            inherited_text.append(
+                f"{source_table}: "
+                + "; ".join(f"{column} = {value}" for _, column, value in text_fields)
+            )
+        else:
+            row_parts = [
+                f"{column} = {str(value).strip()}"
+                for column, value in row.items()
+                if column != "__rid__"
+                and not str(column).endswith("_rownum")
+                and str(value).strip()
+            ]
+            if row_parts:
+                inherited_text.append(f"{source_table}: " + "; ".join(row_parts))
+
+        if len(inherited_text) >= max_rows:
+            break
+    return inherited_text
+
+
 def _build_join_step_retrieval_query(
     task: Dict[str, Any],
     inherited_bindings: Dict[str, List[str]],
     source_row_ids: List[str],
     source_row_summaries: List[str],
     base_query: str,
+    inherited_text: Optional[List[str]] = None,
 ) -> str:
     table = _task_table(task)
     parts = [f"Table: {table}" if table else _clean_retrieval_query(base_query)]
@@ -260,19 +315,11 @@ def _build_join_step_retrieval_query(
     if predicates:
         parts.append("Filters: " + " and ".join(predicates))
 
-    binding_fragments = []
-    for column, values in inherited_bindings.items():
-        if len(values) == 1:
-            binding_fragments.append(f"{column} = {values[0]}")
-        elif values:
-            binding_fragments.append(f"{column} in ({', '.join(values)})")
+    # Exact join ids stay in iterative state for model-side filtering, but the
+    # semantic retriever gets readable values from the preceding answer.
+    if inherited_text:
+        parts.append("Previous answer: " + " | ".join(inherited_text))
 
-    if binding_fragments:
-        parts.append("Join filter: " + " and ".join(binding_fragments))
-
-    # Source row ids and summaries are provenance, not retrieval criteria. They
-    # remain in iterative state and UI events but are deliberately excluded
-    # from the text embedded by the semantic retriever.
     return ". ".join(part for part in parts if part)
 
 
