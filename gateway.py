@@ -1497,7 +1497,12 @@ def _rag_source_identifier(table: str, row_id: str, chunk_id: str) -> str:
         prefix = f"{table}_"
         return value[len(prefix):] if value.startswith(prefix) else value
 
-    return f"rag_{table}_{local_part(row_id)}_{local_part(chunk_id)}"
+    local_row_id = local_part(row_id)
+    local_chunk_id = local_part(chunk_id)
+    parts = ["rag", table, local_row_id]
+    if local_chunk_id and local_chunk_id != local_row_id:
+        parts.append(local_chunk_id)
+    return "_".join(parts)
 
 
 def _append_correlated_annotation_evidence(
@@ -2101,10 +2106,18 @@ def _sql_table_leaf_output(
     rows = runtime.csv_cache.get(table_name)
     if rows is None:
         raise ValueError(f"SQL table leaf references unknown table: {table_name}")
-    parsed_output = [
-        {"row_id": str(row.get("__rid__") or f"{table_name}_{index}"), "values": dict(row)}
-        for index, row in enumerate(rows, start=1)
-    ]
+    parsed_output = []
+    for index, row in enumerate(rows, start=1):
+        row_id = str(
+            row.get(f"{table_name}_rownum")
+            or row.get("__rid__")
+            or f"{table_name}_{index}"
+        )
+        parsed_output.append({
+            "row_id": row_id,
+            "source_id": f"sql_{row_id}",
+            "values": dict(row),
+        })
     return {
         "table_name": table_name,
         "task": task,
@@ -2457,6 +2470,7 @@ def _ui_rows_from_leaf_outputs(
                 "table": table_name,
                 "row": values,
                 "pipeline": _canonical_pipeline_id(leaf.get("pipeline")),
+                "source_identifier": str(item.get("source_id") or row_id),
             }
             answer.append({
                 "result": {
@@ -3019,8 +3033,10 @@ def _annotate_final_answer(
                             str(evidence.get("source_id"))
                             for evidence in rag_evidence.get(row_id, [])
                             if evidence.get("source_id")
+                            and evidence.get("pipeline")
+                            == (rows_by_id.get(row_id) or {}).get("pipeline")
                         ),
-                        row_id,
+                        str((rows_by_id.get(row_id) or {}).get("source_identifier") or row_id),
                     ),
                 }
                 for row_id in provenance_row_ids

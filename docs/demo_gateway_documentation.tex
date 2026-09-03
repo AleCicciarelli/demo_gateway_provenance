@@ -258,12 +258,15 @@ leaf output, collected into the complete pipeline result, and serialized in
 both the regular and streaming UI responses.
 
 Every retrieved evidence item also receives a source identifier with the form
-\code{rag\_<table>\_<row>\_<chunk>}. For example, row \code{races\_13} in the
-\code{races} table currently receives \code{rag\_races\_13\_13}. The annotation
+\code{rag\_<table>\_<row>} when the index contains one chunk per row. For
+example, row \code{races\_13} in the \code{races} table receives
+\code{rag\_races\_13}. If a row is divided into multiple chunks, a distinct
+chunk suffix is appended. The annotation
 stores the source identifier together with separate \code{table},
 \code{row\_id}, and \code{chunk\_id} fields. The current indexes contain one
 document chunk per relational row, so the local chunk component is equal to the
-local row component. They are deliberately represented as different fields:
+local row component and is not repeated in the source identifier. The values
+remain represented as different fields:
 if a row is divided into multiple chunks in a future indexing strategy, the
 row component can remain stable while the chunk component distinguishes the
 individual evidence fragments. Newly built FAISS documents therefore store
