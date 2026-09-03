@@ -922,8 +922,10 @@ function renderOutput() {
     ${renderRunSummary(state.output)}
     ${renderProgress(state.output?.progress ?? [])}
     ${renderRagAnnotations(state.output?.annotations ?? [])}
-    ${renderLlmConfidenceAnnotations(state.output?.annotations ?? [])}
-    ${renderInternalKnowledgeOutputs(state.output?.leaf_outputs ?? [])}
+    ${renderInternalKnowledgeOutputs(
+      state.output?.leaf_outputs ?? [],
+      state.output?.annotations ?? [],
+    )}
     ${renderAnswerTable(answer)}
     ${renderInlineExplanation(state.output)}
   `;
@@ -931,7 +933,7 @@ function renderOutput() {
   bindOutputActions();
 }
 
-function renderInternalKnowledgeOutputs(leafOutputs) {
+function renderInternalKnowledgeOutputs(leafOutputs, annotations) {
   if (!Array.isArray(leafOutputs)) {
     return "";
   }
@@ -949,15 +951,41 @@ function renderInternalKnowledgeOutputs(leafOutputs) {
     <section class="annotation-section" aria-label="Internal-knowledge model output">
       <h3>Internal-knowledge model output</h3>
       ${internalOutputs
-        .map((leaf) => `
-          <div class="annotation-card internal-output-card">
-            <div class="annotation-heading">
-              <strong>${escapeHtml(leaf.table_name ?? "query")} · raw model answer</strong>
-              <span class="annotation-badge">Plain text</span>
+        .map((leaf) => {
+          const confidence = [
+            ...(Array.isArray(leaf.annotations) ? leaf.annotations : []),
+            ...(Array.isArray(annotations) ? annotations : []),
+          ].find((annotation) => (
+            annotation?.type === "llm_confidence"
+            && annotation.scope?.table === leaf.table_name
+          ));
+          const level = String(confidence?.level ?? "unknown").toLowerCase();
+          const levelClass = {
+            high: "similarity-green",
+            medium: "similarity-yellow",
+            low: "similarity-red",
+          }[level] ?? "similarity-unknown";
+          const pipelineAnswer = Array.isArray(leaf.parsed_output)
+            ? leaf.parsed_output.map((item) => ({ result: item?.values ?? {} }))
+            : [];
+          return `
+            <div class="annotation-card confidence-card internal-output-card">
+              <div class="annotation-heading">
+                <strong>${escapeHtml(leaf.table_name ?? "query")} · internal-knowledge answer</strong>
+                <span class="annotation-badge">LLM output</span>
+              </div>
+              ${renderAnswerTable(pipelineAnswer)}
+              <div class="internal-confidence-summary">
+                <span class="confidence-level ${levelClass}">${escapeHtml(level)}</span>
+                <span>${escapeHtml(confidence?.reason ?? "No confidence assessment was returned.")}</span>
+              </div>
+              <p>
+                ${escapeHtml(confidence?.model ?? "unknown model")} ·
+                ${escapeHtml(confidence?.assessment_method ?? "self-assessment")}
+              </p>
             </div>
-            <pre>${escapeHtml(leaf.output_text)}</pre>
-          </div>
-        `)
+          `;
+        })
         .join("")}
     </section>
   `;
@@ -976,7 +1004,12 @@ function renderRagAnnotations(annotations) {
       <h3>RAG annotations</h3>
       ${ragAnnotations
         .map((annotation) => {
-          const evidence = Array.isArray(annotation.evidence) ? annotation.evidence : [];
+          const evidence = Array.isArray(annotation.evidence)
+            ? annotation.evidence.filter((item) => (
+                item?.source_type !== "correlated"
+                && item?.retrieval_method !== "relational_correlation"
+              ))
+            : [];
           const table = annotation.scope?.table ?? "unknown leaf";
           const embedding = annotation.embedding_model ?? annotation.embedding_strategy ?? "unknown";
           return `
@@ -1040,51 +1073,6 @@ function renderRagAnnotations(annotations) {
                     </div>`
                   : `<div class="empty-state">No scored evidence rows were retrieved.</div>`
               }
-            </div>
-          `;
-        })
-        .join("")}
-    </section>
-  `;
-}
-
-function renderLlmConfidenceAnnotations(annotations) {
-  const confidenceAnnotations = Array.isArray(annotations)
-    ? annotations.filter((annotation) => annotation?.type === "llm_confidence")
-    : [];
-  if (!confidenceAnnotations.length) {
-    return "";
-  }
-
-  const levelClass = {
-    high: "similarity-green",
-    medium: "similarity-yellow",
-    low: "similarity-red",
-  };
-
-  return `
-    <section class="annotation-section" aria-label="LLM confidence annotations">
-      <h3>LLM confidence</h3>
-      ${confidenceAnnotations
-        .map((annotation) => {
-          const level = String(annotation.level ?? "unknown").toLowerCase();
-          const scope = annotation.scope?.table ?? annotation.scope?.type ?? "generated block";
-          return `
-            <div class="annotation-card confidence-card">
-              <div class="annotation-heading">
-                <strong>Internal-knowledge self-assessment · ${escapeHtml(scope)}</strong>
-                <span class="annotation-badge">LLM annotation</span>
-              </div>
-              <div>
-                <span class="confidence-level ${levelClass[level] ?? "similarity-unknown"}">
-                  ${escapeHtml(level)}
-                </span>
-              </div>
-              <p>${escapeHtml(annotation.reason ?? "No assessment rationale was returned.")}</p>
-              <p>
-                ${escapeHtml(annotation.model ?? "unknown model")} ·
-                ${escapeHtml(annotation.assessment_method ?? "self-assessment")}
-              </p>
             </div>
           `;
         })

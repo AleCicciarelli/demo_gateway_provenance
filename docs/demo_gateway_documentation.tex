@@ -275,15 +275,11 @@ identifier. Final RAG confidence annotations propagate the relevant identifiers
 in their \code{source\_ids} field.
 
 Linked-row metadata can expand a FAISS match with relationally correlated rows.
-These rows are included in the same evidence list so the annotation describes
-the complete context available to the model, but they are not assigned invented
-similarity ranks or scores. A correlated item uses
-\code{source\_type=correlated},
-\code{retrieval\_method=relational\_correlation}, a
-\code{correlated\_<row-id>} source identifier, and records the source table and
-row from which it was expanded. The UI labels these items separately from
-``FAISS similarity.'' Final numeric RAG confidence ignores evidence without a
-numeric score, so relational expansion is visible without being misrepresented
+These rows remain available as model context, but they are not FAISS matches
+and are therefore excluded from RAG evidence annotations and the UI's RAG
+evidence table. Final numeric RAG confidence is computed only from rows that
+carry an actual FAISS relevance score, so relational expansion is not
+misrepresented
 as a vector-search measurement.
 
 The embedding configuration is dataset-specific inside the same gateway

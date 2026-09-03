@@ -1,3 +1,5 @@
+.env
+!.env.example
 faiss_index_tpch_mpnet/
 faiss_index_tpch/
 logs/

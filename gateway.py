@@ -1505,32 +1505,6 @@ def _rag_source_identifier(table: str, row_id: str, chunk_id: str) -> str:
     return "_".join(parts)
 
 
-def _append_correlated_annotation_evidence(
-    scored_evidence: List[Dict[str, Any]],
-    correlated_additions: List[Dict[str, str]],
-) -> None:
-    """Include relationally expanded context rows without inventing FAISS scores."""
-    scored_row_ids = {
-        str(evidence.get("row_id") or "")
-        for evidence in scored_evidence
-    }
-    for addition in correlated_additions:
-        row_id = str(addition.get("rid") or "")
-        table = str(addition.get("table") or "")
-        if not row_id or not table or row_id in scored_row_ids:
-            continue
-        scored_evidence.append({
-            "table": table,
-            "row_id": row_id,
-            "source_id": f"correlated_{row_id}",
-            "source_type": "correlated",
-            "retrieval_method": "relational_correlation",
-            "source_table": addition.get("source_table") or "",
-            "source_row_id": addition.get("source_rid") or "",
-        })
-        scored_row_ids.add(row_id)
-
-
 def retrieve_context_data_iterative(
     question: str,
     dataset: Optional[str] = None,
@@ -1561,7 +1535,6 @@ def retrieve_context_data_iterative(
     ctx: Dict[str, Any] = defaultdict(dict)
     seen_docs = set()
     scored_evidence: List[Dict[str, Any]] = []
-    all_correlated_additions: List[Dict[str, str]] = []
     correlated_rows_added = 0
     # The old progressive k, 2k, ... loop embedded and searched the identical
     # query repeatedly. Its last call already contained all earlier results.
@@ -1630,7 +1603,6 @@ def retrieve_context_data_iterative(
                 )
                 correlated_rows_added += added
                 correlated_additions.extend(additions)
-                all_correlated_additions.extend(additions)
 
         print(f"[ITERATION {iteration}] new_rows_added={new_count}", flush=True)
         if correlated_additions:
@@ -1708,10 +1680,6 @@ def retrieve_context_data_iterative(
     })
 
     if annotation_sink is not None:
-        _append_correlated_annotation_evidence(
-            scored_evidence,
-            all_correlated_additions,
-        )
         annotation_sink.append({
             "type": "rag_similarity",
             "pipeline": _canonical_pipeline_id(annotation_pipeline),
@@ -1810,10 +1778,6 @@ def _retrieve_context_data(
     })
 
     if annotation_sink is not None:
-        _append_correlated_annotation_evidence(
-            scored_evidence,
-            correlated_additions,
-        )
         annotation_sink.append({
             "type": "rag_similarity",
             "pipeline": _canonical_pipeline_id(annotation_pipeline),

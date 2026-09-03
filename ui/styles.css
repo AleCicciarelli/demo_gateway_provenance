@@ -740,6 +740,14 @@ select {
   background: #f5f3ff;
 }
 
+.internal-confidence-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .confidence-level {
   display: inline-block;
   padding: 5px 10px;
