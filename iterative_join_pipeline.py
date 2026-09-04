@@ -254,7 +254,7 @@ def _inherited_text_for_table(
         found = _find_selected_row_by_id(state, source_id)
         if found is None:
             continue
-        source_table, row = found
+        _, row = found
         text_fields: List[Tuple[int, str, str]] = []
         for column, value in row.items():
             if column == "__rid__" or str(column).endswith("_rownum"):
@@ -269,8 +269,7 @@ def _inherited_text_for_table(
         if text_fields:
             text_fields.sort(key=lambda item: item[0])
             inherited_text.append(
-                f"{source_table}: "
-                + "; ".join(f"{column} = {value}" for _, column, value in text_fields)
+                "; ".join(f"{column} = {value}" for _, column, value in text_fields)
             )
         else:
             row_parts = [
@@ -281,7 +280,7 @@ def _inherited_text_for_table(
                 and str(value).strip()
             ]
             if row_parts:
-                inherited_text.append(f"{source_table}: " + "; ".join(row_parts))
+                inherited_text.append("; ".join(row_parts))
 
         if len(inherited_text) >= max_rows:
             break
@@ -314,22 +313,6 @@ def _build_join_step_retrieval_query(
     predicates = _dedupe_strings(task.get("local_predicates") or [])
     if predicates:
         parts.append("Filters: " + " and ".join(predicates))
-
-    # Include the target-table binding in the semantic query.  This is query
-    # content, not a metadata filter: FAISS still ranks the complete index.
-    # Without it, the previous row's text can dominate the embedding and make
-    # a circuits leaf retrieve another page of races rows.
-    binding_parts: List[str] = []
-    for column, values in inherited_bindings.items():
-        clean_values = _dedupe_strings(values)
-        if not clean_values:
-            continue
-        if len(clean_values) == 1:
-            binding_parts.append(f"{column} = {clean_values[0]}")
-        else:
-            binding_parts.append(f"{column} in ({', '.join(clean_values)})")
-    if binding_parts:
-        parts.append("Join filter: " + " and ".join(binding_parts))
 
     if inherited_text:
         parts.append("Previous answer: " + " | ".join(inherited_text))

@@ -1617,23 +1617,6 @@ def retrieve_context_data_iterative(
                 )
                 correlated_rows_added += added
                 correlated_additions.extend(additions)
-                for addition in additions:
-                    correlated_table = addition["table"]
-                    correlated_rid = addition["rid"]
-                    scored_evidence.append({
-                        "table": correlated_table,
-                        "row_id": correlated_rid,
-                        "chunk_id": correlated_rid,
-                        "source_id": _rag_source_identifier(
-                            correlated_table, correlated_rid, correlated_rid
-                        ),
-                        "source_type": "correlated",
-                        "retrieval_method": "relational_correlation",
-                        "source_table": addition["source_table"],
-                        "source_row_id": addition["source_rid"],
-                        "rank": None,
-                        "score": None,
-                    })
 
         print(f"[ITERATION {iteration}] new_rows_added={new_count}", flush=True)
         if correlated_additions:
@@ -1788,23 +1771,6 @@ def _retrieve_context_data(
         )
         correlated_rows_added += added
         correlated_additions.extend(additions)
-        for addition in additions:
-            correlated_table = addition["table"]
-            correlated_rid = addition["rid"]
-            scored_evidence.append({
-                "table": correlated_table,
-                "row_id": correlated_rid,
-                "chunk_id": correlated_rid,
-                "source_id": _rag_source_identifier(
-                    correlated_table, correlated_rid, correlated_rid
-                ),
-                "source_type": "correlated",
-                "retrieval_method": "relational_correlation",
-                "source_table": addition["source_table"],
-                "source_row_id": addition["source_rid"],
-                "rank": None,
-                "score": None,
-            })
 
         if used >= MAX_CONTEXT_ROWS:
             break
@@ -2367,6 +2333,10 @@ def _run_ui_iterative_join_pipeline(
         ctx = retrieve_context_data_iterative(
             retrieval_query,
             dataset=dataset,
+            # Iterative leaves must only consume rows returned by FAISS. Hidden
+            # relationship expansion made a circuit row appear in the answer
+            # even though the circuits retrieval card contained only races.
+            include_correlated_rows=False,
             annotation_sink=annotations,
             annotation_scope={"type": "leaf", "table": table_name},
             annotation_pipeline=ITERATIVE_PIPELINE_MODEL_ID,
@@ -3174,17 +3144,6 @@ def _annotate_final_answer(
                     "probability": min(available_scores),
                     "metric": "faiss_relevance",
                 })
-            elif any(
-                evidence.get("retrieval_method") == "relational_correlation"
-                for evidence in rag_evidence.get(row_id, [])
-            ):
-                row_probabilities.append({
-                    "row_id": row_id,
-                    "table": str(source.get("table") or ""),
-                    "pipeline": pipeline,
-                    "probability": 1.0,
-                    "metric": "deterministic_correlation",
-                })
             else:
                 missing_probability_row_ids.append(row_id)
 
@@ -3209,9 +3168,9 @@ def _annotate_final_answer(
             "missing_probability_row_ids": missing_probability_row_ids,
             "complete": probability_complete,
             "reason": (
-                "Direct RAG rows use their FAISS relevance; deterministic SQL and "
-                "relationally resolved rows contribute 1.0. All contributing row "
-                "probabilities are multiplied for the final answer."
+                "SQL rows contribute probability 1.0; other rows reuse their pipeline's "
+                "available numeric probability, with all contributing row probabilities "
+                "multiplied for the final answer."
             ),
             "scope": {"type": "result", "index": result_index},
         }]
