@@ -315,8 +315,22 @@ def _build_join_step_retrieval_query(
     if predicates:
         parts.append("Filters: " + " and ".join(predicates))
 
-    # Exact join ids stay in iterative state for model-side filtering, but the
-    # semantic retriever gets readable values from the preceding answer.
+    # Include the target-table binding in the semantic query.  This is query
+    # content, not a metadata filter: FAISS still ranks the complete index.
+    # Without it, the previous row's text can dominate the embedding and make
+    # a circuits leaf retrieve another page of races rows.
+    binding_parts: List[str] = []
+    for column, values in inherited_bindings.items():
+        clean_values = _dedupe_strings(values)
+        if not clean_values:
+            continue
+        if len(clean_values) == 1:
+            binding_parts.append(f"{column} = {clean_values[0]}")
+        else:
+            binding_parts.append(f"{column} in ({', '.join(clean_values)})")
+    if binding_parts:
+        parts.append("Join filter: " + " and ".join(binding_parts))
+
     if inherited_text:
         parts.append("Previous answer: " + " | ".join(inherited_text))
 
