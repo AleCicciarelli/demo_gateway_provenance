@@ -57,7 +57,7 @@
 This document presents a demo of provenance-aware question answering over
 relational data. The demo lets a user inspect a query plan, choose how each
 source table is processed, run the resulting pipeline, and trace every answer
-tuple back to its supporting rows. 
+tuple back to its supporting rows.
 
 \section{Motivation and Objectives}
 
@@ -70,12 +70,11 @@ This demo has the following objectives:
 
 \begin{itemize}
   \item answer questions over tabular datasets through several alternative pipelines;
-  \item preserve stable row identifiers from source data through retrieval and generation;
+  \item preserve row identifiers from source data through retrieval and generation;
   \item compute or explain provenance using the records that contributed to an answer;
   \item expose plans, retrieved context, prompts, model output, validation results,
-        generated CSV files, and service responses for inspection; 
-  \item provide an interface for comparing base,
-        fine-tuned, planner-based, and internal-knowledge configurations.
+        generated CSV files, and service responses for inspection;
+  \item provide an interface for comparing the different pipelines.
 \end{itemize}
 
 \section{Demo Use Case}
@@ -89,9 +88,7 @@ SELECT r.name AS race_name,
        c.location
 FROM races r
 JOIN circuits c ON r.circuitId = c.circuitId
-WHERE r.year = 2009 AND c.country = 'Australia'
-ORDER BY r.date
-LIMIT 5;
+WHERE r.year = 2009 AND c.country = 'Australia';
 \end{lstlisting}
 
 The analyst does not only want the race and circuit names. They also want to
@@ -112,9 +109,8 @@ human-readable explanation. The interface presents three result views:
 \begin{itemize}
   \item \textbf{Answer}: the final tuples returned by the query;
   \item \textbf{Provenance}: the witness sets that explain which row identifiers
-       support each tuple; 
-  \item \textbf{Supporting rows}: the source records referenced by those
-        identifiers, including their table and values.
+       support each tuple;
+  \item \textbf{Explanation}: the human-readable explanation for the provenance.
 \end{itemize}
 
 
@@ -125,9 +121,7 @@ redirects to the same interface. The following sequence is suitable for a live
 demo.
 
 \begin{enumerate}
-  \item \textbf{Select a dataset.} In the \textit{Dataset} menu, choose
-        \code{RELF1} or \code{TPCH}. Changing the dataset clears any existing plan, so generate
-        a new plan after switching.
+  \item \textbf{Select a dataset.} In the \textit{Dataset} menu, choose the dataset.
 
   \item \textbf{Enter the demo query.} Replace the filled query with the SQL
         query.
@@ -135,7 +129,7 @@ demo.
   \item \textbf{Generate the plan.} Select \textit{Generate plan}. In the
         \textit{Query plan} panel, point out the dataset and query summary, then
         follow the displayed flow from reading source tables,
-        through the join, ordering, and projection, to the final tuples with
+        through the join and projection (and ordering when requested), to the final tuples with
         provenance.
 
   \item \textbf{Inspect the leaf tasks.} Each leaf card shows the
@@ -160,24 +154,18 @@ demo.
         the \textit{Answer} tab to show the answer produced.
         If a leaf used \code{llm-internal}, the
         \textit{Internal-knowledge model output} section combines the parsed
-        pipeline answer, its automatic confidence level and rationale, and a
-        collapsible view of the exact rendered prompt sent to the model.
+        pipeline answer, its automatic confidence level and a view of the exact rendered prompt sent to the model.
         If CSVs were generated, \textit{View generated CSVs} opens the exact
         csv files passed to the explanation service. If an AP explanation
         was requested, \textit{Show AP explanation} shows it.
 
   \item \textbf{Trace provenance.} Open the \textit{Provenance} tab. This is the
-      explanation of why the result exists.
+      explanation of why the result exists obtained running the query on ProvSQL.
 
-  \item \textbf{Verify the evidence.} Open \textit{Supporting rows} and match the
-        row identifiers from the provenance formula to the original table names
-        and values.
 \end{enumerate}
 
 If a run reports an error, retain the visible partial progress and inspect
-\code{docker compose logs -f gateway}. This is especially useful during a live
-demo because it shows a planning, retrieval, model, or explanation
-service failure.
+\code{docker compose logs -f gateway}.
 
 \section{System Architecture}
 
@@ -188,7 +176,7 @@ returns answer tuples with provenance. Ollama serves the local base and
 fine-tuned models, while FAISS provides row-level retrieval over the selected
 dataset.
 
-When explanation is selected, the gateway writes one CSV per contributing table
+In the browser execution flow, the gateway writes one CSV per contributing table
 to a shared bucket and submits an explanation task. The AP Explanation service
 reads those files, uses PostgreSQL with ProvSQL for provenance-aware relational
 execution, and uses Redis for asynchronous task coordination. Its response is
@@ -203,9 +191,10 @@ streamed back through the gateway and displayed in the UI.
 
 The key architectural boundary is between orchestration and evidence. The
 gateway may use different LLM and retrieval strategies to obtain candidate
-rows, but all successful leaf outputs must satisfy the same validated row-level
-contract. Stable row identifiers then connect final answers, provenance
-formulas, supporting-row views, exported CSVs, and the external explanation
+rows, with RAG leaf outputs checked against retrieved source rows. The
+Internal-Knowledge baseline instead undergoes structural validation and does not
+provide verified source evidence. Stable row identifiers then connect final answers, provenance
+formulas, exported CSVs, and the external explanation
 service.
 
 \subsection{Annotation and Confidence Management}
@@ -213,33 +202,18 @@ service.
 The architecture includes an Annotation Generation and Propagation Layer that
 associates structured metadata with input data, intermediate results, and final
 outputs. Individual execution components generate annotations describing the
-result source, the pipeline used, the corresponding query scope (leaf,
-block, or subtree), and any related provenance or evidence references. As
-partial results are combined, these annotations are propagated from leaves to
-blocks and subtrees and are ultimately attached to the complete answer.
+result source, the pipeline used and any related provenance or evidence references. As
+partial results are combined, these annotations are propagated and attached to the complete answer.
 Confidence information is interpreted according to the producing pipeline:
 ProvSQL provides formal tuple or result level probabilities together with
 provenance; \code{rag}, \code{rag-pushdown}, and \code{rag-iterative} use
 retrieval similarity scores as indicators of evidence relevance; and
 \code{llm-internal} results receive a
-qualitative confidence level of low, medium, or high at block or subtree level.
+qualitative confidence level of low, medium, or high at block or subtree level, assigned by an llm.
 Consequently, the final output comprises the answer, provenance, a
 human-readable explanation, the propagated annotations, and their associated
 probability or confidence indicators.
 
-\subsubsection{Meaning of Confidence}
-
-Confidence is not interpreted as one universal probability shared by all
-pipelines. Instead, it records the strongest reliability signal that the
-producing component can justify. A ProvSQL probability, when available, is a
-formal value computed from the probabilistic provenance model. A retrieval
-score is an evidence-relevance signal: it estimates how close an indexed row is
-to the retrieval query, but it does not prove that the row is correct or that
-the final answer is true. An LLM confidence label is a qualitative assessment
-of a generated block or subtree and must likewise remain distinct from a
-formal probability. Every confidence annotation therefore identifies its
-type, producer, pipeline, execution scope, metric, and interpretation so that
-different signals are not compared as though they had identical semantics.
 
 \subsubsection{Implementation in the Gateway Container}
 
@@ -268,9 +242,9 @@ local row component and is not repeated in the source identifier. The values
 remain represented as different fields:
 if a row is divided into multiple chunks in a future indexing strategy, the
 row component can remain stable while the chunk component distinguishes the
-individual evidence fragments. Newly built FAISS documents therefore store
-\code{chunk\_id} explicitly, while existing indexes fall back to the row
-identifier. Final RAG confidence annotations propagate the relevant identifiers
+individual evidence fragments. Documents built by \code{FaissIndexManager} store
+\code{chunk\_id} explicitly; offline row indexes without this field fall back
+to the row identifier. Final RAG confidence annotations propagate the relevant identifiers
 in their \code{source\_ids} field.
 
 Linked-row metadata can expand a FAISS match with relationally correlated rows.
@@ -322,12 +296,6 @@ The assessment prompt defines the three levels as follows:
         provenance support.
 \end{itemize}
 
-The self-assessment prompt currently uses the same level definitions for both
-datasets, including its reference to coherent provenance identifiers. For
-REL-F1, however, the normalized provenance is intentionally empty. The resulting
-confidence remains a model self-assessment of the generated data and abstention
-behavior; it is not a provenance-verification result.
-
 An empty result may receive high confidence only when abstaining is more
 reliable than inventing instance data that cannot be known without consulting
 the database. In this case, the level expresses confidence in the decision to
@@ -343,182 +311,22 @@ rationale:
 }
 \end{lstlisting}
 
-The answer-generation contract differs between the two current datasets:
-
-\begin{itemize}
-  \item For \code{tpch}, the model returns the gateway's answer objects, each
-        containing \code{result} and \code{provenance}. The gateway parses this
-        shape, but identifiers generated from internal knowledge are still not
-        evidence verified against retrieved or source rows.
-  \item For \code{rel-f1}, the model returns a plain JSON array of result-row
-        objects. Every array element must be an object, and the prompt instructs
-        the model to return an empty array rather than invent unknown values.
-        The gateway normalizes every accepted row to an object containing the
-        row under \code{result} and an empty \code{provenance} array.
-        Consequently, REL-F1 Internal Knowledge deliberately carries no source
-        provenance.
-\end{itemize}
-
-When Internal Knowledge runs as a UI leaf, normalized answers are converted to
-leaf rows for the common orchestration path. A synthetic identifier such as
-\code{races\_internal\_1} is used when no provenance identifier exists. It is an
-internal correlation key for rendering and composition, not a source-CSV row
-identifier or verified provenance. The leaf response retains
-\code{output\_text}, the exact raw model answer. The browser renders this value
-only for \code{llm-internal} leaves, escapes it as text, preserves whitespace,
-and places long output in a scrollable card above the final answer table.
-
-The gateway accepts the assessment only when the level is one of the three
-allowed values and the rationale is non-empty. Invalid output triggers a retry
-with an object-specific formatting reminder. A valid assessment is converted
-into an annotation with the following logical structure:
-
-\begin{lstlisting}[style=codestyle]
-{
-  "type": "llm_confidence",
-  "pipeline": "llm-internal",
-  "stage": "generation",
-  "level": "high",
-  "reason": "...",
-  "assessment_method": "llm_self_assessment",
-  "model": "...",
-  "model_provider": "openai|openai-compatible|ollama",
-  "scope": {"type": "leaf", "table": "region"}
-}
-\end{lstlisting}
 
 The annotation is attached to the corresponding leaf output and then collected
-into the complete pipeline result. Direct chat-completion executions use query
-scope instead of leaf scope. Both the regular and streaming UI responses carry
-the annotation. The interface displays high confidence in green, medium in
-yellow, and low in red, together with the rationale, model, assessment method,
-and execution scope.
-
-This mechanism must not be interpreted as independent verification. The model
-is evaluating an answer produced by the same model family and may remain
-overconfident, overlook missing information, or fail to detect subtle factual
-and provenance errors. The annotation is therefore explicitly marked as
-\code{llm\_self\_assessment}; it is a qualitative diagnostic signal rather
-than a formal, externally verified, or calibrated probability.
+into the complete pipeline result.
 
 \subsubsection{Confidence Attached to Final Results}
 
 Confidence annotations are also attached to each final answer tuple rather than
-being shown only at the leaf where they were generated. The gateway resolves
-the row identifiers in the final tuple's provenance and identifies which
-pipelines produced the contributing rows. It then derives source-specific final
-annotations while preserving the metric and pipeline that produced each value.
-
+being shown only at the leaf where they were generated.
 For a RAG-derived result, the final relevance score is the minimum FAISS
-relevance score among the retrieved rows that contribute to that result. This
-conservative rule makes the weakest supporting retrieval visible and records
-the aggregation method as \code{minimum\_contributing\_score}. For an
+relevance score among the retrieved rows that contribute to that result. For an
 Internal-Knowledge result, the final qualitative level is the lowest
 self-assessment among the contributing LLM leaves, recorded as
 \code{lowest\_contributing\_level}. Results derived from the SQL Table pipeline
 receive a \code{verified\_execution} marker to indicate that their contributing
-rows were read and processed deterministically; this marker is not a claim
-about the correctness of the source data.
+rows were read and processed deterministically.
 
-Each final tuple therefore contains its source pipelines and a list of
-\code{confidence\_annotations}. Mixed-pipeline results may carry more than one
-annotation, for example a numeric RAG relevance annotation and a qualitative
-LLM annotation. The complete response also exposes the flattened collection as
-\code{final\_answer\_annotations}. In the answer table, these values appear in
-a dedicated Final Confidence column with the same color semantics used by the
-source annotations.
-
-\subsubsection{Final Provenance-Source Annotation}
-
-The provenance returned by the external explanation service identifies the
-source row identifiers that support each final result. After receiving this
-provenance, the gateway joins those identifiers with the row metadata retained
-during leaf execution. It adds one
-\code{final\_answer\_provenance\_source} annotation to every result. The
-annotation records the distinct contributing pipelines and maps each
-provenance row to its table and originating pipeline:
-
-\begin{lstlisting}[style=codestyle]
-{
-  "type": "final_answer_provenance_source",
-  "source_type": "pipeline",
-  "pipelines": ["rag", "sql-table"],
-  "source_rows": [
-    {"row_id": "races_1", "table": "races", "pipeline": "rag"},
-    {"row_id": "drivers_2", "table": "drivers", "pipeline": "sql-table"}
-  ],
-  "scope": {"type": "result", "index": 1}
-}
-\end{lstlisting}
-
-Only row identifiers actually resolved from the service provenance are listed.
-The gateway does not attribute every intermediate leaf row to a result when its
-provenance is empty or cannot be resolved. The annotation is stored in the
-result's \code{provenance\_annotations} list, included in the flattened
-\code{final\_answer\_annotations} response field, and rendered beside the
-provenance formula in the browser.
-
-\subsubsection{Final Answer Probability Annotation}
-
-Every final result also receives a \code{final\_answer\_probability}
-annotation. The gateway assigns a probability to each contributing provenance
-row according to its originating pipeline:
-
-\begin{itemize}
-  \item A row produced by the \code{sql-table} pipeline has probability
-        \code{1.0}, because its execution is deterministic.
-  \item A row produced by a RAG-based pipeline reuses its available numeric
-        FAISS relevance value. The annotation retains
-        \code{metric=faiss\_relevance} so this operational probability is not
-        confused with a calibrated probability of factual correctness.
-  \item A pipeline that exposes only a qualitative value, such as the current
-        Internal-Knowledge low/medium/high assessment, is not assigned an
-        invented numeric probability.
-\end{itemize}
-
-The final probability is the minimum of the contributing row probabilities,
-recorded as \code{minimum\_contributing\_probability}. Thus an all-SQL result
-has probability \code{1.0}, while a mixed SQL and RAG result takes the weakest
-contributing RAG value. The full annotation retains every row-level input so
-the calculation is auditable:
-
-\begin{lstlisting}[style=codestyle]
-{
-  "type": "final_answer_probability",
-  "source_type": "pipeline_probability",
-  "probability": 0.72,
-  "available_probability": 0.72,
-  "aggregation": "minimum_contributing_probability",
-  "source_probabilities": [
-    {
-      "row_id": "races_1",
-      "pipeline": "rag",
-      "probability": 0.72,
-      "metric": "faiss_relevance"
-    },
-    {
-      "row_id": "drivers_2",
-      "pipeline": "sql-table",
-      "probability": 1.0,
-      "metric": "deterministic_execution"
-    }
-  ],
-  "source_row_ids": ["races_1", "drivers_2"],
-  "missing_probability_row_ids": [],
-  "complete": true,
-  "scope": {"type": "result", "index": 1}
-}
-\end{lstlisting}
-
-If any contributing row has no numeric pipeline probability, \code{complete}
-is false and the final \code{probability} is null. The minimum over the values
-that are available remains visible as \code{available\_probability}, and
-\code{missing\_probability\_row\_ids} identifies the uncovered rows. This
-prevents a partial calculation from being presented as the probability of the
-complete answer. Probability annotations are stored in each result's
-\code{probability\_annotations}, flattened into
-\code{final\_answer\_annotations}, and displayed in the Final Confidence
-column.
 
 \section{Running the Demo}
 
@@ -527,7 +335,7 @@ repository root, run:
 
 \begin{lstlisting}[style=codestyle]
 git lfs pull
-docker compose up -d --build
+docker compose up -d
 docker compose ps
 \end{lstlisting}
 
@@ -543,7 +351,7 @@ internal network.
 
 Retrieval over tabular data requires different design choices from standard document retrieval. A common approach in RAG systems is to linearize tables into text and retrieve them as ordinary chunks. However, recent work has shown that this strategy may lose important tabular structure and provide only a partial view of the data, especially for questions requiring joins, filtering or aggregation. TableRAG ~\cite{yu2025tableragretrievalaugmentedgeneration} addresses this limitation by combining text retrieval with SQL-based execution over tabular components for heterogeneous document reasoning, showing the importance of preserving the distinction between textual and structured evidence. During an offline phase, the system extracts table contents, builds textual chunks for retrieval, stores table schemas, and also ingests the tables into a relational database. During online inference, it decomposes the user question, retrieves relevant chunks, maps retrieved table fragments back to their corresponding schemas, generates SQL when tabular reasoning is required, executes the SQL query over the relational database, and combines the execution result with retrieved textual evidence to generate the answer.
 
-Our retrieval component follows a related motivation, but adapts it to relational CSV data. Instead of indexing arbitrary table chunks, we create one document for each table row. Each document contains a textual representation of the row, including the table name, primary-key values, column-value pairs, and selected foreign-key links to related rows. This row-level representation is designed to preserve enough relational structure for retrieval while remaining compatible with dense vector search. In addition, the document metadata stores the original table, row identifier, primary key, full row values, provenance row number when available, and linked-row information. The resulting documents are embedded with BGE-M3 and indexed with FAISS, enabling the system to retrieve candidate records that can later be used by the LLM.
+Our retrieval component follows a related motivation, but adapts it to relational CSV data. Instead of indexing arbitrary table chunks, we create one document for each table row. In the rich serialization, each document contains a textual representation of the row, including the table name, primary-key values, column-value pairs, and selected foreign-key links to related rows. This row-level representation is designed to preserve enough relational structure for retrieval while remaining compatible with dense vector search. In addition, the document metadata stores the original table, row identifier, primary key, full row values, provenance row number when available, and linked-row information. The default prebuilt REL-F1 index embeds these documents with BGE-M3 and stores them in FAISS. We also tried alternative row serializations, including compact column--value text and semantic-join assertions. Appendix~\ref{sec:row-retrieval} distinguishes these serialization choices from embedding backends.
 
 Our retrieval design is also influenced by schema-aware approaches such as RAT-SQL~\cite{ratsql}. RAT-SQL addresses text-to-SQL parsing by making the structure of the database schema explicit: tables and columns are represented as graph nodes, while relations such as primary keys, foreign keys, and column-table membership are encoded as graph edges. This allows the model to reason not only over the textual form of the schema, but also over the relational connections that determine how tables and columns should be interpreted.
 
@@ -556,7 +364,7 @@ Data provenance, by explaining how the result of an operation is derived from it
 
 These are the core provenance models:
 \textbf{Lineage} \cite{whyAndWhereBuneman}, based on data dependencies that track data dependencies separately for each input relation of a query.  Lineage focuses on identifying the specific input tuples that contribute to each output tuple. It provides an efficient way to trace data origin. The lineage is computed by breaking down the query into smaller parts, then computing which tuples in subqueries contributed to each intermediate result, and finally combining all their lineages to get the final answer.
-\textbf{Why provenance} \cite{whyAndWhereBuneman}, which captures sets of input tuples (witnesses) that are sufficient to produce a particular output tuple. It reflects the minimal explanations of why an answer exists. 
+\textbf{Why provenance} \cite{whyAndWhereBuneman}, which captures sets of input tuples (witnesses) that are sufficient to produce a particular output tuple. It reflects the minimal explanations of why an answer exists.
 \textbf{How provenance} \cite{whyHowWhereprovenance}, which goes further by expressing the precise combination and multiplicity of input tuples used to compute each output.
 \textbf{Where provenance} \cite{whyAndWhereBuneman}, which focuses on the origin of individual data values. While why-provenance captures the relationship between source and output tuples, where provenance traces the exact source locations (specific rows in the input relations) from which output values are copied. This notion highlights the link between input and output attributes, but, unlike why provenance, it is not invariant under query equivalence.
 Moreover, the article covers key algorithms for provenance tracking, the computational complexity of various provenance models, and the integration of provenance computation into query engines and data management systems.
@@ -571,13 +379,13 @@ Why-provenance is a fundamental provenance model originally introduced by Bunema
 \textbf{Witness sets} are derived from the semiring expression by enumerating the minimal input tuple combinations that are sufficient to produce the output tuple.
 Each multiplicative term in the provenance polynomial corresponds to one witness set.
 Formally, the \textit{set of witnesses} for a tuple $t$ in the output of a query $Q$ over a database $D$ is defined as the collection of all subsets $D' \subseteq D$ such that $t \in Q(D')$. Since this set can contain redundant witnesses that include unnecessary tuples, the notion of \textit{minimal witnesses} is introduced. Minimal witnesses are those subsets that are minimal under set inclusion, meaning they do not contain any smaller witness that also produces $t$. This minimality ensures the provenance explanations focus on essential and non-redundant parts of the input data.
-We use this concept to enhance the interpretability of outputs produced by a Retrieval-Augmented Generation (RAG) pipeline. We use the notion of \textit{witness sets}, which act as textual justifications for each item of an answer, effectively mapping the output back to its supporting retrieved content. 
+We use this concept to enhance the interpretability of outputs produced by a Retrieval-Augmented Generation (RAG) pipeline. We use the notion of \textit{witness sets}, which act as textual justifications for each item of an answer, effectively mapping the output back to its supporting retrieved content.
 \subsection{Databases and LLMs}
 Recent work has investigated how database query-processing ideas can be adapted to interactions with Large Language Models. Satriani et al. introduce Galois ~\cite{EURECOM+8182}, a system that executes SQL queries over LLMs by treating the model as a data source and by defining LLM-aware logical and physical operators. In particular, Galois introduces LLMScan and Filter-LLMScan operators, which retrieve tuples from the model either without or with pushed-down selection conditions. Their work shows that complex data-oriented queries can benefit from being decomposed into operator-level plans, and that deciding whether conditions should be pushed into the LLM call involves a trade-off between cost and result quality.
 
 Our demo system takes inspiration from this operator-oriented view, but adapts it to a different setting. In our planner-based pipelines, we introduce analogous LeafScan and FilterLeafScan steps. These steps are applied to the leaves of a generated tree plan and are used to query the LLM on smaller tasks, optionally with filter conditions pushed into the leaf. Unlike Galois, however, our system does not treat the LLM as the primary storage layer. The data source remains an explicit collection of relational tables, and the LLM is used as part of a pipeline involving retrieval, planning, structured generation, deterministic execution, and provenance explanation.
 
-This distinction is central to our use of the idea. While Galois studies how SQL execution can be optimized when the LLM itself is queried as a data source, our system studies how LLM calls can be organized around a planner when answering questions over existing tabular data. 
+This distinction is central to our use of the idea. While Galois studies how SQL execution can be optimized when the LLM itself is queried as a data source, our system studies how LLM calls can be organized around a planner when answering questions over existing tabular data.
 
 \section{Pipeline Modes}
 
@@ -657,21 +465,14 @@ follow the join structure, although its result still depends on the recall of
 the starting leaf and the correctness of the extracted join edges. The legacy
 \code{iterative-join-aware} name remains accepted.
 
-\subsection{AP Explanation and the Legacy RAG-Explanation ID}
+\subsection{AP Explanation }
 
 After all selected leaf pipelines finish, the gateway writes their validated
 rows to per-table CSV files and submits them with the SQL query to the AP
 Explanation service. The service executes the relational and provenance
 workflow, and the UI displays its written explanation alongside the answer,
 provenance formula, and supporting rows. This final stage applies to every
-current UI pipeline combination. \code{rag-explanation} remains a canonical
-backend compatibility ID, and \code{planner-only-explanation} remains its
-legacy alias, but neither is a current UI selector choice.
-
-The three selector pipelines are deliberately exposed side by side in the demo.
-A presenter can use one strategy for every leaf or mix them per table, and can
-enable the RAG options to compare baseline retrieval, predicate-aware retrieval,
-and join-guided retrieval under the same query plan.
+current UI pipeline combination.
 
 \appendix
 
@@ -769,6 +570,7 @@ identifiers and numeric comparisons before sending some queries to the external
 relational service.
 
 \section{Row-Level Indexing and Retrieval}
+\label{sec:row-retrieval}
 
 \subsection{Indexed Representation}
 
@@ -806,14 +608,14 @@ builder in \code{FaissIndexManager.row\_to\_text} produces the compact one-line
 representation shown above. It prepends the table name, then appends every
 non-empty value as \code{column: value}, separated by vertical bars. It excludes
 \code{\_\_rid\_\_} and all columns whose names end in \code{\_rownum}. The
-associated metadata contains only the table name and row identifier:
+associated metadata contains the table name, row identifier, and chunk identifier:
 
 \begin{lstlisting}[style=codestyle]
 page_content:
 table: nation | n_nationkey: 1 | n_name: ARGENTINA | n_regionkey: 1
 
 metadata:
-{"table": "nation", "rid": "nation_2"}
+{"table": "nation", "rid": "nation_2", "chunk_id": "nation_2"}
 \end{lstlisting}
 
 The prebuilt REL-F1 BGE-M3 index uses the richer schema-aware workflow in
@@ -856,10 +658,9 @@ can be resolved, the serializer adds human-readable target attributes, preferrin
 columns whose names contain terms such as \code{name}, \code{title},
 \code{status}, \code{type}, \code{region}, \code{country}, or \code{date}.
 
-For comparison experiments, \code{build\_row\_index.py} also provides the
-opt-in \code{semantic-join} textualization strategy, inspired by the compact
-record verbalization used in semantic-join literature. It emits only the
-record's non-provenance fields as \code{column is value} assertions separated
+We also tried the opt-in \code{semantic-join} textualization strategy in
+\code{build\_row\_index.py} as an alternative to the rich format. It emits only the
+record's first 40 non-provenance fields as \code{column is value} assertions separated
 by semicolons:
 
 \begin{lstlisting}[style=codestyle]
@@ -889,8 +690,9 @@ CSV row $\longrightarrow$ textual \code{page\_content}
 $\longrightarrow$ BGE-M3 dense vector $\longrightarrow$ FAISS,
 \end{center}
 
-while the metadata follows the vector into the index and is used only after
-retrieval. FAISS similarity search compares the embedded query with the embedded
+for the offline BGE-M3 workflow; other backends replace the embedding step.
+The metadata follows the vector into the index and supports row resolution and
+context expansion after retrieval. FAISS similarity search compares the embedded query with the embedded
 \code{page\_content}; it does not compare the query directly with the metadata or
 the original CSV object.
 
@@ -900,13 +702,18 @@ The embedding backend is selected independently for each dataset. The TPC-H
 configuration uses \code{sentence-transformers/all-mpnet-base-v2} by default,
 through the Sentence Transformers backend. The REL-F1 row index uses
 \textbf{BGE-M3}, configured as \code{BAAI/bge-m3} with the \code{bge-m3}
-strategy. BGE-M3 is loaded through \code{FlagEmbedding.BGEM3FlagModel}.
+strategy at query time. The runtime wrapper loads BGE-M3 through
+\code{FlagEmbedding.BGEM3FlagModel}. The offline builders instead use
+\code{HuggingFaceEmbeddings} with \code{normalize\_embeddings=True} for the
+same model. These distinct paths must produce compatible document and query
+embeddings.
 
 Although BGE-M3 supports multiple retrieval representations, the current gateway
 uses only the model's dense vectors (\code{dense\_vecs}) for both document and
-query embeddings before FAISS similarity search. Documents are encoded in batches
-with a maximum input length of 8192 tokens; queries are encoded individually with
-the same maximum length.
+query embeddings before FAISS similarity search. In the runtime BGE-M3 wrapper, documents are encoded in batches
+with an explicit maximum input length of 8192 tokens; queries are encoded
+individually with the same limit. The offline builders rely on the loaded
+model configuration for the input-length limit.
 
 The \code{EmbeddingStrategies} wrapper supports three backends:
 
@@ -918,17 +725,37 @@ The \code{EmbeddingStrategies} wrapper supports three backends:
 
 When \code{EMB\_STRATEGY=auto}, the wrapper infers the backend from the model
 name: \code{BAAI/bge-m3} selects BGE-M3, other \code{BAAI/bge-*} models select
-the BGE v1.5 path, and other names use Sentence Transformers. The shared
-\code{EMB\_DEVICE} setting selects CUDA when available or CPU otherwise. BGE
+the BGE v1.5 path, and other names use Sentence Transformers. When set to \code{auto}, the shared
+\code{EMB\_DEVICE} setting selects CUDA when available or CPU otherwise; an
+explicit device can also be configured. BGE
 models use half precision on CUDA and full precision on CPU.
 
-The model and strategy used to build an index must also be used when loading and
-querying it. Changing either setting requires rebuilding the corresponding FAISS
-index; otherwise, vector dimensions or embedding semantics may be incompatible.
+An index must be queried with a compatible model, normalization, and encoding
+configuration. Changing the model or row serialization requires rebuilding the
+corresponding FAISS index. Changing backend wrappers also requires checking
+compatibility, even when the model name and vector dimensions match.
+
+\subsubsection{Alternative Strategies Tried}
+
+During development, we tried different ways of representing rows before
+embedding: the generic compact \code{column: value} format, the schema-aware
+\code{rich} format, and the \code{semantic-join} format. The latter two have
+separate REL-F1 index directories, allowing comparison under the same retrieval
+pipeline. Rich text includes table identity, keys, and selected linked-row
+values; semantic-join tests a shorter representation containing only field
+assertions. Both retain structured metadata for row resolution and provenance.
+
+This serialization comparison is separate from the embedding-backend choice.
+The implementation supports Sentence Transformers, BGE v1.5, and BGE-M3;
+backend support alone does not establish that every model and serialization
+combination was evaluated. The configurations described here use MPNet by
+default for TPC-H and BGE-M3 for the prebuilt REL-F1 index. No quantitative
+comparison is reported here, so rich text with BGE-M3 is the demo default,
+not a demonstrated best-performing strategy.
 
 \subsection{Retrieval Modes}
 
-The standard RAG path performs one similarity search with \code{RETRIEVER\_K}
+The direct model baseline path performs one similarity search with \code{RETRIEVER\_K}
 candidates and stops after \code{MAX\_CONTEXT\_ROWS} accepted rows. It limits the
 context to \code{MAX\_TABLES} distinct tables.
 
@@ -947,7 +774,9 @@ all rows required for a query were retrieved.
 
 \section{Leaf Output Contract and Validation}
 
-A leaf model must return a JSON array containing objects with exactly two keys:
+A RAG leaf model must return a JSON array containing objects with exactly two
+keys. This source-row contract does not apply to the structurally validated
+Internal-Knowledge baseline:
 
 \begin{lstlisting}[style=codestyle]
 [

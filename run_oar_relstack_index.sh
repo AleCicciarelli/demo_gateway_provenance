@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Submit from the repository root: oarsub -l /gpu=1,walltime=48:0:0 'bash ./run_oar_reltrial_index.sh'
+# Submit from the repository root: oarsub -l /gpu=1,walltime=48:0:0 'bash ./run_oar_relstack_index.sh'
 set -euo pipefail
 cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
@@ -10,10 +10,10 @@ export PYTHONUNBUFFERED=1
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-4}"
 export TOKENIZERS_PARALLELISM=false
 STRATEGY="${ROW_TEXTUALIZATION_STRATEGY:-semantic-join}"
-OUTPUT="${ROW_INDEX_FOLDER:-$PWD/faiss_index_reltrial_rows_bge_m3_semantic_join}"
-DOCUMENTS="$OUTPUT/row_documents_reltrial.jsonl"
+OUTPUT="${ROW_INDEX_FOLDER:-$PWD/faiss_index_relstack_rows_bge_m3_semantic_join}"
+DOCUMENTS="$OUTPUT/row_documents_relstack.jsonl"
 mkdir -p "$OUTPUT" logs
-exec > >(tee -a "logs/reltrial_index_${OAR_JOB_ID:-local}.log") 2>&1
+exec > >(tee -a "logs/relstack_index_${OAR_JOB_ID:-local}.log") 2>&1
 
 "$PYTHON" - <<'PY'
 import torch
@@ -25,7 +25,7 @@ print('GPU:', torch.cuda.get_device_name(0))
 PY
 
 # Never reuse documents/checkpoints when the source data or text format changed.
-FINGERPRINT=$( { sha256sum rel-trial_csv/*.csv rel-trial_csv/schema_profile_reltrial.json build_row_index.py; printf '%s\n' "$STRATEGY"; } | sha256sum | cut -d ' ' -f 1)
+FINGERPRINT=$( { sha256sum rel-stack_csv/*.csv rel-stack_csv/schema_profile_relstack.json build_row_index.py; printf '%s\n' "$STRATEGY"; } | sha256sum | cut -d ' ' -f 1)
 if [[ -e "$OUTPUT/source.sha256" ]]; then
     [[ "$(cat "$OUTPUT/source.sha256")" == "$FINGERPRINT" ]] || {
         echo 'Source data or document builder changed. Set ROW_INDEX_FOLDER to a fresh directory.'
@@ -41,8 +41,8 @@ fi
 
 if [[ ! -f "$DOCUMENTS" ]]; then
     "$PYTHON" build_row_index.py \
-        --csv_dir rel-trial_csv \
-        --schema_profile rel-trial_csv/schema_profile_reltrial.json \
+        --csv_dir rel-stack_csv \
+        --schema_profile rel-stack_csv/schema_profile_relstack.json \
         --documents_out "$DOCUMENTS" \
         --textualization-strategy "$STRATEGY" --documents-only
 fi
@@ -62,7 +62,7 @@ import sys
 from pathlib import Path
 import faiss
 folder = Path(sys.argv[1])
-profile = json.loads(Path('rel-trial_csv/schema_profile_reltrial.json').read_text())
+profile = json.loads(Path('rel-stack_csv/schema_profile_relstack.json').read_text())
 expected = sum(t['num_rows'] for t in profile['tables'].values())
 index = faiss.read_index(str(folder / 'index.faiss'))
 assert index.ntotal == expected, (index.ntotal, expected)
