@@ -25,3 +25,7 @@ docs/*.log
 docs/*.out
 docs/*.toc
 test_iterative_join_pipeline.py
+.cache/
+faiss_index_relarxiv_*/
+faiss_index_relarxiv_*.checkpoint/
+rel-arxiv_csv/

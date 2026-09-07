@@ -17,16 +17,16 @@
         <div class="query-tools">
           <label class="field-label" for="dataset-select">Dataset</label>
           <select id="dataset-select">
-            <option value="tpch" selected>TPCH</option>
-            <option value="relf1">RELF1</option>
+            <!-- TPC-H is kept in the project but temporarily hidden from the UI.
+            <option value="tpch">TPCH</option>
+            -->
+            <option value="relf1" selected>RELF1</option>
           </select>
         </div>
 
         <label class="field-label" for="query-input">Question or SQL query</label>
-        <textarea id="query-input" spellcheck="false">SELECT n.n_name, r.r_name
-FROM nation n
-JOIN region r ON n.n_regionkey = r.r_regionkey
-WHERE r.r_name = 'EUROPE'
+        <textarea id="query-input" spellcheck="false">SELECT *
+FROM drivers
 LIMIT 5;</textarea>
 
         <div class="actions">
@@ -76,6 +76,6 @@ LIMIT 5;</textarea>
       </section>
     </main>
 
-    <script src="/ui/app.js?v=provenance-product-1"></script>
+    <script src="/ui/app.js?v=relf1-default-1"></script>
   </body>
 </html>

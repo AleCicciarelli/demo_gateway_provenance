@@ -1,0 +1,8 @@
+# Install with a CUDA-enabled PyTorch build suitable for your GPU cluster.
+torch
+pandas
+langchain-core
+langchain-community
+langchain-huggingface
+sentence-transformers
+faiss-cpu

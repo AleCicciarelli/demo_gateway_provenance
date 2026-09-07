@@ -11,7 +11,7 @@ const PIPELINES = [
 ];
 
 const state = {
-  dataset: "tpch",
+  dataset: "relf1",
   plan: null,
   selectedPipelines: {},
   leafRagOptions: {},
@@ -577,7 +577,7 @@ async function generatePlan() {
   setStatus("Building query plan...");
 
   try {
-    state.dataset = els.datasetSelect?.value ?? "tpch";
+    state.dataset = els.datasetSelect?.value ?? "relf1";
     if (hasBackend(BACKEND_ENDPOINTS.plan)) {
       state.plan = await postJson(BACKEND_ENDPOINTS.plan, {
         question: query,

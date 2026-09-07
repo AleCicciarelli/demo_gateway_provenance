@@ -257,18 +257,17 @@ def build_semantic_join_page_content(
     return "; ".join(fields)
 
 
-def build_documents(
+def iter_row_documents(
     tables: dict[str, pd.DataFrame],
     schema_profile: dict[str, Any],
     textualization_strategy: str = "rich",
-) -> list[Document]:
+):
     if textualization_strategy not in TEXTUALIZATION_STRATEGIES:
         raise ValueError(
             f"Unknown textualization strategy '{textualization_strategy}'. "
             f"Choose one of: {', '.join(TEXTUALIZATION_STRATEGIES)}"
         )
 
-    docs = []
     foreign_keys = schema_profile.get("foreign_key_candidates", [])
     target_indexes = build_target_indexes(tables, foreign_keys)
 
@@ -317,19 +316,28 @@ def build_documents(
                 "textualization_strategy": textualization_strategy,
             }
 
-            docs.append(Document(page_content=page_content, metadata=metadata))
-
-    return docs
+            yield Document(page_content=page_content, metadata=metadata)
 
 
-def save_jsonl(docs: list[Document], out_path: Path) -> None:
+def build_documents(tables, schema_profile, textualization_strategy="rich") -> list[Document]:
+    return list(iter_row_documents(tables, schema_profile, textualization_strategy))
+
+
+def save_jsonl(docs, out_path: Path) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    with out_path.open("w", encoding="utf-8") as f:
+    temporary = out_path.with_suffix(out_path.suffix + ".tmp")
+    count = 0
+    with temporary.open("w", encoding="utf-8") as f:
         for doc in docs:
             f.write(json.dumps({
                 "page_content": doc.page_content,
                 "metadata": doc.metadata,
             }, ensure_ascii=False) + "\n")
+            count += 1
+            if count % 100000 == 0:
+                print(f"Saved {count} row documents", flush=True)
+    temporary.replace(out_path)
+    return count
 
 
 def main() -> None:
@@ -357,6 +365,14 @@ def main() -> None:
     schema_profile = json.loads(Path(args.schema_profile).read_text(encoding="utf-8"))
 
     tables = read_tables(csv_dir, sep=args.sep)
+    if args.documents_only:
+        documents_out = Path(args.documents_out)
+        count = save_jsonl(
+            iter_row_documents(tables, schema_profile, args.textualization_strategy),
+            documents_out,
+        )
+        print(f"Saved {count} row documents to {documents_out}")
+        return
     docs = build_documents(
         tables,
         schema_profile,
