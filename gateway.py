@@ -107,6 +107,11 @@ RELF1_INDEX_TABLES = os.getenv("RELF1_INDEX_TABLES", "")
 RELF1_INDEX_SET = set(t.strip() for t in RELF1_INDEX_TABLES.split(",") if t.strip())
 RELF1_SCHEMA_PROFILE = os.getenv("RELF1_SCHEMA_PROFILE", "/app/rel-f1-csv/schema_profile_relf1.json")
 
+RELARXIV_CSV_DIR = os.getenv("RELARXIV_CSV_DIR", "/app/rel-arxiv_csv")
+RELARXIV_FAISS_INDEX_FOLDER = os.getenv("RELARXIV_FAISS_INDEX_FOLDER", "/app/faiss_index_relarxiv_bge_m3_is")
+RELARXIV_SCHEMA_PROFILE = os.getenv("RELARXIV_SCHEMA_PROFILE", f"{RELARXIV_CSV_DIR}/schema_profile_relarxiv.json")
+
+
 EXPLAIN_MODEL = os.getenv("OLLAMA_MODEL_EXPLAIN", "deepseek-r1:70b")
 EXPLAIN_MAX_TRIES = int(os.getenv("EXPLAIN_MAX_TRIES", "2"))
 
@@ -230,7 +235,7 @@ class DatasetRuntime:
     embeddings: Optional[EmbeddingStrategies]
     faiss_manager: Optional[FaissIndexManager]
 
-def _schema_info_from_profile(profile_path: str) -> Dict[str, Any]:
+def _schema_info_from_profile(profile_path: str, csv_dir: Optional[str] = None) -> Dict[str, Any]:
     path = Path(profile_path)
     if not path.exists():
         return {}
@@ -246,6 +251,11 @@ def _schema_info_from_profile(profile_path: str) -> Dict[str, Any]:
     schema_info: Dict[str, Any] = {}
 
     for table, info in tables.items():
+        if not info.get("columns") and csv_dir:
+            source = next((p for p in Path(csv_dir).glob("*.csv") if p.stem.lower() == table), None)
+            if source is not None:
+                with source.open(encoding="utf-8", newline="") as stream:
+                    info["columns"] = {col: {} for col in next(csv.reader(stream))}
         columns = [
             col
             for col, col_info in (info.get("columns") or {}).items()
@@ -315,8 +325,19 @@ DATASET_CONFIGS: Dict[str, DatasetConfig] = {
         index_set=RELF1_INDEX_SET,
         schema_info=_schema_info_from_profile(RELF1_SCHEMA_PROFILE),
     ),
+    "rel_arxiv": DatasetConfig(
+        name="rel_arxiv",
+        csv_dir=RELARXIV_CSV_DIR,
+        faiss_index_folder=RELARXIV_FAISS_INDEX_FOLDER,
+        emb_model="BAAI/bge-m3",
+        emb_strategy="bge-m3",
+        index_set=set(),
+        schema_info=_schema_info_from_profile(RELARXIV_SCHEMA_PROFILE, RELARXIV_CSV_DIR),
+    ),
 }
 DATASET_ALIASES = {
+    "relarxiv": "rel_arxiv",
+    "rel-arxiv": "rel_arxiv",
     "rel-f1": "relf1",
     "rel_f1": "relf1",
     "f1": "relf1",
@@ -1321,14 +1342,14 @@ def _load_csvs_once(dataset: Optional[str] = None) -> None:
         return
 
     for p in sorted(base.glob("*.csv")):
-        table = p.stem
+        table = p.stem.lower() if config.name == "rel_arxiv" else p.stem
         id_col = f"{table}_rownum"
         rows: List[Dict[str, Any]] = []
         rid_to_idx: Dict[str, int] = {}
         delimiter = _detect_csv_delimiter(p)
         with p.open("r", encoding="utf-8", errors="ignore", newline="") as f:
             reader = csv.DictReader(f, delimiter=delimiter)
-            if reader.fieldnames is None or id_col not in reader.fieldnames:
+            if reader.fieldnames is None or (id_col not in reader.fieldnames and config.name != "rel_arxiv"):
                 raise RuntimeError(f"Missing required id column '{id_col}' in {p}")
             for i, r in enumerate(reader):
                 r2 = dict(r)
@@ -1336,6 +1357,10 @@ def _load_csvs_once(dataset: Optional[str] = None) -> None:
                     # extra data not present in the header
                     r2.pop(None, None)
                 rid = str(r2.get(id_col, "")).strip()
+                if not rid and config.name == "rel_arxiv":
+                    primary_key = config.schema_info[table]["primary_key"]
+                    rid = f"{table}:{primary_key}={r2[primary_key]}" if primary_key else f"{table}:index={i}"
+
                 if not rid:
                     continue
                 r2["__rid__"] = rid
@@ -2612,11 +2637,12 @@ def _copy_dataset_csv_files(
     clean_bucket(EXPLANATION_BUCKET_DIR)
     copied: List[str] = []
     for source in sorted(source_dir.glob("*.csv")):
-        if table_names is not None and source.stem not in table_names:
+        table = source.stem.lower() if config.name == "rel_arxiv" else source.stem
+        if table_names is not None and table not in table_names:
             continue
-        destination = EXPLANATION_BUCKET_DIR / source.name
+        destination = EXPLANATION_BUCKET_DIR / f"{table}.csv"
         shutil.copy2(source, destination)
-        copied.append(source.name)
+        copied.append(destination.name)
     if not copied:
         raise RuntimeError(f"No CSV tables found for dataset '{config.name}'")
     return copied

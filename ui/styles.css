@@ -148,6 +148,11 @@ button:focus-visible {
   margin: 0;
 }
 
+.leaf-rag-options label:has(input:disabled) {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .leaf-pipeline-control {
   display: grid;
   gap: 7px;

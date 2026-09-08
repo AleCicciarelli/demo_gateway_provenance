@@ -6,8 +6,8 @@ const BACKEND_ENDPOINTS = {
 
 const PIPELINES = [
   { id: "rag", label: "RAG" },
-  { id: "llm-internal", label: "LLM internal" },
-  { id: "sql-table", label: "SQL table" },
+  { id: "sql-table", label: "PostgreSQL" },
+  { id: "llm-internal", label: "LLM" },
 ];
 
 const state = {
@@ -836,6 +836,11 @@ function renderPlan() {
       const option = event.target.dataset.ragOption;
       state.leafRagOptions[table] ??= { pushdown: false, iterative: false };
       state.leafRagOptions[table][option] = event.target.checked;
+      if (event.target.checked) {
+        const otherOption = option === "pushdown" ? "iterative" : "pushdown";
+        state.leafRagOptions[table][otherOption] = false;
+      }
+      renderPlan();
     });
   });
 }
@@ -872,12 +877,14 @@ function renderLeafCard(leaf, index) {
             <div class="leaf-rag-options">
               <label>
                 <input type="checkbox" data-table="${escapeHtml(leaf.table_name)}"
-                  data-rag-option="pushdown" ${ragOptions.pushdown ? "checked" : ""} />
+                  data-rag-option="pushdown" ${ragOptions.pushdown ? "checked" : ""}
+                  ${ragOptions.iterative ? "disabled" : ""} />
                 Pushdown
               </label>
               <label>
                 <input type="checkbox" data-table="${escapeHtml(leaf.table_name)}"
-                  data-rag-option="iterative" ${ragOptions.iterative ? "checked" : ""} />
+                  data-rag-option="iterative" ${ragOptions.iterative ? "checked" : ""}
+                  ${ragOptions.pushdown ? "disabled" : ""} />
                 Iterative RAG
               </label>
             </div>

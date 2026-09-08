@@ -29,7 +29,9 @@ test_iterative_join_pipeline.py
 faiss_index_relarxiv_*/
 faiss_index_relarxiv_*.checkpoint/
 rel-arxiv_csv/
-rel-trial_csv/*.csv
-rel-trial_csv/*.tmp
-faiss_index_reltrial_*/
-faiss_index_reltrial_*.checkpoint/
+rel-stack_csv/*.csv
+rel-stack_csv/*.tmp
+faiss_index_relstack_*/
+faiss_index_relstack_*.checkpoint/
+rel-stack_csv/
+rel_arxiv/

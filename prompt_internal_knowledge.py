@@ -199,6 +199,14 @@ def get_internal_knowledge_prompt_template(domain: str) -> str:
         return PROMPT_RELF1_MINIMAL_INTERNAL_KNOWLEDGE_TEMPLATE
     if normalized in {"tpch", "tpc-h"}:
         return PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
+    if normalized in {"rel_arxiv", "rel-arxiv", "relarxiv"}:
+        return """Answer the QUESTION using internal knowledge about arXiv papers and authors.
+You do not have access to this database instance. Do not invent local IDs or provenance.
+Return only a JSON array of objects with "result" and "provenance" fields.
+If the exact answer or provenance is unknown, return [].
+QUESTION:
+{question}
+"""
     raise ValueError(f"Unsupported internal-knowledge prompt domain: {domain}")
 
 
