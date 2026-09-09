@@ -3645,7 +3645,10 @@ def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"UI planning failed: {e}")
+        raise HTTPException(
+            status_code=400 if isinstance(e, ValueError) else 500,
+            detail=f"UI planning failed: {e}",
+        )
 
 @app.post("/ui/run")
 def ui_run(req: UiRunRequest) -> Dict[str, Any]:

@@ -194,6 +194,29 @@ def _normalize_column(col: exp.Column, alias_map: Dict[str, str]) -> ColumnRef:
     table_alias = col.table or None
     column_name = col.name
     table_name = alias_map.get(table_alias, table_alias) if table_alias else None
+    if table_alias is None:
+        # Resolve against the current SELECT scope, not the number of distinct
+        # table names: a self-join still has multiple possible column sources.
+        scope = col.find_ancestor(exp.Select)
+        if scope is not None:
+            from_expr = scope.args.get("from_") or scope.args.get("from")
+            source = from_expr.this if from_expr is not None else None
+            if isinstance(source, exp.Table) and not scope.args.get("joins"):
+                table_name = _extract_table_name(source)
+            elif scope.args.get("joins"):
+                # ORDER BY/GROUP BY may refer to a SELECT output alias rather
+                # than an input column. Preserve those post-operation references.
+                output_aliases = {item.alias for item in scope.expressions if item.alias}
+                clause = col.find_ancestor(exp.Order, exp.Group, exp.Select)
+                if not (
+                    isinstance(clause, (exp.Order, exp.Group))
+                    and column_name in output_aliases
+                ):
+                    raise ValueError(
+                        f"Cannot resolve unqualified column '{column_name}' in a query "
+                        "with multiple tables; it may be ambiguous. Qualify it with "
+                        "a table name or alias (for example, races.name)."
+                    )
     return ColumnRef(
         raw=col.sql(),
         table_alias=table_alias,
