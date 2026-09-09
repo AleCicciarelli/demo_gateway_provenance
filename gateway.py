@@ -1156,6 +1156,7 @@ def _call_model_with_retry(
     scorer: Optional[Callable[[str], int]] = None,
     retry_suffix: str = RETRY_SUFFIX,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    prompt_sink: Optional[List[str]] = None,
 ) -> str:
     """
     Call to the model with the given prompt. If the output is not a valid JSON array, retry up to max_tries times by appending the RETRY_SUFFIX to the prompt.
@@ -1172,8 +1173,17 @@ def _call_model_with_retry(
     best_score = -1
     validate = validator or _is_valid_json_array
     for attempt in range(1, max_tries + 1):
+        if prompt_sink is not None:
+            prompt_sink.append(prompt)
         attempt_started_at = time.monotonic()
         if status_event:
+            status_event("generation_prompt", {
+                "message": f"Generation prompt ready for attempt {attempt}.",
+                "prompt": prompt,
+                "attempt": attempt,
+                "model": ollama_model,
+                "model_provider": provider,
+            })
             status_event("model_request_start", {
                 "message": f"Attempting {ollama_model}; no response received yet.",
                 "model": ollama_model,
@@ -1287,17 +1297,34 @@ def _parse_leaf_json_array_partial(
 
         if expected_rows_by_id is not None:
             expected_row = expected_rows_by_id[row_id]
-            expected_values = (
-                {column: expected_row[column] for column in required_columns if column in expected_row}
-                if required_columns is not None
-                else expected_row
+            source_keys = {column.lower(): column for column in expected_row}
+            normalized_values = {column.lower(): value for column, value in values.items()}
+            if len(source_keys) != len(expected_row) or len(normalized_values) != len(values):
+                errors.append(f"Item {i}.values has ambiguous column names after lowercasing")
+                continue
+            requested = (
+                {column.lower() for column in required_columns}
+                if required_columns is not None else set(source_keys)
             )
-            if values != expected_values:
+            missing = requested - source_keys.keys()
+            if missing:
+                errors.append(f"Item {i} requires columns missing from CONTEXT_DATA: {sorted(missing)}")
+                continue
+            if not requested.issubset(normalized_values) or any(
+                column not in source_keys or value != expected_row[source_keys[column]]
+                for column, value in normalized_values.items()
+            ):
                 errors.append(
-                    f"Item {i}.values does not exactly match the required projection "
+                    f"Item {i}.values must include required columns and match source values "
                     f"of CONTEXT_DATA row '{row_id}'"
                 )
                 continue
+            # Keep source spelling and source values for downstream CSV/SQL use.
+            values = {
+                column: value for column, value in expected_row.items()
+                if column.lower() in normalized_values
+            }
+            item = {"row_id": row_id, "values": values}
 
         value_rid = values.get("__rid__")
         if value_rid is not None and value_rid != row_id:
@@ -1852,31 +1879,12 @@ def _build_leaf_retrieval_query(
     task: Dict[str, Any],
     include_pushdown: bool = False,
 ) -> str:
-    """
-    Build a retrieval query for one leaf task.
-    """
-    """
-    # if the embedding used is sentence-transformers/all-mpnet-base-v2:
+    """Describe the leaf's table and fields for semantic retrieval."""
     table = str(task.get("table_name") or task.get("table") or "").strip()
-    columns = []
-    for key in ("select_columns", "join_keys", "group_by_columns", "aggregate_columns", "columns"):
-        for col in task.get(key) or []:
-            if col not in columns:
-                columns.append(col)
-
-    if table:
-        query = f"table: {table}"
-        if columns:
-            query += " | columns: " + ", ".join(columns)
-        return query
-    """
-    # For the default pipeline, keep the broad table-level retrieval baseline.
-    # The pushdown pipeline includes local predicates so entity/value tokens reach FAISS.
-    table = str(task.get("table_name") or task.get("table") or "").strip()
-    if table and not include_pushdown:
-        return f"Retrieve relevant rows for table '{table}'"
-
-    predicates = _dedupe_strings(task.get("local_predicates") or [])
+    predicates = (
+        _dedupe_strings(task.get("local_predicates") or [])
+        if include_pushdown else []
+    )
     columns = _dedupe_strings(
         [
             *(task.get("select_columns") or []),
@@ -1887,18 +1895,17 @@ def _build_leaf_retrieval_query(
         ]
     )
 
+    # The row documents embed field names and values. Include requested fields
+    # even without pushdown, instead of embedding only a generic instruction.
     parts: List[str] = []
     if table:
-        parts.append(f"Retrieve rows from table '{table}'")
-    else:
-        parts.append("Retrieve relevant rows for this task")
-
-    if predicates:
-        parts.append("where " + " and ".join(predicates))
+        parts.append(f"Table: {table}")
     if columns:
-        parts.append("needed columns: " + ", ".join(columns))
+        parts.append("Columns: " + ", ".join(columns))
+    if predicates:
+        parts.append("Conditions: " + " and ".join(predicates))
 
-    return ". ".join(parts)
+    return ". ".join(parts) or "Retrieve relevant rows for this task"
 
 def _leaf_rows_by_id(ctx: Dict[str, Any], table_name: str) -> Dict[str, Dict[str, Any]]:
     return dict(ctx.get(table_name) or {})
@@ -1918,6 +1925,7 @@ def _run_leaf_task(
     required_columns = required_leaf_columns(task)
 
     prompt = build_leaf_prompt(task, ctx, mode="first")
+    generation_prompts: List[str] = []
     out_text = _call_model_with_retry(
         ollama_model,
         prompt,
@@ -1927,6 +1935,7 @@ def _run_leaf_task(
         validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id, required_columns),
         scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id, required_columns)[2] or []),
         status_event=status_event,
+        prompt_sink=generation_prompts,
     )
 
     valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
@@ -1940,6 +1949,7 @@ def _run_leaf_task(
         "retrieval_query": retrieval_query,
         "context_data": ctx,
         "prompt": prompt,
+        "generation_prompts": generation_prompts,
         "output_text": out_text,
         "parsed_output": parsed_output,
         "parse_error": parse_error,
@@ -1966,6 +1976,7 @@ def _run_iterative_join_leaf_task(
         inherited_bindings=inherited_bindings,
         source_row_ids=source_row_ids,
     )
+    generation_prompts: List[str] = []
     out_text = _call_model_with_retry(
         ollama_model,
         prompt,
@@ -1975,6 +1986,7 @@ def _run_iterative_join_leaf_task(
         validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id, required_columns),
         scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id, required_columns)[2] or []),
         status_event=status_event,
+        prompt_sink=generation_prompts,
     )
     valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
         out_text, expected_rows_by_id, required_columns,
@@ -1987,6 +1999,7 @@ def _run_iterative_join_leaf_task(
         "retrieval_query": retrieval_query,
         "context_data": ctx,
         "prompt": prompt,
+        "generation_prompts": generation_prompts,
         "output_text": out_text,
         "parsed_output": parsed_output,
         "parse_error": parse_error,
@@ -3799,6 +3812,8 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
             ensure_ascii=False,
         ) + "\n"
 
+    outgoing_events: queue.Queue[Optional[str]] = queue.Queue()
+
     def event_stream():
         leaf_outputs: List[Dict[str, Any]] = []
         pipeline_choices: List[Dict[str, str]] = []
@@ -3809,10 +3824,8 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
         answer: List[Dict[str, Any]] = []
         generated_csv_files: List[str] = []
 
-        pending_events: List[str] = []
-
         def emit(event_type: str, payload: Dict[str, Any]) -> None:
-            pending_events.append(encode_event(event_type, payload))
+            outgoing_events.put(encode_event(event_type, payload))
 
         try:
             yield encode_event("start", {
@@ -4017,10 +4030,6 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         if annotations:
                             leaf_output["annotations"] = annotations
 
-                    for pending_event in pending_events:
-                        yield pending_event
-                    pending_events.clear()
-
                     leaf_output["pipeline"] = pipeline
                     leaf_outputs.append(leaf_output)
                     parsed_rows = leaf_output.get("parsed_output") or []
@@ -4122,8 +4131,25 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 "message": f"UI run failed: {e}",
             })
 
+    def stream_live_events():
+        # Model calls block; a worker lets their callbacks reach the browser
+        # immediately instead of waiting for the leaf's answer.
+        def produce():
+            try:
+                for event in event_stream():
+                    outgoing_events.put(event)
+            finally:
+                outgoing_events.put(None)
+
+        threading.Thread(target=produce, daemon=True).start()
+        while True:
+            event = outgoing_events.get()
+            if event is None:
+                break
+            yield event
+
     return StreamingResponse(
-        event_stream(),
+        stream_live_events(),
         media_type="application/x-ndjson",
         headers={
             "Cache-Control": "no-cache",

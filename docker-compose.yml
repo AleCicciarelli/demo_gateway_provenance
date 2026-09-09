@@ -88,6 +88,7 @@ services:
 
     volumes:
       - ./gateway.py:/app/gateway.py:ro
+      - ./planner.py:/app/planner.py:ro
       - ./build_row_ind.sh:/app/build_row_ind.sh:ro
       - ./build_row_index.py:/app/build_row_index.py:ro
       - ./build_row_faiss_index.py:/app/build_row_faiss_index.py:ro

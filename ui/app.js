@@ -743,6 +743,18 @@ function applyRunEvent(event) {
     pushProgress(event, "success");
   } else if (event.type === "leaf_model_start") {
     pushProgress(event);
+  } else if (event.type === "generation_prompt") {
+    state.output.leaf_outputs ??= [];
+    let leaf = state.output.leaf_outputs.find((item) => (
+      item.table_name === event.table && item.pipeline === event.pipeline
+    ));
+    if (!leaf) {
+      leaf = { table_name: event.table, pipeline: event.pipeline, generation_prompts: [] };
+      state.output.leaf_outputs.push(leaf);
+    }
+    leaf.prompt ??= event.prompt;
+    leaf.generation_prompts ??= [];
+    leaf.generation_prompts.push(event.prompt);
   } else if (event.type === "model_request_start") {
     updateWaitingProgress(event);
   } else if (event.type === "model_fallback_start") {
@@ -929,6 +941,7 @@ function renderOutput() {
     ${renderRunSummary(state.output)}
     ${renderProgress(state.output?.progress ?? [])}
     ${renderRagAnnotations(state.output?.annotations ?? [])}
+    ${renderGenerationPrompts(state.output?.leaf_outputs ?? [])}
     ${renderInternalKnowledgeOutputs(
       state.output?.leaf_outputs ?? [],
       state.output?.annotations ?? [],
@@ -938,6 +951,42 @@ function renderOutput() {
   `;
   els.provenanceView.innerHTML = renderProvenance(answer);
   bindOutputActions();
+}
+
+function renderGenerationPrompts(leafOutputs) {
+  const leaves = Array.isArray(leafOutputs) ? leafOutputs.filter((leaf) => (
+    leaf?.pipeline !== "llm-internal"
+    && typeof leaf?.prompt === "string"
+    && leaf.prompt.trim()
+    && leaf.prompt !== "SQL TABLE MODE"
+    && leaf.prompt !== "MANUAL REVIEW MODE"
+  )) : [];
+  if (!leaves.length) return "";
+  return `
+    <section class="annotation-section" aria-label="LLM generation prompts">
+      <h3>LLM generation prompts</h3>
+      <p>The generation prompt contains extraction instructions, examples, and retrieved context. The retrieval query is the text embedded for search.</p>
+      ${leaves.map((leaf) => {
+        const prompts = Array.isArray(leaf.generation_prompts) && leaf.generation_prompts.length
+          ? leaf.generation_prompts : [leaf.prompt];
+        return `
+          <div class="annotation-card">
+            <strong>${escapeHtml(leaf.table_name ?? "query")} · ${escapeHtml(pipelineLabel(leaf.pipeline))}</strong>
+            ${leaf.retrieval_query ? `<details class="context-preview">
+              <summary>View retrieval query</summary>
+              <pre>${escapeHtml(leaf.retrieval_query)}</pre>
+            </details>` : ""}
+            ${prompts.map((prompt, index) => `
+              <details class="context-preview internal-prompt" open>
+                <summary>View generation prompt · attempt ${index + 1}${index ? " (retry)" : ""}</summary>
+                <pre>${escapeHtml(prompt)}</pre>
+              </details>
+            `).join("")}
+          </div>
+        `;
+      }).join("")}
+    </section>
+  `;
 }
 
 function renderInternalKnowledgeOutputs(leafOutputs, annotations) {

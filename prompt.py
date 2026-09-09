@@ -146,14 +146,17 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
 
     {{
       "row_id": "<the row dictionary key, e.g. {table}_123>",
-      "values": <an object containing exactly REQUIRED_COLUMNS>
+      "values": <an object containing all REQUIRED_COLUMNS>
     }}
 
     "row_id" is an output wrapper field.
     It may not exist as a column inside the row.
     Its value must equal the CONTEXT_DATA dictionary key for that row.
-    The "values" object must contain exactly REQUIRED_COLUMNS and no others.
-    Copy each required value from the identified context row.
+    The "values" object must contain all REQUIRED_COLUMNS.
+    Extra columns are allowed if copied exactly from the same context row.
+    Match required column names to context keys ignoring letter case
+    (for example, name matches Name). Use the context key spelling in output.
+    Copy each required value from the identified context row exactly.
     The top-level object must NOT be the row itself.
     The only top-level keys are "row_id" and "values".
     Do not rename columns.
@@ -170,7 +173,7 @@ def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "fi
     2. Ignore all other tables.
     3. Each output item corresponds to exactly one input row.
     4. "row_id" must be the dictionary key of the row, such as "{table}_123".
-    5. "values" must contain exactly REQUIRED_COLUMNS.
+    5. "values" must contain all REQUIRED_COLUMNS; extra source columns are allowed.
     6. Copy strings exactly, including spaces.
     7. Return [] if the target table is missing.
     8. Return JSON only. No markdown. No comments. No text.
@@ -260,7 +263,8 @@ Output rules:
 - The output must be a JSON array.
 - Each output item must have exactly "row_id" and "values".
 - "row_id" must be a row dictionary key from CONTEXT_DATA["{table}"], such as "{table}_123".
-- "values" must contain exactly REQUIRED_COLUMNS and no other columns.
+- "values" must contain all REQUIRED_COLUMNS; extra columns copied exactly from the same context row are allowed.
+- Match column names ignoring letter case (name matches Name); use the context key spelling in output.
 - Copy every required value exactly from the identified context row.
 - Copy strings exactly, including spaces.
 - Do not rename, trim, or modify columns.
