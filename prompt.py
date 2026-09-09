@@ -1,9 +1,23 @@
-from typing import Dict, Any
+"""Prompts for RAG pipeline."""
+
 import json
+from typing import Any, Dict
+
+
+_OUTPUT_RULES = """OUTPUT RULES:
+- Return only a valid JSON array; no explanations, markdown, comments, or SQL.
+- Each item must have exactly "row_id" and "values":
+  {"row_id":"<table row dictionary key>","values":{"<source column>":"<exact source value>"}}
+- Output rows only from CONTEXT_DATA[TARGET_TABLE]. Return [] if the target table is missing.
+- Each item corresponds to one existing source row. "row_id" is its dictionary key.
+- "values" must contain all REQUIRED_COLUMNS.
+- Copy values exactly from the row identified by "row_id", including spaces and value types.
+- Do not invent rows, identifiers, columns, or values.
+"""
 
 
 def required_leaf_columns(task: Dict[str, Any]) -> list[str]:
-    """Return the smallest column set needed to execute this leaf query."""
+    """Collect required columns in order; planner columns already include predicates."""
     columns: list[str] = []
     for key in (
         "columns",
@@ -18,176 +32,53 @@ def required_leaf_columns(task: Dict[str, Any]) -> list[str]:
                 columns.append(name)
     return columns
 
-def build_leaf_prompt(task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "first") -> str:
-    table = task["table_name"]
-    context_json = json.dumps(ctx, ensure_ascii=False, indent=2)
-    columns = required_leaf_columns(task)
-    columns_json = json.dumps(columns, ensure_ascii=False)
-    #columns = task["columns"]
-    #preds = task.get("local_predicates", [])
 
+def compact_json(value: Any) -> str:
+    """Serialize prompt data without formatting whitespace."""
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def build_leaf_prompt(
+    task: Dict[str, Any], ctx: Dict[str, Any], mode: str = "first", *,
+    pushdown: bool = False,
+) -> str:
+    """Extract target-table rows, applying local predicates only with pushdown."""
     if mode == "more":
-        return (
-            "Return ONLY a valid JSON array with additional rows in the exact same schema as before.\n"
-            "Do not repeat rows already returned.\n"
-            "Each output item MUST include row_id and values.\n"
-            "row_id is an output wrapper field, not an input column.\n"
-            "Each row_id MUST be a row dictionary key from CONTEXT_DATA.\n"
-            "Copy values exactly from the row identified by row_id.\n"
-            "If there are no more valid rows, return [].\n"
-            "No explanations. No markdown. No SQL."
-        )
-  # no conditions for now, but they can be added later if needed
-  #  columns_block = "\n".join(f"- {c}" for c in columns)
+        return """Return only a valid JSON array of additional rows using the same target table, rules, and schema as before.
+Do not repeat row_ids already returned. Each item must have exactly "row_id" and "values".
+"row_id" is the target-table row dictionary key copy values exactly from that row.
+Return [] if there are no more valid rows. No explanations, markdown, or SQL."""
 
-  #  if preds:
-  #      filter_lines = ["Rows MUST satisfy ALL these filters exactly:"]
-  #      for p in preds:
-  #          filter_lines.append(f"- {p}")
-  #      filter_block = "\n".join(filter_lines)
-  #  else:
-  #      filter_block = "There are no extra filters."
+    selection = "- Return exactly one item for every target-table row, preserving source order."
+    if pushdown:
+        predicates = [
+            str(predicate).strip()
+            for predicate in task.get("local_predicates") or []
+            if str(predicate).strip()
+        ]
+        selection = f"""LOCAL_PREDICATES:
+{compact_json(predicates)}
+- Select target-table rows matching all LOCAL_PREDICATES, preserving source order.
+- If LOCAL_PREDICATES is empty, return every target-table row.
+- If no rows match, return []."""
 
-  #  schema_example = ", ".join([f'"{c}": "<value>"' for c in columns])
-  
-    # few shot prompt with 2 examples, one with a valid row and one without any valid rows
-    few_shot = """
-    EXAMPLES:
+    return f"""You are a JSON extraction engine.
 
-    Example 1:
+TARGET_TABLE:
+{task["table_name"]}
 
-    TARGET_TABLE:
-    nation
+REQUIRED_COLUMNS:
+{compact_json(required_leaf_columns(task))}
 
-    REQUIRED_COLUMNS:
-    ["n_name"]
+SELECTION RULES:
+- Read only CONTEXT_DATA[TARGET_TABLE]; ignore every other table.
+{selection}
+- Do not execute joins, aggregate, group, sort, limit, or compute the final SQL result.
 
-    CONTEXT_DATA:
-    {
-      "nation": {
-        "nation_2": {
-          "n_name": "ARGENTINA"
-        }
-      },
-      "supplier": {
-        "supplier_42": {
-          "s_name": "Supplier#000000042",
-          "s_nationkey": "22",
-          "__rid__": "supplier_42"
-        }
-      }
-    }
+{_OUTPUT_RULES}
 
-    CORRECT_JSON_OUTPUT:
-    [
-      {
-        "row_id": "nation_2",
-        "values": {
-          "n_name": "ARGENTINA"
-        }
-      }
-    ]
-
-    Example 2:
-
-    TARGET_TABLE:
-    nation
-
-    CONTEXT_DATA:
-    {
-      "supplier": {
-        "supplier_42": {
-          "s_name": "Supplier#000000042",
-          "s_nationkey": "22",
-          "__rid__": "supplier_42"
-        }
-      }
-    }
-
-    CORRECT_JSON_OUTPUT:
-    []
-    """
-
-    return f"""
-    You are a JSON extraction engine.
-
-    Your task is simple:
-
-    Return candidate source rows from exactly this table:
-
-    TARGET_TABLE:
-    {table}
-
-    You must read only:
-
-    CONTEXT_DATA["{table}"]
-
-    Ignore every other table in CONTEXT_DATA.
-
-    REQUIRED_COLUMNS:
-    {columns_json}
-
-    If CONTEXT_DATA does not contain the key "{table}", return [].
-
-    Do NOT evaluate SQL joins.
-    Do NOT apply WHERE filters or pushed predicates.
-    Do NOT aggregate, group, sort, limit, or compute final query results.
-    A deterministic component will handle those operations later.
-
-    --------------------------------------------------
-
-    OUTPUT RULES:
-
-    Return ONLY valid JSON.
-
-    The output must be a JSON array.
-
-    For every row inside CONTEXT_DATA["{table}"], output exactly one object:
-
-    {{
-      "row_id": "<the row dictionary key, e.g. {table}_123>",
-      "values": <an object containing all REQUIRED_COLUMNS>
-    }}
-
-    "row_id" is an output wrapper field.
-    It may not exist as a column inside the row.
-    Its value must equal the CONTEXT_DATA dictionary key for that row.
-    The "values" object must contain all REQUIRED_COLUMNS.
-    Extra columns are allowed if copied exactly from the same context row.
-    Match required column names to context keys ignoring letter case
-    (for example, name matches Name). Use the context key spelling in output.
-    Copy each required value from the identified context row exactly.
-    The top-level object must NOT be the row itself.
-    The only top-level keys are "row_id" and "values".
-    Do not rename columns.
-    Do not change values.
-    Do not trim spaces.
-    Do not change order intentionally.
-    Do not add explanations.
-
-    --------------------------------------------------
-
-    CRITICAL RULES:
-
-    1. Use only rows under CONTEXT_DATA["{table}"].
-    2. Ignore all other tables.
-    3. Each output item corresponds to exactly one input row.
-    4. "row_id" must be the dictionary key of the row, such as "{table}_123".
-    5. "values" must contain all REQUIRED_COLUMNS; extra source columns are allowed.
-    6. Copy strings exactly, including spaces.
-    7. Return [] if the target table is missing.
-    8. Return JSON only. No markdown. No comments. No text.
-    9. Do not invent rows, identifiers, columns, or values.
-
-    --------------------------------------------------
-
-    {few_shot}
-
-    Now extract the rows.
-
-    CONTEXT_DATA:
-{context_json}
-    """.strip()
+CONTEXT_DATA:
+{compact_json(ctx)}"""
 
 
 def build_iterative_join_leaf_prompt(
@@ -196,90 +87,38 @@ def build_iterative_join_leaf_prompt(
     inherited_bindings: Dict[str, Any] | None = None,
     source_row_ids: list[str] | None = None,
 ) -> str:
-    table = task["table_name"]
-    context_json = json.dumps(ctx, ensure_ascii=False, indent=2)
-    columns = required_leaf_columns(task)
-    columns_json = json.dumps(columns, ensure_ascii=False)
-    predicates = [
-        str(predicate).strip()
-        for predicate in task.get("local_predicates") or []
-        if str(predicate).strip()
-    ]
-    bindings = inherited_bindings or {}
-    sources = source_row_ids or []
+    """Select target-table candidates using constraints"""
+    constraints = {
+        "local_predicates": [
+            str(predicate).strip()
+            for predicate in task.get("local_predicates") or []
+            if str(predicate).strip()
+        ],
+        "inherited_bindings": inherited_bindings or {},
+        "source_row_ids": source_row_ids or [],
+    }
 
-    constraints = []
-    if predicates:
-        constraints.append("LOCAL_PREDICATES:")
-        constraints.extend(f"- {predicate}" for predicate in predicates)
-    if bindings:
-        constraints.append("INHERITED_JOIN_BINDINGS:")
-        for column, values in bindings.items():
-            if isinstance(values, list):
-                values_text = ", ".join(str(value) for value in values)
-            else:
-                values_text = str(values)
-            constraints.append(f"- {column}: {values_text}")
-    if sources:
-        constraints.append("SOURCE_ROWS_THAT_PRODUCED_BINDINGS:")
-        constraints.append("- " + ", ".join(sources))
-
-    constraints_block = "\n".join(constraints) if constraints else "No local predicates or inherited bindings."
-
-    return f"""
-You are a JSON extraction engine for one iterative join step.
+    return f"""You are a JSON extraction engine for one iterative join step.
 
 TARGET_TABLE:
-{table}
-
-CONTEXT_DATA may contain several tables.
-You may inspect every table in CONTEXT_DATA to understand links, source rows, and nearby evidence.
-However, your output rows must come only from the TARGET_TABLE.
-If CONTEXT_DATA does not contain "{table}", return [].
-
-Your job is to select candidate source rows from the target table that are useful for this leaf step.
-Use the constraints below, the inherited bindings, and the other retrieved tables as evidence to choose rows from the target table.
-
-CONSTRAINTS:
-{constraints_block}
+{task["table_name"]}
 
 REQUIRED_COLUMNS:
-{columns_json}
+{compact_json(required_leaf_columns(task))}
 
-Selection rules:
-- Prefer rows that satisfy all LOCAL_PREDICATES.
-- Prefer rows whose columns match the INHERITED_JOIN_BINDINGS.
-- If a listed inherited binding column is present in a row, the row should match one of the listed values.
-- Use rows from other tables only as evidence for finding the right target-table rows.
-- It is valid and useful to compare target-table rows with linked/source rows from other tables.
+CONSTRAINTS:
+{compact_json(constraints)}
+
+SELECTION RULES:
+- Select target-table candidate rows useful for this leaf step.
+- You may inspect every context table and compare linked/source rows as supporting evidence.
+- Prefer rows satisfying all local_predicates and matching inherited_bindings.
+- If an inherited binding column is present in a row, it should match one of the supplied values.
+- source_row_ids identify the rows that produced the inherited bindings.
+- Empty constraints impose no additional filtering conditions.
 - If no row clearly satisfies the constraints, return [].
-- Do not compute the final SQL answer.
-- Do not execute joins, aggregation, grouping, ordering, or limit.
-- Do not invent rows outside CONTEXT_DATA.
-- Do not output rows from non-target tables.
 
-Output rules:
-- Return ONLY valid JSON.
-- The output must be a JSON array.
-- Each output item must have exactly "row_id" and "values".
-- "row_id" must be a row dictionary key from CONTEXT_DATA["{table}"], such as "{table}_123".
-- "values" must contain all REQUIRED_COLUMNS; extra columns copied exactly from the same context row are allowed.
-- Match column names ignoring letter case (name matches Name); use the context key spelling in output.
-- Copy every required value exactly from the identified context row.
-- Copy strings exactly, including spaces.
-- Do not rename, trim, or modify columns.
-- Do not add explanations, markdown, comments, or extra keys.
-
-Example item:
-{{
-  "row_id": "{table}_22",
-  "values": {{
-    "some_column": "some value"
-  }}
-}}
-
-Now select matching candidate rows.
+{_OUTPUT_RULES}
 
 CONTEXT_DATA:
-{context_json}
-    """.strip()
+{compact_json(ctx)}"""

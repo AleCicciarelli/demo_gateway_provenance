@@ -74,6 +74,7 @@ services:
       LLM_CIRCUIT_BREAKER_SECONDS: ${LLM_CIRCUIT_BREAKER_SECONDS:-300}
       VERBOSE_MODEL_LOGS: "false"
       RETRIEVER_CANDIDATE_K: "10"
+      EMB_DEVICE: ${EMB_DEVICE:-auto}
       EMB_LOCAL_FILES_ONLY: "true"
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
@@ -88,6 +89,7 @@ services:
 
     volumes:
       - ./gateway.py:/app/gateway.py:ro
+      - ./embedding_strategies.py:/app/embedding_strategies.py:ro
       - ./planner.py:/app/planner.py:ro
       - ./build_row_ind.sh:/app/build_row_ind.sh:ro
       - ./build_row_index.py:/app/build_row_index.py:ro

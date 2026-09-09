@@ -34,6 +34,7 @@ const els = {
   leafList: document.querySelector("#leaf-list"),
   runStatus: document.querySelector("#run-status"),
   answerView: document.querySelector("#answer-view"),
+  generationPromptView: document.querySelector("#generation-prompt-view"),
   provenanceView: document.querySelector("#provenance-view"),
   tabs: document.querySelectorAll(".tab"),
 };
@@ -930,18 +931,26 @@ function clearOutput() {
   els.runStatus.textContent = "Waiting";
   els.runStatus.classList.add("muted-pill");
   els.answerView.innerHTML = `<div class="empty-state">Run the selected pipelines to see final output.</div>`;
+  els.generationPromptView.innerHTML = "";
+  delete els.generationPromptView.dataset.rendered;
   els.provenanceView.innerHTML = `<div class="empty-state">Provenance will appear here after a run.</div>`;
 }
 
 function renderOutput() {
   const answer = state.output?.answer ?? [];
+  const promptHtml = renderGenerationPrompts(state.output?.leaf_outputs ?? []);
+  // Avoid replacing this panel on every progress event, preserving its scroll
+  // position and open/closed state while the model is generating.
+  if (els.generationPromptView.dataset.rendered !== promptHtml) {
+    els.generationPromptView.innerHTML = promptHtml;
+    els.generationPromptView.dataset.rendered = promptHtml;
+  }
   els.answerView.innerHTML = `
     ${state.output?.source === "mock" ? `<p class="notice">Mock output. Wire BACKEND_ENDPOINTS.run in app.js to replace this.</p>` : ""}
     ${renderErrors(state.output?.errors ?? [])}
     ${renderRunSummary(state.output)}
     ${renderProgress(state.output?.progress ?? [])}
     ${renderRagAnnotations(state.output?.annotations ?? [])}
-    ${renderGenerationPrompts(state.output?.leaf_outputs ?? [])}
     ${renderInternalKnowledgeOutputs(
       state.output?.leaf_outputs ?? [],
       state.output?.annotations ?? [],

@@ -1918,13 +1918,14 @@ def _run_leaf_task(
     ctx: Dict[str, Any],
     retrieval_query: str,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    pushdown: bool = False,
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
 
     expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
     required_columns = required_leaf_columns(task)
 
-    prompt = build_leaf_prompt(task, ctx, mode="first")
+    prompt = build_leaf_prompt(task, ctx, mode="first", pushdown=pushdown)
     generation_prompts: List[str] = []
     out_text = _call_model_with_retry(
         ollama_model,
@@ -2027,7 +2028,8 @@ def _run_planner_first(
     leaf_outputs = []
     for task in plan.leaf_tasks:
         task_dict = asdict(task)
-        retrieval_query = _build_leaf_retrieval_query(task_dict)
+        pushdown = _pipeline_uses_pushdown_retrieval(pipeline_id)
+        retrieval_query = _build_leaf_retrieval_query(task_dict, include_pushdown=pushdown)
         print(f"\n--- Running leaf task for table '{task.table_name}' with retrieval query: {retrieval_query}\n", flush=True)
 
         print("[planner only] calling retrieve_context_data_iterative()", flush=True)
@@ -2048,6 +2050,7 @@ def _run_planner_first(
             temperature=temperature,
             ctx=leaf_ctx,
             retrieval_query=retrieval_query,
+            pushdown=pushdown,
         )
         leaf_output["annotations"] = annotations
         leaf_outputs.append(leaf_output)
@@ -2247,6 +2250,7 @@ def _run_ui_leaf_pipeline(
             temperature=temperature,
             ctx=ctx,
             retrieval_query=retrieval_query,
+            pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
         )
     leaf_output["annotations"] = annotations
     return leaf_output
@@ -2326,6 +2330,7 @@ def _run_ui_leaf_pipeline_with_context(
         ctx=ctx,
         retrieval_query=retrieval_query,
         status_event=status_event,
+        pushdown=_pipeline_uses_pushdown_retrieval(pipeline),
     )
 
 def _ui_uses_iterative_join_pipeline(
