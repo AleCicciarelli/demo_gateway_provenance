@@ -25,8 +25,8 @@ from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
 from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required_leaf_columns
 from prompt_internal_knowledge import (
-    PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE,
-    get_internal_knowledge_prompt_template,
+    build_internal_knowledge_prompt,
+    uses_plain_internal_results,
 )
 from tpch_schema_info import SCHEMA_INFO as TPCH_SCHEMA_INFO
 from planner import  build_query_plan
@@ -2165,6 +2165,7 @@ def _llm_internal_leaf_output(
         dataset,
         temperature,
         status_event=status_event,
+        output_columns=columns,
     )
     parsed_output: List[Dict[str, Any]] = []
     for index, item in enumerate(answer, start=1):
@@ -2542,7 +2543,7 @@ def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
     existing = str(task.get("question_nl") or "").strip()
     columns = required_leaf_columns(task)
     projection_instruction = (
-        " Return only these columns in each result object: " + ", ".join(columns) + "."
+        " Required answer columns: " + ", ".join(columns) + "."
         if columns
         else ""
     )
@@ -2551,7 +2552,7 @@ def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
 
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     if not table_name:
-        return "List the relevant Formula 1 information." + projection_instruction
+        return "List the relevant information." + projection_instruction
 
     readable_table = table_name.replace("_", " ")
     predicates = [
@@ -2695,10 +2696,9 @@ def _run_llm_internal_query(
     dataset: str,
     temperature: float,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    output_columns: Optional[List[str]] = None,
 ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any], str]:
-    use_plain_relf1_results = dataset.strip().lower() in {
-        "relf", "relf1", "rel-f1", "f1", "formula1", "formula-1",
-    }
+    use_plain_results = uses_plain_internal_results(dataset)
 
     def parse_plain_results(text: str) -> List[Dict[str, Any]]:
         array_text, extraction_error = _extract_json_array_text(text)
@@ -2710,11 +2710,16 @@ def _run_llm_internal_query(
         for index, row in enumerate(value):
             if not isinstance(row, dict):
                 raise ValueError(f"Item {index} is not a result-row object")
+            if type(row.get("id")) is not int or row["id"] != index + 1:
+                raise ValueError(f"Item {index} must have sequential integer id {index + 1}")
+            if output_columns is not None and output_columns:
+                if set(row) != {"id", *output_columns}:
+                    raise ValueError(f"Item {index} must contain only id and required columns {output_columns}")
         return value
 
     def validate(text: str) -> Tuple[bool, Optional[str]]:
         try:
-            if use_plain_relf1_results:
+            if use_plain_results:
                 parse_plain_results(text)
             else:
                 _parse_answer_json(text)
@@ -2722,8 +2727,7 @@ def _run_llm_internal_query(
         except ValueError as exc:
             return False, str(exc)
 
-    prompt_template = get_internal_knowledge_prompt_template(dataset)
-    prompt = prompt_template.format(question=question)
+    prompt = build_internal_knowledge_prompt(dataset, question, output_columns)
     internal_provider = PLANNER_LLM_PROVIDER
     internal_model = (
         PLANNER_LLM_MODEL
@@ -2754,7 +2758,7 @@ def _run_llm_internal_query(
         # data. After all JSON retries are exhausted, keep the UI run alive and
         # represent that abstention as an empty result.
         answer = []
-    elif use_plain_relf1_results:
+    elif use_plain_results:
         answer = [
             {"result": row, "provenance": []}
             for row in parse_plain_results(raw_output)
@@ -2811,9 +2815,9 @@ to retrieval evidence or the source database.
 
 Assign exactly one level:
 - high: the generated data contains stable, well-known facts and is internally
-  consistent, specific, and supported by coherent provenance identifiers;
+  consistent and specific;
 - medium: the answer is plausible and mostly consistent, but some values,
-  completeness, or provenance details may be uncertain;
+  completeness may be uncertain;
 - low: the answer appears guessed, contains instance-specific facts that cannot
   be verified from internal knowledge, is inconsistent, or lacks adequate
   support.

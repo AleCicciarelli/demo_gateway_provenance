@@ -21,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 
 try:
     import gateway  
-    from prompt_internal_knowledge import get_internal_knowledge_prompt_template
+    from prompt_internal_knowledge import build_internal_knowledge_prompt
 except ModuleNotFoundError as exc:
     missing = exc.name or "a required package"
     raise SystemExit(
@@ -153,7 +153,7 @@ def parse_internal_output(text: str) -> Tuple[bool, Optional[str], Optional[List
         if not isinstance(item, dict):
             errors.append(f"Item {i} is not an object")
             continue
-        # The minimal REL-F1 prompt returns plain result-row objects. Normalize
+        # The Formula 1 and arXiv prompts return plain result-row objects. Normalize
         # those rows to the evaluator's established answer/provenance shape.
         if set(item.keys()) != {"result", "provenance"}:
             valid_items.append({"result": item, "provenance": []})
@@ -210,8 +210,7 @@ def run_one(item: Dict[str, Any], ollama_model: str, temperature: float, prompt_
         question = str(item.get("prompt_question_nl") or "").strip()
         if not question:
             raise ValueError("Missing natural-language question")
-        prompt_template = get_internal_knowledge_prompt_template(prompt_domain)
-        prompt = prompt_template.format(question=question)
+        prompt = build_internal_knowledge_prompt(prompt_domain, question)
         out_text = gateway._call_model_with_retry(
             ollama_model,
             prompt,
