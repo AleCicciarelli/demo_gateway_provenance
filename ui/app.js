@@ -964,8 +964,7 @@ function renderOutput() {
 
 function renderGenerationPrompts(leafOutputs) {
   const leaves = Array.isArray(leafOutputs) ? leafOutputs.filter((leaf) => (
-    leaf?.pipeline !== "llm-internal"
-    && typeof leaf?.prompt === "string"
+    typeof leaf?.prompt === "string"
     && leaf.prompt.trim()
     && leaf.prompt !== "SQL TABLE MODE"
     && leaf.prompt !== "MANUAL REVIEW MODE"
@@ -974,7 +973,7 @@ function renderGenerationPrompts(leafOutputs) {
   return `
     <section class="annotation-section" aria-label="LLM generation prompts">
       <h3>LLM generation prompts</h3>
-      <p>The generation prompt contains extraction instructions, examples, and retrieved context. The retrieval query is the text embedded for search.</p>
+      <p>Prompts appear when each model request starts. Internal knowledge prompts contain the question and output instructions; retrieval prompts also include retrieved context.</p>
       ${leaves.map((leaf) => {
         const prompts = Array.isArray(leaf.generation_prompts) && leaf.generation_prompts.length
           ? leaf.generation_prompts : [leaf.prompt];

@@ -973,6 +973,13 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
     except Exception as e:
         raise RuntimeError(f"Failed calling Ollama model '{model}' at {url}: {e}")
 
+def _model_error_details(error: Exception) -> Dict[str, Any]:
+    reason = str(error)
+    if LLM_API_KEY:
+        reason = reason.replace(LLM_API_KEY, "[REDACTED]")
+    return {"error_type": type(error).__name__, "reason": reason[:2000]}
+
+
 def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> str:
     if not LLM_API_BASE:
         raise RuntimeError("LLM_API_BASE is required when PLANNER_LLM_PROVIDER=openai")
@@ -995,15 +1002,32 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
             "temperature": temperature,
             "stream": False,
         }
-        r = requests.post(
-            url,
-            json=payload,
-            headers=headers,
-            timeout=(LLM_CONNECT_TIMEOUT, LLM_READ_TIMEOUT),
-            verify=LLM_SSL_VERIFY,
-        )
+        started_at = time.monotonic()
+        try:
+            r = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                timeout=(LLM_CONNECT_TIMEOUT, LLM_READ_TIMEOUT),
+                verify=LLM_SSL_VERIFY,
+            )
+        except requests.RequestException as exc:
+            _log_event({
+                "type": "llm_api_request_failed", "model": model_candidate,
+                **_model_error_details(exc),
+                "connect_timeout_seconds": LLM_CONNECT_TIMEOUT,
+                "read_timeout_seconds": LLM_READ_TIMEOUT,
+                "duration_seconds": round(time.monotonic() - started_at, 4),
+            })
+            raise
         if not r.ok:
             last_error = f"LLM API error {r.status_code} for model '{model_candidate}': {r.text}"
+            _log_event({
+                "type": "llm_api_request_failed", "model": model_candidate,
+                "http_status": r.status_code,
+                **_model_error_details(RuntimeError(last_error)),
+                "duration_seconds": round(time.monotonic() - started_at, 4),
+            })
             continue
         data = r.json()
         choices = data.get("choices") or []
@@ -1069,14 +1093,27 @@ def _generate_model(
         except Exception as primary_error:
             if not circuit_open:
                 _open_llm_circuit(primary_error)
+            failure_details = {
+                "requested_model": model, "requested_provider": provider,
+                **_model_error_details(primary_error),
+                "primary_attempted": not circuit_open,
+                "circuit_remaining_seconds": _llm_circuit_status()[2],
+                "fallback_enabled": PLANNER_LLM_FALLBACK_ENABLED,
+            }
+            _log_event({"type": "llm_primary_unavailable", **failure_details})
             if not PLANNER_LLM_FALLBACK_ENABLED:
                 raise
+            _log_event({
+                "type": "model_fallback_start", **failure_details,
+                "model": PLANNER_LLM_FALLBACK_MODEL, "model_provider": "ollama",
+            })
             if status_event:
                 status_event("model_fallback_start", {
                     "message": (
-                        f"No response from {model}; falling back to "
-                        f"Ollama {PLANNER_LLM_FALLBACK_MODEL}."
+                        f"{model} unavailable: {failure_details['reason']}. "
+                        f"Falling back to Ollama {PLANNER_LLM_FALLBACK_MODEL}."
                     ),
+                    **failure_details,
                     "model": PLANNER_LLM_FALLBACK_MODEL,
                     "model_provider": "ollama",
                     "request_status": "fallback_started",
@@ -1085,6 +1122,10 @@ def _generate_model(
                 fallback_started_at = time.monotonic()
                 output = _ollama_generate(PLANNER_LLM_FALLBACK_MODEL, prompt, temperature)
             except Exception as fallback_error:
+                _log_event({
+                    "type": "model_fallback_failed", "model": PLANNER_LLM_FALLBACK_MODEL,
+                    "model_provider": "ollama", **_model_error_details(fallback_error),
+                })
                 raise RuntimeError(
                     f"Primary LLM failed ({primary_error}); Ollama fallback "
                     f"'{PLANNER_LLM_FALLBACK_MODEL}' also failed ({fallback_error})"
@@ -1191,12 +1232,23 @@ def _call_model_with_retry(
                 "request_status": "attempting",
                 "attempt": attempt,
             })
+        response_metadata: Dict[str, Any] = {}
+
+        def track_model_status(event_type: str, payload: Dict[str, Any]) -> None:
+            if event_type == "model_response_received":
+                response_metadata.update({
+                    "actual_model": payload.get("model"),
+                    "actual_model_provider": payload.get("model_provider"),
+                })
+            if status_event:
+                status_event(event_type, payload)
+
         out = _generate_model(
             provider,
             ollama_model,
             prompt,
             temperature,
-            status_event=status_event,
+            status_event=track_model_status,
         )
         last = out
         ok, err = validate(out)
@@ -1206,6 +1258,7 @@ def _call_model_with_retry(
             best_score = score
         attempt_event = {
             "type": "attempt",
+            **response_metadata,
             "model_provider": provider,
             "ollama_model": ollama_model,
             "attempt": attempt,
@@ -2160,12 +2213,14 @@ def _llm_internal_leaf_output(
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     leaf_question = _leaf_question_nl_internal(task)
     columns = required_leaf_columns(task)
+    generation_prompts: List[str] = []
     answer, raw_output, confidence, prompt = _run_llm_internal_query(
         leaf_question,
         dataset,
         temperature,
         status_event=status_event,
         output_columns=columns,
+        prompt_sink=generation_prompts,
     )
     parsed_output: List[Dict[str, Any]] = []
     for index, item in enumerate(answer, start=1):
@@ -2184,6 +2239,7 @@ def _llm_internal_leaf_output(
         "retrieval_query": "",
         "context_data": {},
         "prompt": prompt,
+        "generation_prompts": generation_prompts,
         "output_text": raw_output,
         "parsed_output": parsed_output,
         "parse_error": None,
@@ -2697,6 +2753,7 @@ def _run_llm_internal_query(
     temperature: float,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     output_columns: Optional[List[str]] = None,
+    prompt_sink: Optional[List[str]] = None,
 ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any], str]:
     use_plain_results = uses_plain_internal_results(dataset)
 
@@ -2742,6 +2799,7 @@ def _run_llm_internal_query(
         max_tries=2,
         validator=validate,
         status_event=status_event,
+        prompt_sink=prompt_sink,
     )
     output_is_valid, validation_error = validate(raw_output)
     if not output_is_valid:
@@ -2765,13 +2823,21 @@ def _run_llm_internal_query(
         ]
     else:
         answer = _parse_answer_json(raw_output)
+
+    def assessment_status(event_type: str, payload: Dict[str, Any]) -> None:
+        if status_event:
+            status_event(
+                "confidence_prompt" if event_type == "generation_prompt" else event_type,
+                {**payload, "stage": "confidence_assessment"},
+            )
+
     confidence = _assess_llm_internal_confidence(
         question=question,
         generated_output=answer,
         temperature=temperature,
         model=internal_model,
         provider=internal_provider,
-        status_event=status_event,
+        status_event=assessment_status,
     )
     return answer, raw_output, confidence, prompt
 
