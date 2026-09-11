@@ -163,7 +163,8 @@ def build_internal_knowledge_prompt(
     template = get_internal_knowledge_prompt_template(domain)
     # An explicit empty projection requests rows without column instructions.
     if output_columns == []:
-        template = template.replace("- The required output columns listed below.\n", "")
+        template = template.replace("- The required output columns listed below.\n",
+                                    "- All available information about each item requested in the QUESTION.\n")
         template = template.replace("REQUIRED OUTPUT COLUMNS:\n{output_columns}\n\n", "")
         template = template.replace("Do not include explanations, markdown, or additional fields.",
                                     "Do not include explanations or markdown.")

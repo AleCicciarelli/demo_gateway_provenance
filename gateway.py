@@ -1954,7 +1954,7 @@ def _build_leaf_retrieval_query(
     parts: List[str] = []
     if table:
         parts.append(f"Table: {table}")
-    if columns:
+    if columns and not task.get("all_columns"):
         parts.append("Columns: " + ", ".join(columns))
     if predicates:
         parts.append("Conditions: " + " and ".join(predicates))
@@ -1977,7 +1977,7 @@ def _run_leaf_task(
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
 
     expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
-    required_columns = required_leaf_columns(task)
+    required_columns = None if task.get("all_columns") else required_leaf_columns(task)
 
     prompt = build_leaf_prompt(task, ctx, mode="first", pushdown=pushdown)
     generation_prompts: List[str] = []
@@ -2024,7 +2024,7 @@ def _run_iterative_join_leaf_task(
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
-    required_columns = required_leaf_columns(task)
+    required_columns = None if task.get("all_columns") else required_leaf_columns(task)
     prompt = build_iterative_join_leaf_prompt(
         task=task,
         ctx=ctx,
@@ -2128,7 +2128,7 @@ def _manual_leaf_output(
     parsed_output = [
         {
             "row_id": row_id,
-            "values": {column: row[column] for column in columns if column in row},
+            "values": dict(row) if task.get("all_columns") else {column: row[column] for column in columns if column in row},
         }
         for row_id, row in rows_by_id.items()
     ]
@@ -2191,7 +2191,7 @@ def _sql_table_leaf_output(
         parsed_output.append({
             "row_id": row_id,
             "source_id": f"sql_{row_id}",
-            "values": {column: row[column] for column in columns if column in row},
+            "values": dict(row) if task.get("all_columns") else {column: row[column] for column in columns if column in row},
         })
     return {
         "table_name": table_name,
@@ -2230,7 +2230,7 @@ def _llm_internal_leaf_output(
         if provenance and isinstance(provenance[0], list) and provenance[0]:
             row_id = str(provenance[0][0])
         result = item["result"]
-        projected_result = {
+        projected_result = dict(result) if task.get("all_columns") else {
             column: result[column] for column in columns if column in result
         }
         if uses_plain_internal_results(dataset):
@@ -2589,7 +2589,7 @@ def _ui_rows_from_leaf_outputs(
 def _leaf_question_sql(task: Dict[str, Any]) -> str:
     existing = str(task.get("question_sql") or task.get("sql") or "").strip()
     columns = required_leaf_columns(task)
-    if existing and "*" not in existing:
+    if existing and "*" not in existing and not task.get("all_columns"):
         return existing
 
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
@@ -2602,7 +2602,7 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
         if str(predicate).strip()
     ]
 
-    projection = ", ".join(columns) if columns else "1"
+    projection = "*" if task.get("all_columns") else (", ".join(columns) if columns else "1")
     sql = f"SELECT {projection} FROM {table_name}"
     if predicates:
         sql += " WHERE " + " AND ".join(predicates)
@@ -2612,7 +2612,7 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
 def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
     existing = str(task.get("question_nl") or "").strip()
     columns = required_leaf_columns(task)
-    projection_instruction = (
+    projection_instruction = " Include all available information about each item." if task.get("all_columns") else (
         " Required answer columns: " + ", ".join(columns) + "."
         if columns
         else ""
@@ -2926,6 +2926,7 @@ Judge each row on its own factual correctness and relevance. Judge the block
 also on completeness and consistency across rows; do not simply average row ratings.
 Synthetic IDs are row labels, not factual claims.
 Include exactly one row assessment per generated output item, in the same order.
+There are {len(generated_output)} generated output items; return exactly {len(generated_output)} row assessments.
 Use row_index 1, 2, 3, ... to identify positions, regardless of any ID in the data.
 For an empty answer, return an empty row_assessments list and still assess the block.
 
@@ -2948,12 +2949,23 @@ GENERATED OUTPUT:
         validator=validate_assessment,
         retry_suffix=(
             "Return ONLY one JSON object with level, reason, and row_assessments. "
-            "Include one assessment per output row in order, with row_index starting at 1, "
+            f"Include exactly {len(generated_output)} assessments, one per output row in order, with row_index starting at 1, "
             "level (low, medium, or high), and a nonempty reason."
         ),
         status_event=status_event,
     )
-    assessment = parse_assessment(raw_assessment)
+    assessment_error = None
+    try:
+        assessment = parse_assessment(raw_assessment)
+    except ValueError as exc:
+        # Confidence is optional metadata: malformed ratings must not discard
+        # the generated answer or be presented as a factual low-confidence rating.
+        assessment_error = str(exc)
+        assessment = {
+            "level": "unknown",
+            "reason": "Confidence assessment unavailable: the model returned an invalid assessment after retries.",
+            "row_assessments": [],
+        }
     return {
         "type": "llm_confidence",
         "pipeline": LLM_INTERNAL_PIPELINE_ID,
@@ -2964,6 +2976,8 @@ GENERATED OUTPUT:
         "assessment_method": "llm_self_assessment",
         "model": model,
         "model_provider": provider,
+        "assessment_status": "unavailable" if assessment_error else "complete",
+        "assessment_error": assessment_error,
     }
 
 def _run_ui_ap_explanation_for_csv_files(
