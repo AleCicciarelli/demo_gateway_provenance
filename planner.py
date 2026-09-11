@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from typing import Any, Dict, List, Optional, Set
 import json
 
@@ -102,6 +102,7 @@ class LeafExtractionTask:
     select_columns: List[str]
     group_by_columns: List[str]
     aggregate_columns: List[str]
+    all_columns: bool = False
 
 '''
 Represents an operation to be applied after leaf extraction, such as grouping, aggregation, projection, ordering, or limiting.
@@ -123,6 +124,7 @@ class QueryPlan:
     leaf_tasks: List[LeafExtractionTask]
     joins: List[JoinSpec]
     post_ops: List[PostOp]
+    warnings: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -494,6 +496,20 @@ def build_query_plan(sql: str) -> QueryPlan:
     for j in joins:
         _ensure_leaf(leaf_map, j.table, j.alias)
 
+    # Projection wildcards request full rows. COUNT(*) is not a projection wildcard.
+    for item in tree.expressions:
+        if isinstance(item, exp.Star):
+            targets = list(leaf_map)
+        elif isinstance(item, exp.Column) and isinstance(item.this, exp.Star):
+            target = alias_map.get(item.table)
+            if target not in leaf_map:
+                raise ValueError(f"Unknown wildcard source: {item.table}")
+            targets = [target]
+        else:
+            continue
+        for target in targets:
+            leaf_map[target].all_columns = True
+
     #SELECT columns
     for item in select_items:
         for col in item.columns:
@@ -599,6 +615,11 @@ def build_query_plan(sql: str) -> QueryPlan:
         leaf_tasks=leaf_tasks,
         joins=joins,
         post_ops=post_ops,
+        warnings=[
+            f"No schema is available to the planner for '{task.table_name}'; "
+            "keeping all columns and requesting full rows without a projection column list."
+            for task in leaf_tasks if task.all_columns
+        ],
     )
 
 

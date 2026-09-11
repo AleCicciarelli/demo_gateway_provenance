@@ -253,7 +253,7 @@ def _build_join_step_retrieval_query(
             *(task.get("columns") or []),
         ]
     )
-    if columns:
+    if columns and not task.get("all_columns"):
         parts.append("Columns: " + ", ".join(columns))
 
     predicates = _dedupe_strings(task.get("local_predicates") or [])

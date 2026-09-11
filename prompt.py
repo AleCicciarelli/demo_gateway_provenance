@@ -18,6 +18,8 @@ _OUTPUT_RULES = """OUTPUT RULES:
 
 def required_leaf_columns(task: Dict[str, Any]) -> list[str]:
     """Collect required columns in order; planner columns already include predicates."""
+    if task.get("all_columns"):
+        return []
     columns: list[str] = []
     for key in (
         "columns",
@@ -31,6 +33,18 @@ def required_leaf_columns(task: Dict[str, Any]) -> list[str]:
             if name and name != "*" and name not in columns:
                 columns.append(name)
     return columns
+
+
+def leaf_projection_instruction(task: Dict[str, Any]) -> str:
+    if task.get("all_columns"):
+        return ""
+    return "REQUIRED_COLUMNS:\n" + compact_json(required_leaf_columns(task))
+
+
+def leaf_output_rules(task: Dict[str, Any]) -> str:
+    if task.get("all_columns"):
+        return _OUTPUT_RULES.replace('- "values" must contain all REQUIRED_COLUMNS.\n', '')
+    return _OUTPUT_RULES
 
 
 def compact_json(value: Any) -> str:
@@ -67,15 +81,14 @@ Return [] if there are no more valid rows. No explanations, markdown, or SQL."""
 TARGET_TABLE:
 {task["table_name"]}
 
-REQUIRED_COLUMNS:
-{compact_json(required_leaf_columns(task))}
+{leaf_projection_instruction(task)}
 
 SELECTION RULES:
 - Read only CONTEXT_DATA[TARGET_TABLE]; ignore every other table.
 {selection}
 - Do not execute joins, aggregate, group, sort, limit, or compute the final SQL result.
 
-{_OUTPUT_RULES}
+{leaf_output_rules(task)}
 
 CONTEXT_DATA:
 {compact_json(ctx)}"""
@@ -103,8 +116,7 @@ def build_iterative_join_leaf_prompt(
 TARGET_TABLE:
 {task["table_name"]}
 
-REQUIRED_COLUMNS:
-{compact_json(required_leaf_columns(task))}
+{leaf_projection_instruction(task)}
 
 CONSTRAINTS:
 {compact_json(constraints)}
@@ -118,7 +130,7 @@ SELECTION RULES:
 - Empty constraints impose no additional filtering conditions.
 - If no row clearly satisfies the constraints, return [].
 
-{_OUTPUT_RULES}
+{leaf_output_rules(task)}
 
 CONTEXT_DATA:
 {compact_json(ctx)}"""

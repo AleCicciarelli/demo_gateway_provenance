@@ -160,7 +160,14 @@ def build_internal_knowledge_prompt(
     domain: str, question: str, output_columns: list[str] | None = None,
 ) -> str:
     columns = list(dict.fromkeys(column for column in output_columns or [] if column != "id"))
-    return get_internal_knowledge_prompt_template(domain).format(
+    template = get_internal_knowledge_prompt_template(domain)
+    # An explicit empty projection requests rows without column instructions.
+    if output_columns == []:
+        template = template.replace("- The required output columns listed below.\n", "")
+        template = template.replace("REQUIRED OUTPUT COLUMNS:\n{output_columns}\n\n", "")
+        template = template.replace("Do not include explanations, markdown, or additional fields.",
+                                    "Do not include explanations or markdown.")
+    return template.format(
         question=question,
         output_columns=(", ".join(columns) if columns else
                         "Use column names that directly match the information requested in the QUESTION."),

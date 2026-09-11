@@ -389,6 +389,7 @@ function renderPlanTree(plan) {
 
   els.planTree.className = "plan-tree";
   els.planTree.innerHTML = `
+    ${(plan?.warnings ?? []).map((warning) => `<p role="status">${escapeHtml(warning)}</p>`).join("")}
     <div class="plan-flow" aria-label="Query execution flow">
       <section class="flow-stage">
         <div class="flow-stage-label">
