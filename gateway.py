@@ -26,6 +26,7 @@ from iterative_join_pipeline import run_iterative_join_pipeline
 from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required_leaf_columns
 from prompt_internal_knowledge import (
     build_internal_knowledge_prompt,
+    normalize_internal_result_id,
     uses_plain_internal_results,
 )
 from tpch_schema_info import SCHEMA_INFO as TPCH_SCHEMA_INFO
@@ -2767,8 +2768,8 @@ def _run_llm_internal_query(
         for index, row in enumerate(value):
             if not isinstance(row, dict):
                 raise ValueError(f"Item {index} is not a result-row object")
-            if type(row.get("id")) is not int or row["id"] != index + 1:
-                raise ValueError(f"Item {index} must have sequential integer id {index + 1}")
+            row = normalize_internal_result_id(row, index)
+            value[index] = row
             if output_columns is not None and output_columns:
                 if set(row) != {"id", *output_columns}:
                     raise ValueError(f"Item {index} must contain only id and required columns {output_columns}")

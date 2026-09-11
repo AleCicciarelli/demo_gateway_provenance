@@ -21,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 
 try:
     import gateway  
-    from prompt_internal_knowledge import build_internal_knowledge_prompt
+    from prompt_internal_knowledge import build_internal_knowledge_prompt, normalize_internal_result_id
 except ModuleNotFoundError as exc:
     missing = exc.name or "a required package"
     raise SystemExit(
@@ -156,6 +156,11 @@ def parse_internal_output(text: str) -> Tuple[bool, Optional[str], Optional[List
         # The Formula 1 and arXiv prompts return plain result-row objects. Normalize
         # those rows to the evaluator's established answer/provenance shape.
         if set(item.keys()) != {"result", "provenance"}:
+            try:
+                item = normalize_internal_result_id(item, i)
+            except ValueError as exc:
+                errors.append(str(exc))
+                continue
             valid_items.append({"result": item, "provenance": []})
             continue
         if not isinstance(item["result"], dict):

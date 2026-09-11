@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from create_ap_template import build_ap_csv_template
+
+
+logger = logging.getLogger(__name__)
 
 
 class ExplanationClient:
@@ -17,7 +21,7 @@ class ExplanationClient:
         post_endpoint: str,
         timeout: float = 300,
         poll_interval: float = 2,
-        max_polls: int = 60,
+        max_polls: Optional[int] = None,
         token: Optional[str] = None,
     ):
         self.base_url = base_url.rstrip("/")
@@ -73,12 +77,22 @@ class ExplanationClient:
     def poll_result(self, task_id: str) -> Dict[str, Any]:
         poll_url = f"{self.base_url}/api/v1/aps/explanation/{task_id}"
 
-        for _ in range(self.max_polls):
+        started_at = time.monotonic()
+        deadline = started_at + self.timeout
+        polls = 0
+        last_status = "not polled"
+        logger.info("Explanation polling started: task_id=%s timeout_seconds=%s", task_id, self.timeout)
+
+        while self.max_polls is None or polls < self.max_polls:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
             response = requests.get(
                 poll_url,
                 headers=self._headers(),
-                timeout=self.timeout,
+                timeout=remaining,
             )
+            polls += 1
 
             if response.status_code != 200:
                 raise RuntimeError(
@@ -86,7 +100,10 @@ class ExplanationClient:
                 )
 
             data = response.json()
-            status = str(data.get("status", "")).lower()
+            status = str(data.get("status", "")).strip().lower()
+            if status != last_status:
+                logger.info("Explanation task status: task_id=%s status=%s poll=%s", task_id, status, polls)
+            last_status = status
 
             if status in {"success", "completed", "done"}:
                 return data
@@ -94,6 +111,17 @@ class ExplanationClient:
             if status in {"failure", "failed", "error", "revoked"}:
                 raise RuntimeError(f"Explanation task failed: {data}")
 
-            time.sleep(self.poll_interval)
+            if self.max_polls is not None and polls >= self.max_polls:
+                break
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(self.poll_interval, remaining))
 
-        raise TimeoutError(f"Explanation task did not finish. task_id={task_id}")
+        elapsed = time.monotonic() - started_at
+        message = (
+            f"Explanation polling timed out after {elapsed:.1f}s and {polls} polls. "
+            f"task_id={task_id}; last_status={last_status}. "
+            "The service task may still complete; polling timeout does not cancel it."
+        )
+        logger.warning(message)
+        raise TimeoutError(message)

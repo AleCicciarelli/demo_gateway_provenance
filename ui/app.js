@@ -973,7 +973,6 @@ function renderGenerationPrompts(leafOutputs) {
   return `
     <section class="annotation-section" aria-label="LLM generation prompts">
       <h3>LLM generation prompts</h3>
-      <p>Prompts appear when each model request starts. Internal knowledge prompts contain the question and output instructions; retrieval prompts also include retrieved context.</p>
       ${leaves.map((leaf) => {
         const prompts = Array.isArray(leaf.generation_prompts) && leaf.generation_prompts.length
           ? leaf.generation_prompts : [leaf.prompt];

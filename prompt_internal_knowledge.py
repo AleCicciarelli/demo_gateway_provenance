@@ -89,7 +89,7 @@ PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE = """
 Answer the QUESTION using your internal knowledge about Formula 1.
 
 Return only a valid JSON array. Each object must contain:
-- "id": a sequential integer starting at 1.
+- "id": an integer starting at 1 and increasing by 1 for each row.
 - The required output columns listed below.
 
 Answer the question directly. Do not invent facts or unknown values.
@@ -109,7 +109,7 @@ Answer the QUESTION using your internal knowledge about arXiv papers
 and their authors.
 
 Return only a valid JSON array. Each object must contain:
-- "id": a sequential integer starting at 1.
+- "id": an integer starting at 1 and increasing by 1 for each row.
 - The required output columns listed below.
 
 Answer the question directly. Do not invent facts or unknown values.
@@ -126,6 +126,16 @@ QUESTION:
 
 PROMPT_RELF1_MINIMAL_INTERNAL_KNOWLEDGE_TEMPLATE = PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE
 PROMPT_INTERNAL_KNOWLEDGE_TEMPLATE = PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE
+
+
+def normalize_internal_result_id(row: dict, index: int) -> dict:
+    """Fill a missing synthetic ID using the zero-based response position."""
+    row = dict(row)
+    if row.get("id") is None:
+        row["id"] = index + 1
+    if type(row["id"]) is not int or row["id"] != index + 1:
+        raise ValueError(f"Item {index} must have sequential integer id {index + 1}")
+    return row
 
 
 def uses_plain_internal_results(domain: str) -> bool:
