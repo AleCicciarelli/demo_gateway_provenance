@@ -1029,7 +1029,10 @@ function renderInternalKnowledgeOutputs(leafOutputs, annotations) {
             low: "similarity-red",
           }[level] ?? "similarity-unknown";
           const pipelineAnswer = Array.isArray(leaf.parsed_output)
-            ? leaf.parsed_output.map((item) => ({ result: item?.values ?? {} }))
+            ? leaf.parsed_output.map((item) => ({
+                result: item?.values ?? {},
+                confidence_annotations: item?.confidence_annotations ?? [],
+              }))
             : [];
           return `
             <div class="annotation-card confidence-card internal-output-card">
@@ -1041,8 +1044,9 @@ function renderInternalKnowledgeOutputs(leafOutputs, annotations) {
                 <summary>View prompt sent to the model</summary>
                 <pre>${escapeHtml(leaf.prompt ?? "Prompt unavailable.")}</pre>
               </details>
-              ${renderAnswerTable(pipelineAnswer)}
+              ${renderAnswerTable(pipelineAnswer, "Row assessment")}
               <div class="internal-confidence-summary">
+                <strong>Block assessment</strong>
                 <span class="confidence-level ${levelClass}">${escapeHtml(level)}</span>
                 <span>${escapeHtml(confidence?.reason ?? "No confidence assessment was returned.")}</span>
               </div>
@@ -1364,7 +1368,7 @@ function renderErrors(errors) {
   `;
 }
 
-function renderAnswerTable(answer) {
+function renderAnswerTable(answer, confidenceLabel = "Final confidence") {
   const rows = answer.map((item) => item.result ?? {});
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
   const hasConfidence = answer.some(
@@ -1382,7 +1386,7 @@ function renderAnswerTable(answer) {
         <thead>
           <tr>
             ${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}
-            ${hasConfidence ? "<th>Final confidence</th>" : ""}
+            ${hasConfidence ? `<th>${escapeHtml(confidenceLabel)}</th>` : ""}
           </tr>
         </thead>
         <tbody>
@@ -1499,6 +1503,9 @@ function renderFinalAnswerConfidence(annotations) {
             >
               ${escapeHtml(sourceLabel)}${escapeHtml(levelText)}${escapeHtml(score)}
             </span>
+            ${annotation.type === "llm_row_confidence"
+              ? `<span>${escapeHtml(annotation.reason ?? "")}</span>`
+              : ""}
           `;
         })
         .join("")}

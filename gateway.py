@@ -2233,7 +2233,20 @@ def _llm_internal_leaf_output(
         projected_result = {
             column: result[column] for column in columns if column in result
         }
+        if uses_plain_internal_results(dataset):
+            # Keep the synthetic ID even when it is not a requested query column;
+            # CSV materialization reads only the values in this projection.
+            projected_result = {"id": result["id"], **projected_result}
         parsed_output.append({"row_id": row_id, "values": projected_result})
+        row_assessments = confidence.get("row_assessments") or []
+        if index <= len(row_assessments):
+            parsed_output[-1]["confidence_annotations"] = [{
+                **row_assessments[index - 1],
+                "type": "llm_row_confidence",
+                "display_label": "Self-assessment",
+                "assessment_method": "llm_self_assessment",
+                "scope": {"type": "row", "table": table_name, "row_id": row_id},
+            }]
     return {
         "table_name": table_name,
         "task": task,
@@ -2851,7 +2864,7 @@ def _assess_llm_internal_confidence(
     provider: str,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
-    def parse_assessment(text: str) -> Dict[str, str]:
+    def parse_assessment(text: str) -> Dict[str, Any]:
         decoder = json.JSONDecoder()
         for start, char in enumerate(text):
             if char != "{":
@@ -2864,9 +2877,24 @@ def _assess_llm_internal_confidence(
                 continue
             level = str(value.get("level") or "").strip().lower()
             reason = str(value.get("reason") or "").strip()
-            if level in {"low", "medium", "high"} and reason:
-                return {"level": level, "reason": reason}
-        raise ValueError("Expected a JSON object with level=low|medium|high and a reason")
+            rows = value.get("row_assessments")
+            if level not in {"low", "medium", "high"} or not reason:
+                continue
+            if not isinstance(rows, list) or len(rows) != len(generated_output):
+                continue
+            normalized_rows = []
+            for index, row in enumerate(rows, start=1):
+                if not isinstance(row, dict):
+                    break
+                row_level = str(row.get("level") or "").strip().lower()
+                row_reason = str(row.get("reason") or "").strip()
+                if (type(row.get("row_index")) is not int or row["row_index"] != index
+                        or row_level not in {"low", "medium", "high"} or not row_reason):
+                    break
+                normalized_rows.append({"row_index": index, "level": row_level, "reason": row_reason})
+            else:
+                return {"level": level, "reason": reason, "row_assessments": normalized_rows}
+        raise ValueError("Expected block level/reason and one row_assessment per output row, in order, with row_index starting at 1 and level/reason")
 
     def validate_assessment(text: str) -> Tuple[bool, Optional[str]]:
         try:
@@ -2880,7 +2908,8 @@ You are assessing the confidence of an answer produced only from an LLM's
 internal knowledge. Evaluate the generated data itself; you do not have access
 to retrieval evidence or the source database.
 
-Assign exactly one level:
+Assess both the entire answer block and each individual result row.
+For each assessment assign one level:
 - high: the generated data contains stable, well-known facts and is internally
   consistent and specific;
 - medium: the answer is plausible and mostly consistent, but some values,
@@ -2893,8 +2922,16 @@ An empty result may be rated high only when abstaining is clearly more reliable
 than inventing unavailable instance data. This is a self-assessment, not an
 externally verified probability.
 
-Return ONLY this JSON object:
-{{"level":"low|medium|high","reason":"one concise sentence"}}
+Judge each row on its own factual correctness and relevance. Judge the block
+also on completeness and consistency across rows; do not simply average row ratings.
+Synthetic IDs are row labels, not factual claims.
+Include exactly one row assessment per generated output item, in the same order.
+Use row_index 1, 2, 3, ... to identify positions, regardless of any ID in the data.
+For an empty answer, return an empty row_assessments list and still assess the block.
+
+Return ONLY this JSON object (level and reason describe the whole block):
+{{"level":"low|medium|high","reason":"one concise sentence",
+  "row_assessments":[{{"row_index":1,"level":"low|medium|high","reason":"one concise sentence"}}]}}
 
 QUESTION:
 {question}
@@ -2910,8 +2947,9 @@ GENERATED OUTPUT:
         max_tries=2,
         validator=validate_assessment,
         retry_suffix=(
-            "Return ONLY one JSON object with exactly the keys level and reason. "
-            "The level must be low, medium, or high."
+            "Return ONLY one JSON object with level, reason, and row_assessments. "
+            "Include one assessment per output row in order, with row_index starting at 1, "
+            "level (low, medium, or high), and a nonempty reason."
         ),
         status_event=status_event,
     )
@@ -2922,6 +2960,7 @@ GENERATED OUTPUT:
         "stage": "generation",
         "level": assessment["level"],
         "reason": assessment["reason"],
+        "row_assessments": assessment["row_assessments"],
         "assessment_method": "llm_self_assessment",
         "model": model,
         "model_provider": provider,
