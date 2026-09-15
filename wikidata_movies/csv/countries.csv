@@ -1,0 +1,262 @@
+row_id,country_id,name,description
+countries_0,Q1000,Gabon,country on the Atlantic coast of Central Africa
+countries_1,Q1005,The Gambia,sovereign state in West Africa
+countries_2,Q1005289,Canadian nationality law,Canadian nationality
+countries_3,Q1006,Guinea,sovereign state in West Africa
+countries_4,Q1008,Ivory Coast,sovereign state in West Africa
+countries_5,Q1009,Cameroon,sovereign state in West-Central Africa
+countries_6,Q1011,Cape Verde,sovereign state comprising ten islands off the Western coast of Africa
+countries_7,Q1014,Liberia,sovereign state in West Africa
+countries_8,Q1020,Malawi,sovereign state in Africa
+countries_9,Q1028,Morocco,sovereign state in North Africa
+countries_10,Q1029,Mozambique,country in Southeastern Africa; the current form of Mozambique since 1975
+countries_11,Q1030,Namibia,country in Southern Africa
+countries_12,Q1033,Nigeria,sovereign state in West Africa
+countries_13,Q1036,Uganda,country in East Africa
+countries_14,Q1037,Rwanda,country in East Africa
+countries_15,Q1041,Senegal,country on the coast of West Africa
+countries_16,Q1044,Sierra Leone,sovereign state in West Africa
+countries_17,Q1045,Somalia,sovereign state in Africa
+countries_18,Q1049,Sudan,country in Northeast Africa
+countries_19,Q1050,Eswatini,sovereign state in southern Africa
+countries_20,Q1054923,British Hong Kong,British colony and dependent territory from 1841 to 1997
+countries_21,Q107258515,Pahlavi Iran,former sovereign state (1925–1979)
+countries_22,Q11177699,Czechoslovak Federal Republic,official name of Czechoslovakia between March and April 1990
+countries_23,Q11178782,Czechoslovak Republic,republic in Central/Eastern Europe between 1948 and 1960
+countries_24,Q114,Kenya,country in Eastern Africa
+countries_25,Q115,Ethiopia,country in the Horn of Africa
+countries_26,Q115501502,Cerrillo,"triangulation station in Villarta de San Juan, Spain"
+countries_27,Q1164879,French nationality law,law of being a French national
+countries_28,Q117,Ghana,country in West Africa
+countries_29,Q1193879,State of Vietnam,1949–1955 state in Southeast Asia
+countries_30,Q1206012,German Reich,"official name for the German nation state from 1871 to 1945, and name of Germany until 1949"
+countries_31,Q1246,Kosovo,country in southeastern Europe
+countries_32,Q124943,Kingdom of Egypt,20th century North African kingdom
+countries_33,Q12560,Ottoman Empire,multiethnic empire with the monarchs from the Ottoman dynasty (1299–1922)
+countries_34,Q128323,Trinidad,larger of the two major islands which make up Trinidad and Tobago
+countries_35,Q1290149,Federal People's Republic of Yugoslavia,the official name of Yugoslavia in the period of 1945-1963
+countries_36,Q129286,British Raj,British colonial rule on the Indian subcontinent (1858–1947)
+countries_37,Q131337,Azerbaijan Soviet Socialist Republic,constituent republic of the Soviet Union between 1922 and 1991
+countries_38,Q13426199,Republic of China,1912–1949 country in Asia
+countries_39,Q142,France,"country in Western Europe and other continents (through its overseas territories in America, Africa and Oceania)"
+countries_40,Q145,United Kingdom,island country in north-west Europe
+countries_41,Q1479726,Federation of Malaya,"country that existed during British rule of Malaya and after independence, from 1948-1963"
+countries_42,Q148,People's Republic of China,country in East Asia
+countries_43,Q149805,Kingdom of Iraq,independent Iraqi monarchy (1932–1958)
+countries_44,Q15102440,"Kingdom of Serbs, Croats and Slovenes",official name for the Kingdom of Yugoslavia between December 1918 and October 1929
+countries_45,Q15180,Soviet Union,former country in Eurasia (1922–1991)
+countries_46,Q152750,Protectorate of Bohemia and Moravia,autonomous administrative unit of Nazi Germany in the occupied Czech lands (1939–1945)
+countries_47,Q153128,Independent State of Croatia,World War II-era puppet state of Nazi Germany and Fascist Italy (April 1941-May 1945)
+countries_48,Q154401,Slovak Republic,1939–1945 client state of Nazi Germany
+countries_49,Q155,Brazil,country in South America
+countries_50,Q157904,Sultanate of Zanzibar,1856–1964 monarchy in the Indian Ocean
+countries_51,Q159,Russia,"country in Eastern Europe and Northern Asia, the largest in the world by area"
+countries_52,Q16,Canada,country in North America
+countries_53,Q16150196,Donetsk People's Republic,disputed Russian republic in eastern Ukraine
+countries_54,Q161885,Kingdom of Great Britain,constitutional monarchy in Western Europe (1707–1800)
+countries_55,Q16410,Hungarian People's Republic,1949–1989 socialist republic in Central Europe
+countries_56,Q16957,East Germany,"1949–1990 country in central Europe, unified into modern Germany"
+countries_57,Q17,Japan,island country in East Asia
+countries_58,Q170468,United Arab Republic,Middle Eastern state between 1958 and 1961 in the present territories of Egypt and Syria
+countries_59,Q172579,Kingdom of Italy,kingdom in Southern Europe from 1861 to 1946
+countries_60,Q172640,North Vietnam,former country in Southeast Asia that existed from 1945 to 1976
+countries_61,Q174193,United Kingdom of Great Britain and Ireland,historical sovereign state (1801–1922)
+countries_62,Q1747689,Ancient Rome,country that began growing on the Italian Peninsula from the 8th century BC
+countries_63,Q176,Quebec,province of Canada
+countries_64,Q1775277,Dominion of India,period of Indian history between 1947 and 1950
+countries_65,Q180573,South Vietnam,former state in Southeast Asia
+countries_66,Q183,Germany,country in Central Europe
+countries_67,Q184,Belarus,country in Eastern Europe
+countries_68,Q188712,Empire of Japan,empire in the Asia-Pacific region from 1868 to 1947
+countries_69,Q189,Iceland,Nordic island country in the North Atlantic Ocean
+countries_70,Q191,Estonia,country in Northern Europe
+countries_71,Q191077,Kingdom of Yugoslavia,the official name of Yugoslavia during the period of 1929–1941 (de facto)/1945 (de jure)
+countries_72,Q193619,Union of South Africa,"state in southern Africa from 1910 to 1961, predecessor to the Republic of South Africa"
+countries_73,Q1955201,Oji-Cree,North American indigenous people
+countries_74,Q1998866,Czech and Slovak Federal Republic,1990-1993 federal republic in Central/Eastern Europe
+countries_75,Q20,Norway,country in Northern Europe
+countries_76,Q2017684,French protectorate of Tunisia,1881-1956 monarchy in Northern Africa
+countries_77,Q203301,Umuahia,"City in the Eastern land, Nigeria"
+countries_78,Q203493,Kingdom of Romania,kingdom in Southeastern Europe between 1881 and 1947
+countries_79,Q205047,Kurdistan Region of Iraq,federal region of the Republic of Iraq
+countries_80,Q206411,Azerbaijan Democratic Republic,former country in the South Caucasus (1918–1920)
+countries_81,Q207272,Second Polish Republic,country in Central and Eastern Europe (1918–1939)
+countries_82,Q207991,Pahlavi dynasty,Iranian royal dynasty (1925–1979)
+countries_83,Q209065,Kingdom of Greece,period of Greek statehood from 1832 to 1924 and 1935 to 1973
+countries_84,Q21,England,"country in north-west Europe, part of the United Kingdom"
+countries_85,Q211,Latvia,sovereign state in northeastern Europe
+countries_86,Q211274,Polish People's Republic,country of the Warsaw Pact and Eastern Bloc from 1947 to 1989
+countries_87,Q212,Ukraine,country in Eastern Europe
+countries_88,Q213,Czech Republic,country in Central Europe
+countries_89,Q213510,Belgian Congo,"Belgian colony in Central Africa (1908–1960), established after international pressure forced Belgium to annex the Congo Free State following King Leopold II's brutal personal rule; now the Democratic Republic of the Congo"
+countries_90,Q214,Slovakia,country in Central Europe
+countries_91,Q215,Slovenia,country in Central Europe
+countries_92,Q217,Moldova,country in Eastern Europe
+countries_93,Q218,Romania,country in Southeast Europe
+countries_94,Q219,Bulgaria,country in southeast Europe
+countries_95,Q219060,Palestine,"A political entity that enjoys incomplete recognition as a state, located in West Asia"
+countries_96,Q21999799,British Nigerian,British people of Nigerian descent or Nigerians of British descent
+countries_97,Q221,North Macedonia,country in southeastern Europe
+countries_98,Q222,Albania,country in southeastern Europe
+countries_99,Q223,Greenland,autonomous territory of the Kingdom of Denmark and world's largest island
+countries_100,Q223050,statelessness,status of a person who is not a citizen/national of any country
+countries_101,Q224,Croatia,country in Central Europe
+countries_102,Q225,Bosnia and Herzegovina,country in Southeast Europe
+countries_103,Q227,Azerbaijan,country in the Caucasus in Eastern Europe and Western Asia
+countries_104,Q228,Andorra,"sovereign microstate between France and Spain, in Western Europe"
+countries_105,Q22890,Ireland,island in the North Atlantic Ocean
+countries_106,Q229,Cyprus,country in the Mediterranean Sea
+countries_107,Q230,Georgia,country in the Caucasus region of Europe and Asia
+countries_108,Q2305208,Russian Socialist Federative Soviet Republic,1918–1922 sovereign state in Eurasia
+countries_109,Q232,Kazakhstan,sovereign state in Eastern Europe and Central Asia
+countries_110,Q233,Malta,country in Southern Europe situated on an archipelago in the Mediterranean Sea
+countries_111,Q235,Monaco,microstate in Western Europe
+countries_112,Q236,Montenegro,country in southeastern Europe
+countries_113,Q23635,Bermuda,British overseas territory in the North Atlantic Ocean
+countries_114,Q23681,Northern Cyprus,de facto state on the island of Cyprus
+countries_115,Q237,Vatican City,"Holy See's independent state, an enclave within Rome, Italy"
+countries_116,Q23792,Palestine,geographic region in West Asia
+countries_117,Q241,Cuba,sovereign state situated on an island in the Caribbean Sea
+countries_118,Q242,Belize,sovereign state in Central America
+countries_119,Q244,Barbados,island nation in the Caribbean
+countries_120,Q2444884,Tibet,former de facto state in East Asia
+countries_121,Q25,Wales,"constituent nation of the sovereign country of the United Kingdom, in north-west Europe"
+countries_122,Q252,Indonesia,island country in Southeast Asia and Oceania
+countries_123,Q258,South Africa,country in southern Africa
+countries_124,Q262,Algeria,country in North Africa
+countries_125,Q265,Uzbekistan,sovereign state in Central Asia
+countries_126,Q2685298,Romanian People's Republic,historic state from 1947 to 1965
+countries_127,Q27,Ireland,country in Northwestern Europe
+countries_128,Q28,Hungary,country in Central Europe
+countries_129,Q28513,Austria–Hungary,1867–1918 empire in Central Europe
+countries_130,Q29,Spain,country in southwestern Europe with territories in Africa
+countries_131,Q29520,China,"cultural region, ancient civilization, and nation in East Asia; mostly refers to the People's Republic of China in political situation and rarely refers to the Republic of China"
+countries_132,Q298,Chile,"country in South America and Oceania, with a claim in Antarctica"
+countries_133,Q29999,Kingdom of the Netherlands,transcontinental sovereign state and constitutional monarchy
+countries_134,Q30,United States,country located primarily in North America
+countries_135,Q3041595,First Republic of Iraq,state forged in 1958 in Iraq and ended in 1968
+countries_136,Q3087763,Republic of Egypt,1953–1958 republic in Northern Africa
+countries_137,Q31,Belgium,country in western Europe
+countries_138,Q3108185,Ba'athist Iraq,Republic of Iraq from 1968 to 2003 during the time of Ba'athism
+countries_139,Q32,Luxembourg,country in Western Europe
+countries_140,Q320852,Abia State,state in Nigeria
+countries_141,Q323904,Portuguese India,Portuguese colonies in South Asia (1505–1961)
+countries_142,Q33,Finland,country in Northern Europe
+countries_143,Q334,Singapore,sovereign island country and city-state in maritime Southeast Asia
+countries_144,Q33946,Czechoslovakia,country in Central Europe (1918–1992)
+countries_145,Q34,Sweden,country in Northern Europe
+countries_146,Q34266,Russian Empire,former empire in Eurasia and North America (1721–1917)
+countries_147,Q35,Denmark,country in Northern Europe
+countries_148,Q36,Poland,country in Central Europe
+countries_149,Q36704,Yugoslavia,1918–1992 country in Southeastern Europe
+countries_150,Q37,Lithuania,country in northeastern Europe
+countries_151,Q37024,Serbia and Montenegro,former political union in the Balkans (2003–2006)
+countries_152,Q38,Italy,country in southern Europe
+countries_153,Q39,Switzerland,country in Central Europe
+countries_154,Q399,Armenia,sovereign state in the South Caucasus region of Eurasia
+countries_155,Q40,Austria,country in Central Europe
+countries_156,Q403,Serbia,country in Southeast Europe
+countries_157,Q407199,Occupied Palestinian territory,Palestinian territory occupied by Israel in 1967 (the West Bank and Gaza Strip)
+countries_158,Q408,Australia,country in Oceania
+countries_159,Q41,Greece,country in Southeast Europe
+countries_160,Q41304,Weimar Republic,Germany in the years 1918/1919–1933
+countries_161,Q414,Argentina,country in South America
+countries_162,Q41470,Kurdistan,geographic region in the Middle East
+countries_163,Q419,Peru,sovereign state in South America
+countries_164,Q423,North Korea,sovereign state in East Asia
+countries_165,Q424,Cambodia,country in Southeast Asia
+countries_166,Q43,Turkey,country in West Asia and Southeast Europe
+countries_167,Q43287,German Empire,German nation-state in Central Europe from 1871 to 1918
+countries_168,Q45,Portugal,country in Southwestern Europe
+countries_169,Q465022,Enugu,city in Nigeria
+countries_170,Q484578,Uzbek Soviet Socialist Republic,union republic of the Soviet Union (1924–1991)
+countries_171,Q497568,Innu people,First Nation in North America
+countries_172,Q533534,Cisleithania,northern and western part of Austro-Hungary with Dalmatia and Istria (1867–1918)
+countries_173,Q55,Netherlands,one of the four autonomous countries of the Kingdom of the Netherlands; with territories in the Caribbean
+countries_174,Q5613380,British National (Overseas),class of British nationality
+countries_175,Q5705,Catalonia,nationality and autonomous community of Spain
+countries_176,Q5943060,Hungary,constituency of the European Parliament
+countries_177,Q618399,Republic of the Congo (Léopoldville),"former country (1960–1971) in Africa, predecessor of Zaire"
+countries_178,Q62633,Grand Duchy of Finland,predecessor state of modern Finland
+countries_179,Q657,Chad,sovereign state in central Africa
+countries_180,Q664,New Zealand,island country in the southwest Pacific Ocean
+countries_181,Q668,India,country in South Asia
+countries_182,Q683,Samoa,sovereign state made up of six islands in the Pacific Ocean
+countries_183,Q686,Vanuatu,island country in Oceania
+countries_184,Q691,Papua New Guinea,country in Oceania
+countries_185,Q711,Mongolia,country in East Asia
+countries_186,Q713750,West Germany,Federal Republic of Germany in the period between its formation on 23 May 1949 and German reunification on 3 October 1990
+countries_187,Q71496997,Serilanka Branch Post Office,
+countries_188,Q717,Venezuela,country in South America
+countries_189,Q730,Suriname,country in South America
+countries_190,Q7318,Nazi Germany,Germany from 1933 to 1945 while under control of the Nazi Party
+countries_191,Q733,Paraguay,sovereign state in South America
+countries_192,Q734,Guyana,country in South America
+countries_193,Q736,Ecuador,sovereign state in South America
+countries_194,Q739,Colombia,country in South America
+countries_195,Q750,Bolivia,sovereign state in South America
+countries_196,Q754,Trinidad and Tobago,island sovereign state in the Caribbean
+countries_197,Q756617,Kingdom of Denmark,transcontinental sovereign state and constitutional monarchy
+countries_198,Q766,Jamaica,island state in the Caribbean Sea
+countries_199,Q77,Uruguay,sovereign state in South America
+countries_200,Q774,Guatemala,sovereign state in Central America
+countries_201,Q778,The Bahamas,island sovereign state in the West Indies
+countries_202,Q783,Honduras,sovereign state in Central America
+countries_203,Q786,Dominican Republic,island sovereign state in the Caribbean Sea
+countries_204,Q79,Egypt,country in Northeast Africa and Southwest Asia
+countries_205,Q790,Haiti,country in the Caribbean Sea
+countries_206,Q792,El Salvador,sovereign state in Central America
+countries_207,Q794,Iran,country in Western Asia
+countries_208,Q796,Iraq,sovereign state in Western Asia
+countries_209,Q800,Costa Rica,country in Central America
+countries_210,Q801,Israel,country in West Asia
+countries_211,Q804,Panama,sovereign state in Central America
+countries_212,Q805,Yemen,country in West Asia
+countries_213,Q810,Jordan,country in West Asia
+countries_214,Q811,Nicaragua,sovereign state in Central America
+countries_215,Q822,Lebanon,country in West Asia
+countries_216,Q83286,Socialist Federal Republic of Yugoslavia,Central and Southeast European socialist state (1945–1992)
+countries_217,Q833,Malaysia,country in Southeast Asia
+countries_218,Q836,Myanmar,country in Southeast Asia
+countries_219,Q836657,Ogun State,state of Nigeria
+countries_220,Q837,Nepal,country in South Asia
+countries_221,Q838261,Federal Republic of Yugoslavia,former Balkan republic (1992–2003)
+countries_222,Q842794,Socialist Republic of Romania,1965–1989 republic in Southeastern Europe
+countries_223,Q843,Pakistan,sovereign state in South Asia
+countries_224,Q846,Qatar,country in West Asia
+countries_225,Q851,Saudi Arabia,country in West Asia
+countries_226,Q853348,Czechoslovak Socialist Republic,republic in Central/Eastern Europe between 1948 and 1990
+countries_227,Q854,Sri Lanka,island country in South Asia
+countries_228,Q858,Syria,Country in West Asia
+countries_229,Q863,Tajikistan,sovereign state in Central Asia
+countries_230,Q8646,Hong Kong,city and special administrative region of China
+countries_231,Q865,Taiwan,country in East Asia
+countries_232,Q869,Thailand,country in Southeast Asia
+countries_233,Q8733,Qing dynasty,Manchu-led dynasty of China (1644–1912)
+countries_234,Q878,United Arab Emirates,country in Western Asia
+countries_235,Q881,Vietnam,country in Southeast Asia
+countries_236,Q884,South Korea,country in East Asia
+countries_237,Q889,Afghanistan,country in Central and South Asia
+countries_238,Q902,Bangladesh,country in South Asia
+countries_239,Q907234,French protectorate in Morocco,1912–1956 protectorate in northwest Africa
+countries_240,Q912,Mali,country in West Africa
+countries_241,Q916,Angola,country on the west coast of Southern Africa
+countries_242,Q917,Bhutan,sovereign state in South Asia
+countries_243,Q924,Tanzania,country in East Africa
+countries_244,Q928,Philippines,archipelagic country in Southeast Asia
+countries_245,Q929,Central African Republic,country in Central Africa
+countries_246,Q945,Togo,country in West Africa
+countries_247,Q948,Tunisia,country in North Africa
+countries_248,Q953,Zambia,country at the crossroads of Central and Southern Africa
+countries_249,Q954,Zimbabwe,sovereign state in southern Africa
+countries_250,Q958,South Sudan,country in East Africa
+countries_251,Q96,Mexico,country in North America
+countries_252,Q962,Benin,sovereign state in West Africa
+countries_253,Q963,Botswana,sovereign state in Southern Africa
+countries_254,Q965,Burkina Faso,sovereign state in Africa
+countries_255,Q967,Burundi,sovereign state in Africa
+countries_256,Q9676,Isle of Man,historic nation and a self-governing British Crown dependency
+countries_257,Q971,Republic of the Congo,"country in Central Africa, capital Brazzaville"
+countries_258,Q974,Democratic Republic of the Congo,country in Central Africa
+countries_259,Q983,Equatorial Guinea,sovereign state in Central Africa
+countries_260,Q986,Eritrea,country in the Horn of Africa

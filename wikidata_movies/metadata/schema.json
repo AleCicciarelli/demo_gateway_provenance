@@ -1,0 +1,76 @@
+{
+  "movies": {
+    "primary_key": "movie_id",
+    "columns": [
+      "row_id",
+      "movie_id",
+      "title",
+      "description",
+      "release_date",
+      "duration"
+    ]
+  },
+  "people": {
+    "primary_key": "person_id",
+    "columns": [
+      "row_id",
+      "person_id",
+      "name",
+      "description",
+      "birth_date"
+    ]
+  },
+  "genres": {
+    "primary_key": "genre_id",
+    "columns": [
+      "row_id",
+      "genre_id",
+      "name",
+      "description"
+    ]
+  },
+  "countries": {
+    "primary_key": "country_id",
+    "columns": [
+      "row_id",
+      "country_id",
+      "name",
+      "description"
+    ]
+  },
+  "directors": {
+    "primary_key": "row_id",
+    "foreign_keys": {
+      "movie_id": "movies.movie_id",
+      "person_id": "people.person_id"
+    }
+  },
+  "cast": {
+    "primary_key": "row_id",
+    "foreign_keys": {
+      "movie_id": "movies.movie_id",
+      "person_id": "people.person_id"
+    }
+  },
+  "movie_genres": {
+    "primary_key": "row_id",
+    "foreign_keys": {
+      "movie_id": "movies.movie_id",
+      "genre_id": "genres.genre_id"
+    }
+  },
+  "movie_countries": {
+    "primary_key": "row_id",
+    "foreign_keys": {
+      "movie_id": "movies.movie_id",
+      "country_id": "countries.country_id"
+    }
+  },
+  "person_citizenships": {
+    "primary_key": "row_id",
+    "foreign_keys": {
+      "person_id": "people.person_id",
+      "country_id": "countries.country_id"
+    }
+  }
+}

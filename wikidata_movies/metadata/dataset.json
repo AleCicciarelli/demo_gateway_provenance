@@ -1,0 +1,27 @@
+{
+  "dataset": "wikidata_movies",
+  "version": "1.0",
+  "source": "Wikidata",
+  "source_endpoint": "https://query.wikidata.org/sparql",
+  "retrieved_at_utc": "2026-09-14T13:57:16.338824+00:00",
+  "language": "en",
+  "film_class": "Q11424",
+  "start_year": 2000,
+  "end_year": 2025,
+  "max_movies": 10000,
+  "per_year_limit": 1000,
+  "batch_size": 100,
+  "selection": "English-labelled direct instances of film (Q11424), with at least one director, cast member, genre, and country of origin; balanced deterministically across the requested years.",
+  "statement_policy": "Relationship rows use p:/ps: Wikidata statement nodes and exclude deprecated-rank statements.",
+  "counts": {
+    "movies": 10000,
+    "people": 53707,
+    "directors": 10706,
+    "cast": 92669,
+    "genres": 338,
+    "movie_genres": 19060,
+    "countries": 261,
+    "movie_countries": 12919,
+    "person_citizenships": 50064
+  }
+}

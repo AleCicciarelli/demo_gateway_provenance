@@ -1,0 +1,1001 @@
+movie_id,title,description,release_date,duration,year
+Q101112656,The Brutalist,2024 film directed by Brady Corbet,2025-01-24T00:00:00Z,215.0,2025
+Q101112656,The Brutalist,2024 film directed by Brady Corbet,2025-01-23T00:00:00Z,215.0,2025
+Q104861381,Long Distance,2024 film directed by Josh Gordon and Will Speck,2025-07-03T00:00:00Z,,2025
+Q104898122,Princess Goldenhair,Czech fairytale movie (2025),2025-03-06T00:00:00Z,116.0,2025
+Q104898122,Princess Goldenhair,Czech fairytale movie (2025),2025-01-23T00:00:00Z,116.0,2025
+Q104898277,Nobody Likes Me,film directed by Tomáš Weinreb Petr Kazda,2025-01-16T00:00:00Z,105.0,2025
+Q104898525,Waves,2024 film directed by Jiří Mádl,2025-05-22T00:00:00Z,131.0,2025
+Q105105219,The Fantastic Four: First Steps,2025 film directed by Matt Shakman,2025-07-25T00:00:00Z,114.0,2025
+Q105105219,The Fantastic Four: First Steps,2025 film directed by Matt Shakman,2025-07-24T00:00:00Z,114.0,2025
+Q105605646,This City is a Battlefield,2025 film by Mouly Surya,2025-04-30T00:00:00Z,,2025
+Q105886670,Hari Hara Veera Mallu,2022 Telugu language epic film,2025-07-24T00:00:00Z,161.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-03-28T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-03-06T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-02-20T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-02-06T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-24T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-22T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-17T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-16T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-10T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-09T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-02T00:00:00Z,135.0,2025
+Q106261265,Better Man,2024 film directed by Michael Gracey,2025-01-01T00:00:00Z,135.0,2025
+Q1073297,Kontroll,2003 film directed by Nimród Antal,2025-04-14T00:00:00Z,106.0,2025
+Q107357292,Oxygen Station,2022 film directed by Ivan Tymchenko,2025-05-23T00:00:00Z,100.0,2025
+Q107357292,Oxygen Station,2022 film directed by Ivan Tymchenko,2025-05-23T00:00:00Z,106.0,2025
+Q107404778,The Toxic Avenger,2023 film directed by Macon Blair,2025-08-29T00:00:00Z,102.0,2025
+Q107584295,Havoc,2025 film directed by Gareth Evans,2025-04-25T00:00:00Z,107.0,2025
+Q108131599,Plane,2023 film directed by Jean-François Richet,2025-02-03T00:00:00Z,107.0,2025
+Q108585934,The Yellow Tie,2025 film directed by Serge Ioan Celebidache,2025-11-14T00:00:00Z,145.0,2025
+Q108965590,Irati,film by Paul Urkijo,2025-02-20T00:00:00Z,114.0,2025
+Q109051190,Rust,2024 film directed by Joel Souza,2025-05-02T00:00:00Z,,2025
+Q109051190,Rust,2024 film directed by Joel Souza,2025-05-01T00:00:00Z,,2025
+Q109974196,Midas Man,2024 film directed by Sara Sugarman and Jonas Åkerlund,2025-01-22T00:00:00Z,112.0,2025
+Q109984826,Twilight of the Warriors: Walled In,2024 Hong Kong neo-noir action crime film,2025-01-17T00:00:00Z,126.0,2025
+Q110393291,The Match,2025 film directed by Kim Hyung-joo,2025-03-26T00:00:00Z,115.0,2025
+Q110585119,Hi-Five,film directed by Kang Hyeong-cheol,2025-06-13T00:00:00Z,119.0,2025
+Q110585119,Hi-Five,film directed by Kang Hyeong-cheol,2025-05-30T00:00:00Z,119.0,2025
+Q110903821,Desert Warrior,2025 film directed by Rupert Wyatt,2025-09-28T00:00:00Z,,2025
+Q110917109,Game Changer,2025 film directed by S. Shankar,2025-01-10T00:00:00Z,,2025
+Q110937156,Love Tactics,"2022 Turkish romantic comedy film, first instalment in the series",2025-02-11T00:00:00Z,98.0,2025
+Q111209750,The Empire,2024 film directed by Bruno Dumont,2025-04-25T00:00:00Z,111.0,2025
+Q111209750,The Empire,2024 film directed by Bruno Dumont,2025-02-20T00:00:00Z,111.0,2025
+Q111464581,Wolf Man,2025 film directed by Leigh Whannell,2025-01-24T00:00:00Z,103.0,2025
+Q111464581,Wolf Man,2025 film directed by Leigh Whannell,2025-01-23T00:00:00Z,103.0,2025
+Q111464581,Wolf Man,2025 film directed by Leigh Whannell,2025-01-17T00:00:00Z,103.0,2025
+Q111464581,Wolf Man,2025 film directed by Leigh Whannell,2025-01-16T00:00:00Z,103.0,2025
+Q111464581,Wolf Man,2025 film directed by Leigh Whannell,2025-01-15T00:00:00Z,103.0,2025
+Q111592711,Red Island,film directed by Robin Campillo,2025-01-23T00:00:00Z,116.0,2025
+Q111817932,Pretty Crazy,2025 South Korean romantic comedy film by Lee Sang-geun,2025-07-09T00:00:00Z,,2025
+Q111941115,The Parenting,2025 film directed by Craig Johnson,2025-03-13T00:00:00Z,100.0,2025
+Q112039665,Shelby Oaks,2024 film directed by Chris Stuckmann,2025-10-30T00:00:00Z,102.0,2025
+Q112039665,Shelby Oaks,2024 film directed by Chris Stuckmann,2025-10-24T00:00:00Z,102.0,2025
+Q112054710,1242: Gateway to the West,2025 film directed by Péter Soós,2025-10-02T00:00:00Z,105.0,2025
+Q112054990,Emmanuelle,2024 film directed by Audrey Diwan,2025-02-06T00:00:00Z,,2025
+Q112057421,Asphalt City,2023 film directed by Jean-Stéphane Sauvaire,2025-06-27T00:00:00Z,125.0,2025
+Q112108763,Unit 234,2024 film directed by Andy Tennant,2025-05-09T00:00:00Z,,2025
+Q112322116,Captain America: Brave New World,2025 film by Julius Onah,2025-02-14T00:00:00Z,118.0,2025
+Q112322116,Captain America: Brave New World,2025 film by Julius Onah,2025-02-13T00:00:00Z,118.0,2025
+Q112322116,Captain America: Brave New World,2025 film by Julius Onah,2025-02-12T00:00:00Z,118.0,2025
+Q112322474,Thunderbolts*,2025 film directed by Jake Schreier,2025-05-02T00:00:00Z,126.0,2025
+Q112322474,Thunderbolts*,2025 film directed by Jake Schreier,2025-05-01T00:00:00Z,126.0,2025
+Q112977213,Mickey 17,2025 film directed by Bong Joon-ho,2025-04-18T00:00:00Z,137.0,2025
+Q112977213,Mickey 17,2025 film directed by Bong Joon-ho,2025-04-10T00:00:00Z,137.0,2025
+Q112977213,Mickey 17,2025 film directed by Bong Joon-ho,2025-03-14T00:00:00Z,137.0,2025
+Q112977213,Mickey 17,2025 film directed by Bong Joon-ho,2025-03-07T00:00:00Z,137.0,2025
+Q112977213,Mickey 17,2025 film directed by Bong Joon-ho,2025-03-06T00:00:00Z,137.0,2025
+Q112977213,Mickey 17,2025 film directed by Bong Joon-ho,2025-02-28T00:00:00Z,137.0,2025
+Q112977213,Mickey 17,2025 film directed by Bong Joon-ho,2025-02-15T00:00:00Z,137.0,2025
+Q113362689,Emma and the Death's Head,film directed by Iveta Grófová,2025-02-06T00:00:00Z,129.0,2025
+Q113362702,Franz,2025 film directed by Agnieszka Holland,2025-09-25T00:00:00Z,127.0,2025
+Q113362702,Franz,2025 film directed by Agnieszka Holland,2025-09-05T00:00:00Z,127.0,2025
+Q113380203,Without Blood,2024 film directed by Angelina Jolie,2025-04-10T00:00:00Z,91.0,2025
+Q113380380,The Unbreakable Boy,2025 film directed by Jon Gunn,2025-02-21T00:00:00Z,109.0,2025
+Q113524284,In the Lost Lands,2025 film directed by Paul W. S. Anderson,2025-05-09T00:00:00Z,,2025
+Q113524284,In the Lost Lands,2025 film directed by Paul W. S. Anderson,2025-05-08T00:00:00Z,,2025
+Q113524284,In the Lost Lands,2025 film directed by Paul W. S. Anderson,2025-03-07T00:00:00Z,,2025
+Q113524284,In the Lost Lands,2025 film directed by Paul W. S. Anderson,2025-03-06T00:00:00Z,,2025
+Q113550154,The Creeps,2025 film by Marko Mäkilaakso,2025-04-11T00:00:00Z,96.0,2025
+Q113638950,Red Sonja,2025 film directed by M. J. Bassett,2025-08-29T00:00:00Z,110.0,2025
+Q113638950,Red Sonja,2025 film directed by M. J. Bassett,2025-08-15T00:00:00Z,110.0,2025
+Q113638950,Red Sonja,2025 film directed by M. J. Bassett,2025-08-13T00:00:00Z,110.0,2025
+Q113638950,Red Sonja,2025 film directed by M. J. Bassett,2025-01-01T00:00:00Z,110.0,2025
+Q114014656,The Teacher Who Promised the Sea,2023 film by Patricia Font,2025-02-06T00:00:00Z,105.0,2025
+Q114245238,Stormskerry Maja,Finland Swedish film 2024 directed by Tiina Lymi,2025-04-03T00:00:00Z,163.0,2025
+Q114245238,Stormskerry Maja,Finland Swedish film 2024 directed by Tiina Lymi,2025-01-01T00:00:00Z,163.0,2025
+Q114246242,F1,2025 film directed by Joseph Kosinski,2025-06-27T00:00:00Z,155.0,2025
+Q114246242,F1,2025 film directed by Joseph Kosinski,2025-06-26T00:00:00Z,155.0,2025
+Q114246242,F1,2025 film directed by Joseph Kosinski,2025-06-25T00:00:00Z,155.0,2025
+Q114246242,F1,2025 film directed by Joseph Kosinski,2025-01-01T00:00:00Z,155.0,2025
+Q114352640,The Old Guard 2,2025 film directed by Victoria Mahoney,2025-07-02T00:00:00Z,104.0,2025
+Q114364101,Eric Larue,2023 film directed by Michael Shannon,2025-04-04T00:00:00Z,119.0,2025
+Q114492769,The Electric State,2025 film directed by Anthony and Joe Russo,2025-03-14T00:00:00Z,128.0,2025
+Q114802043,The Conjuring: Last Rites,2025 horror film directed by Michael Chaves,2025-09-05T00:00:00Z,135.0,2025
+Q114802043,The Conjuring: Last Rites,2025 horror film directed by Michael Chaves,2025-09-04T00:00:00Z,135.0,2025
+Q114817050,Wicked: For Good,2025 film directed by Jon M. Chu,2025-11-21T00:00:00Z,137.0,2025
+Q114817050,Wicked: For Good,2025 film directed by Jon M. Chu,2025-11-20T00:00:00Z,137.0,2025
+Q114817050,Wicked: For Good,2025 film directed by Jon M. Chu,2025-11-19T00:00:00Z,137.0,2025
+Q114817050,Wicked: For Good,2025 film directed by Jon M. Chu,2025-11-04T00:00:00Z,137.0,2025
+Q115405596,Rich Flu,2024 film directed by Galder Gaztelu-Urrutia,2025-01-24T00:00:00Z,106.0,2025
+Q115517901,My Mother's Wedding,2023 film directed by Kristin Scott Thomas,2025-08-08T00:00:00Z,95.0,2025
+Q115631553,Magazine Dreams,2023 film by Elijah Bynum,2025-03-21T00:00:00Z,,2025
+Q115774787,The 47,2024 film directed by Marcel Barrena,2025-12-04T00:00:00Z,110.0,2025
+Q115804585,Absolute Dominion,2025 film directed by Lexi Alexander,2025-05-09T00:00:00Z,,2025
+Q115804877,Freaky Tales,2024 film directed by Anna Boden and Ryan Fleck,2025-04-04T00:00:00Z,107.0,2025
+Q115805392,The Alto Knights,2025 film directed by Barry Levinson,2025-03-21T00:00:00Z,123.0,2025
+Q115866950,Pavements,2024 film directed by Alex Ross Perry,2025-06-06T00:00:00Z,,2025
+Q115866950,Pavements,2024 film directed by Alex Ross Perry,2025-05-02T00:00:00Z,,2025
+Q115929234,Winter Spring Summer or Fall,2024 film by Tiffany Paulsen,2025-04-25T00:00:00Z,97.0,2025
+Q115931717,Wake Up Dead Man,2025 film directed by Rian Johnson,2025-11-26T00:00:00Z,144.0,2025
+Q115931717,Wake Up Dead Man,2025 film directed by Rian Johnson,2025-09-06T00:00:00Z,144.0,2025
+Q115945804,Emergency,2025 film directed by Kangana Ranaut,2025-01-17T00:00:00Z,,2025
+Q116026065,Knyckertz & snutjakten,2023 film directed by Leif Lindblom,2025-12-31T00:00:00Z,91.0,2025
+Q116032513,Freud's Last Session,2023 film directed by Matt Brown,2025-06-04T00:00:00Z,108.0,2025
+Q116055747,The Senior,2023 film directed by Rod Lurie,2025-09-19T00:00:00Z,,2025
+Q116202220,To Live and Die and Live,2023 film directed by Qasim Basir,2025-05-30T00:00:00Z,,2025
+Q116258185,M3GAN 2.0,2025 American film directed by Gerard Johnstone,2025-06-27T00:00:00Z,120.0,2025
+Q116258185,M3GAN 2.0,2025 American film directed by Gerard Johnstone,2025-06-26T00:00:00Z,120.0,2025
+Q116258185,M3GAN 2.0,2025 American film directed by Gerard Johnstone,2025-06-25T00:00:00Z,120.0,2025
+Q116265668,Words of War,2025 biographical film directed by James Strong,2025-06-27T00:00:00Z,,2025
+Q116265668,Words of War,2025 biographical film directed by James Strong,2025-05-02T00:00:00Z,,2025
+Q116361132,Nosferatu,2024 film directed by Robert Eggers,2025-01-03T00:00:00Z,143.0,2025
+Q116361132,Nosferatu,2024 film directed by Robert Eggers,2025-01-02T00:00:00Z,143.0,2025
+Q116361132,Nosferatu,2024 film directed by Robert Eggers,2025-01-01T00:00:00Z,143.0,2025
+Q116498761,The Actor,2025 film directed by Duke Johnson,2025-03-14T00:00:00Z,98.0,2025
+Q116547790,Superman,2025 film directed by James Gunn,2025-07-11T00:00:00Z,129.0,2025
+Q116547790,Superman,2025 film directed by James Gunn,2025-07-10T00:00:00Z,129.0,2025
+Q116547790,Superman,2025 film directed by James Gunn,2025-07-09T00:00:00Z,129.0,2025
+Q116701124,Conclave,2024 film by Edward Berger,2025-02-07T00:00:00Z,121.0,2025
+Q116701124,Conclave,2024 film by Edward Berger,2025-01-09T00:00:00Z,121.0,2025
+Q116701124,Conclave,2024 film by Edward Berger,2025-01-02T00:00:00Z,121.0,2025
+Q116730669,Holland,2025 film directed by Mimi Cave,2025-03-27T00:00:00Z,110.0,2025
+Q116730669,Holland,2025 film directed by Mimi Cave,2025-03-09T00:00:00Z,110.0,2025
+Q116735906,Tin Soldier,2025 film directed by Brad Furman,2025-01-01T00:00:00Z,86.0,2025
+Q116736286,The Accidental Getaway Driver,2023 film by Sing J. Lee,2025-02-28T00:00:00Z,102.0,2025
+Q116752130,The Remnants of You,film directed by Gala Gracia,2025-05-16T00:00:00Z,91.0,2025
+Q116771681,Queer,2024 film directed by Luca Guadagnino,2025-03-13T00:00:00Z,135.0,2025
+Q116771681,Queer,2024 film directed by Luca Guadagnino,2025-02-13T00:00:00Z,135.0,2025
+Q116776314,The Chronology of Water,2025 film directed by Kristen Stewart,2025-05-16T00:00:00Z,90.0,2025
+Q116776314,The Chronology of Water,2025 film directed by Kristen Stewart,2025-05-16T00:00:00Z,128.0,2025
+Q116954167,A Little Prayer,2023 film by Angus MacLachlan,2025-08-29T00:00:00Z,,2025
+Q116966057,O Horizon,2025 film directed by Madeleine Sackler,2025-02-08T00:00:00Z,,2025
+Q116971304,The Gorge,2025 film directed by Scott Derrickson,2025-02-14T00:00:00Z,127.0,2025
+Q116971312,On Swift Horses,2024 film directed by Daniel Minahan,2025-07-03T00:00:00Z,119.0,2025
+Q116971312,On Swift Horses,2024 film directed by Daniel Minahan,2025-04-25T00:00:00Z,119.0,2025
+Q116971739,Back in Action,2025 film directed by Seth Gordon,2025-01-17T00:00:00Z,114.0,2025
+Q117025081,And the Party Goes On !,2023 film directed by Robert Guédiguian,2025-06-12T00:00:00Z,106.0,2025
+Q117025081,And the Party Goes On !,2023 film directed by Robert Guédiguian,2025-06-12T00:00:00Z,107.0,2025
+Q117049250,Americana,2023 film directed by Tony Tost,2025-08-15T00:00:00Z,110.0,2025
+Q117085614,One Battle After Another,2025 film directed by Paul Thomas Anderson,2025-09-26T00:00:00Z,9691.0,2025
+Q117085614,One Battle After Another,2025 film directed by Paul Thomas Anderson,2025-09-25T00:00:00Z,9691.0,2025
+Q117085614,One Battle After Another,2025 film directed by Paul Thomas Anderson,2025-09-24T00:00:00Z,9691.0,2025
+Q117085614,One Battle After Another,2025 film directed by Paul Thomas Anderson,2025-09-23T00:00:00Z,9691.0,2025
+Q117085614,One Battle After Another,2025 film directed by Paul Thomas Anderson,2025-09-08T00:00:00Z,9691.0,2025
+Q117253366,The Wailing,Spanish horror film,2025-07-10T00:00:00Z,107.0,2025
+Q117253366,The Wailing,Spanish horror film,2025-05-21T00:00:00Z,107.0,2025
+Q117253366,The Wailing,Spanish horror film,2025-02-06T00:00:00Z,107.0,2025
+Q117287129,The End,2024 film directed by Joshua Oppenheimer,2025-07-03T00:00:00Z,,2025
+Q117287129,The End,2024 film directed by Joshua Oppenheimer,2025-04-25T00:00:00Z,,2025
+Q117287129,The End,2024 film directed by Joshua Oppenheimer,2025-03-28T00:00:00Z,,2025
+Q117287129,The End,2024 film directed by Joshua Oppenheimer,2025-03-27T00:00:00Z,,2025
+Q117287129,The End,2024 film directed by Joshua Oppenheimer,2025-02-20T00:00:00Z,,2025
+Q117287129,The End,2024 film directed by Joshua Oppenheimer,2025-01-25T00:00:00Z,,2025
+Q117336433,The Legend of Ochi,2025 film directed by Isaiah Saxon,2025-05-01T00:00:00Z,96.0,2025
+Q117336433,The Legend of Ochi,2025 film directed by Isaiah Saxon,2025-04-25T00:00:00Z,96.0,2025
+Q117336433,The Legend of Ochi,2025 film directed by Isaiah Saxon,2025-01-26T00:00:00Z,96.0,2025
+Q117357033,The Shrouds,2024 film by David Cronenberg,2025-04-30T00:00:00Z,120.0,2025
+Q117357033,The Shrouds,2024 film by David Cronenberg,2025-04-25T00:00:00Z,120.0,2025
+Q117357033,The Shrouds,2024 film by David Cronenberg,2025-04-18T00:00:00Z,120.0,2025
+Q117357033,The Shrouds,2024 film by David Cronenberg,2025-04-03T00:00:00Z,120.0,2025
+Q117425181,We Live in Time,2024 film directed by John Crowley,2025-01-09T00:00:00Z,107.0,2025
+Q117425181,We Live in Time,2024 film directed by John Crowley,2025-01-01T00:00:00Z,107.0,2025
+Q117712753,The Summer Book,2024 film directed by Charlie McDowell,2025-01-31T00:00:00Z,95.0,2025
+Q117742969,Relay,2024 American film directed by David Mackenzie,2025-09-26T00:00:00Z,112.0,2025
+Q117742969,Relay,2024 American film directed by David Mackenzie,2025-09-18T00:00:00Z,112.0,2025
+Q117742969,Relay,2024 American film directed by David Mackenzie,2025-08-22T00:00:00Z,112.0,2025
+Q117745793,Die My Love,2025 film directed by Lynne Ramsay,2025-11-07T00:00:00Z,118.0,2025
+Q117745793,Die My Love,2025 film directed by Lynne Ramsay,2025-05-17T00:00:00Z,118.0,2025
+Q117751447,"Bonnard, Pierre and Marthe",2023 film directed by Martin Provost,2025-06-05T00:00:00Z,,2025
+Q117842630,The Piano Lesson,2024 film directed by Malcolm Washington,2025-01-01T00:00:00Z,125.0,2025
+Q117843038,Old Guy,2024 film directed by Simon West,2025-02-21T00:00:00Z,93.0,2025
+Q117846221,Everything’s Going to Be Great,2025 film directed by Jon S. Baird,2025-06-20T00:00:00Z,95.0,2025
+Q117846221,Everything’s Going to Be Great,2025 film directed by Jon S. Baird,2025-06-09T00:00:00Z,95.0,2025
+Q118114963,DayMukti,2025 film by Badiul Alam Khokon,2025-02-07T00:00:00Z,,2025
+Q118146294,Motor City,2025 film directed by Potsy Ponciroli,2025-09-04T00:00:00Z,103.0,2025
+Q118146294,Motor City,2025 film directed by Potsy Ponciroli,2025-08-30T00:00:00Z,103.0,2025
+Q118175825,A Complete Unknown,2024 film directed by James Mangold,2025-02-06T00:00:00Z,141.0,2025
+Q118212751,Final Destination Bloodlines,2025 film directed by Adam Stein and Zach Lipovsky,2025-05-16T00:00:00Z,110.0,2025
+Q118212751,Final Destination Bloodlines,2025 film directed by Adam Stein and Zach Lipovsky,2025-05-15T00:00:00Z,110.0,2025
+Q118212751,Final Destination Bloodlines,2025 film directed by Adam Stein and Zach Lipovsky,2025-05-14T00:00:00Z,110.0,2025
+Q118364834,Heads of State,2025 American film directed by Ilya Naishuller,2025-07-02T00:00:00Z,113.0,2025
+Q118386092,Goodrich,2024 film directed by Hallie Meyers-Shyer,2025-02-28T00:00:00Z,,2025
+Q118640057,Tatami,2023 film directed by Guy Nattiv and Zar Amir Ebrahimi,2025-06-13T00:00:00Z,105.0,2025
+Q118765520,The History of Sound,2025 film directed by Oliver Hermanus,2025-09-12T00:00:00Z,127.0,2025
+Q118765520,The History of Sound,2025 film directed by Oliver Hermanus,2025-05-21T00:00:00Z,127.0,2025
+Q118904382,How to Train Your Dragon,2025 film directed by Dean DeBlois,2025-09-05T00:00:00Z,125.0,2025
+Q118904382,How to Train Your Dragon,2025 film directed by Dean DeBlois,2025-06-13T00:00:00Z,125.0,2025
+Q118904382,How to Train Your Dragon,2025 film directed by Dean DeBlois,2025-06-12T00:00:00Z,125.0,2025
+Q118904382,How to Train Your Dragon,2025 film directed by Dean DeBlois,2025-06-11T00:00:00Z,125.0,2025
+Q119053379,The Return,2024 film directed by Uberto Pasolini,2025-04-11T00:00:00Z,,2025
+Q119053379,The Return,2024 film directed by Uberto Pasolini,2025-01-30T00:00:00Z,,2025
+Q119053380,Echo Valley,2025 film directed by Michael Pearce,2025-06-13T00:00:00Z,103.0,2025
+Q119053380,Echo Valley,2025 film directed by Michael Pearce,2025-06-06T00:00:00Z,103.0,2025
+Q119059033,Blue Eyed Girl,2025 film directed by J. Mills Goodloe,2025-11-21T00:00:00Z,,2025
+Q119111677,Hell of a Summer,2023 film by Finn Wolfhard and Billy Bryk,2025-04-04T00:00:00Z,88.0,2025
+Q119149787,Sacramento,2024 film directed by Michael Angarano,2025-04-11T00:00:00Z,84.0,2025
+Q119206814,The Amateur,2025 film directed by James Hawes,2025-04-11T00:00:00Z,123.0,2025
+Q119206814,The Amateur,2025 film directed by James Hawes,2025-04-10T00:00:00Z,123.0,2025
+Q119206814,The Amateur,2025 film directed by James Hawes,2025-04-09T00:00:00Z,123.0,2025
+Q119225271,Last Breath,2025 film directed by Alex Parkinson,2025-02-28T00:00:00Z,93.0,2025
+Q119549900,Juror #2,2024 film by Clint Eastwood,2025-01-02T00:00:00Z,114.0,2025
+Q119625134,No Address,2025 film directed by Julia Verdin,2025-02-28T00:00:00Z,125.0,2025
+Q119819384,Atrabilious,2025 film directed by William Atticus Parker,2025-07-18T00:00:00Z,100.0,2025
+Q119821866,Terrifier 3,2024 film by Damien Leone,2025-03-27T00:00:00Z,125.0,2025
+Q119975269,Looking Through Water,2025 film directed by Roberto Sneider,2025-09-12T00:00:00Z,,2025
+Q120072944,You're Cordially Invited,2025 film directed by Nicholas Stoller,2025-01-30T00:00:00Z,109.0,2025
+Q120135481,The Salt Path,2024 film directed by Marianne Elliott,2025-12-25T00:00:00Z,,2025
+Q120135481,The Salt Path,2024 film directed by Marianne Elliott,2025-10-09T00:00:00Z,,2025
+Q120135481,The Salt Path,2024 film directed by Marianne Elliott,2025-07-17T00:00:00Z,,2025
+Q120170496,Bring Them Down,2024 film directed by Christopher Andrews,2025-02-07T00:00:00Z,,2025
+Q120188866,Teresa,2023 film directed by Paula Ortiz,2025-03-13T00:00:00Z,100.0,2025
+Q120188885,Bird,2024 film directed by Andrea Arnold,2025-03-20T00:00:00Z,119.0,2025
+Q120203597,Audrey’s Children,2024 film directed by Ami Canaan Mann,2025-03-28T00:00:00Z,,2025
+Q120237363,Tron: Ares,2025 film directed by Joachim Rønning,2025-10-10T00:00:00Z,,2025
+Q120237363,Tron: Ares,2025 film directed by Joachim Rønning,2025-10-09T00:00:00Z,,2025
+Q120279954,The Rats: A Witcher Tale,2025 film directed by Mairzee Almas,2025-01-01T00:00:00Z,82.0,2025
+Q120514821,The Wizard of the Emerald City,2024 film directed by Igor Voloshin,2025-01-01T00:00:00Z,104.0,2025
+Q120752067,Seven Veils,2023 film by Atom Egoyan,2025-03-07T00:00:00Z,107.0,2025
+Q120758667,Anniversary,2025 film directed by Jan Komasa,2025-11-06T00:00:00Z,,2025
+Q120828163,Witchboard,2024 film directed by Chuck Russell,2025-08-15T00:00:00Z,,2025
+Q120881724,Nonnas,2025 film directed by Stephen Chbosky,2025-05-09T00:00:00Z,111.0,2025
+Q120887939,Death of a Unicorn,2025 film directed by Alex Scharfman,2025-05-01T00:00:00Z,104.0,2025
+Q120887939,Death of a Unicorn,2025 film directed by Alex Scharfman,2025-03-28T00:00:00Z,104.0,2025
+Q120887939,Death of a Unicorn,2025 film directed by Alex Scharfman,2025-03-08T00:00:00Z,104.0,2025
+Q120922062,A Normal Family,2023 South Korean drama film,2025-06-11T00:00:00Z,109.0,2025
+Q120922062,A Normal Family,2023 South Korean drama film,2025-05-01T00:00:00Z,109.0,2025
+Q120922062,A Normal Family,2023 South Korean drama film,2025-04-25T00:00:00Z,109.0,2025
+Q120922062,A Normal Family,2023 South Korean drama film,2025-01-23T00:00:00Z,109.0,2025
+Q120922062,A Normal Family,2023 South Korean drama film,2025-01-17T00:00:00Z,109.0,2025
+Q121076570,Paddington in Peru,2024 film directed by Dougal Wilson,2025-04-18T00:00:00Z,106.0,2025
+Q121076570,Paddington in Peru,2024 film directed by Dougal Wilson,2025-03-30T00:00:00Z,106.0,2025
+Q121076570,Paddington in Peru,2024 film directed by Dougal Wilson,2025-02-14T00:00:00Z,106.0,2025
+Q121076570,Paddington in Peru,2024 film directed by Dougal Wilson,2025-01-30T00:00:00Z,106.0,2025
+Q121076570,Paddington in Peru,2024 film directed by Dougal Wilson,2025-01-23T00:00:00Z,106.0,2025
+Q121076570,Paddington in Peru,2024 film directed by Dougal Wilson,2025-01-17T00:00:00Z,106.0,2025
+Q121076570,Paddington in Peru,2024 film directed by Dougal Wilson,2025-01-09T00:00:00Z,106.0,2025
+Q121085761,Den of Thieves 2: Pantera,2025 film directed by Christian Gudegast,2025-01-30T00:00:00Z,,2025
+Q121085761,Den of Thieves 2: Pantera,2025 film directed by Christian Gudegast,2025-01-16T00:00:00Z,,2025
+Q121085761,Den of Thieves 2: Pantera,2025 film directed by Christian Gudegast,2025-01-10T00:00:00Z,,2025
+Q121085761,Den of Thieves 2: Pantera,2025 film directed by Christian Gudegast,2025-01-09T00:00:00Z,,2025
+Q121088318,Spinal Tap II: The End Continues,Rock mockumentary film directed by Rob Reiner,2025-09-12T00:00:00Z,,2025
+Q121268638,Boundless,2024 film directed by Ole Christian Madsen,2025-01-16T00:00:00Z,126.0,2025
+Q121268664,B.O.Y - Bruises Of Yesterday,2025 film directed by Søren Green,2025-04-16T00:00:00Z,87.0,2025
+Q121268664,B.O.Y - Bruises Of Yesterday,2025 film directed by Søren Green,2025-04-16T00:00:00Z,92.0,2025
+Q121268686,Nightwatch - Demons Are Forever,2023 film directed by Ole Bornedal,2025-02-13T00:00:00Z,115.0,2025
+Q121273737,Funny Birds,film by Marco La Via and Hanna Ladoul,2025-03-13T00:00:00Z,,2025
+Q121316097,Raptures,2025 film directed by Jon Blåhed,2025-05-02T00:00:00Z,108.0,2025
+Q121316097,Raptures,2025 film directed by Jon Blåhed,2025-03-21T00:00:00Z,108.0,2025
+Q121316097,Raptures,2025 film directed by Jon Blåhed,2025-05-02T00:00:00Z,109.0,2025
+Q121316097,Raptures,2025 film directed by Jon Blåhed,2025-03-21T00:00:00Z,109.0,2025
+Q121323115,Love in the Big City,2024 South Korean film,2025-07-17T00:00:00Z,,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-11-20T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-10-17T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-10-02T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-09-12T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-09-05T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-08-22T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-08-21T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-08-15T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-08-14T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-08-12T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-07-31T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-07-25T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-07-18T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-07-17T00:00:00Z,148.0,2025
+Q121433282,Eddington,2025 film directed by Ari Aster,2025-07-16T00:00:00Z,148.0,2025
+Q121572303,Dust Bunny,2025 film directed by Bryan Fuller,2025-12-18T00:00:00Z,106.0,2025
+Q121572303,Dust Bunny,2025 film directed by Bryan Fuller,2025-12-12T00:00:00Z,106.0,2025
+Q121572303,Dust Bunny,2025 film directed by Bryan Fuller,2025-12-11T00:00:00Z,106.0,2025
+Q121572303,Dust Bunny,2025 film directed by Bryan Fuller,2025-09-09T00:00:00Z,106.0,2025
+Q121572304,Please Don't Feed the Children,2024 film by Destry Allyn Spielberg,2025-06-27T00:00:00Z,94.0,2025
+Q121572304,Please Don't Feed the Children,2024 film by Destry Allyn Spielberg,2025-01-01T00:00:00Z,94.0,2025
+Q121841115,Love Is the Monster,2025 film directed by Alex Noyer,2025-10-13T00:00:00Z,,2025
+Q121991068,Failure!,2023 film directed by Alex Kahuam,2025-01-28T00:00:00Z,,2025
+Q122169131,Parthenope,2024 film by Paolo Sorrentino,2025-01-08T00:00:00Z,136.0,2025
+Q122190665,Hurry Up Tomorrow,2025 film directed by Trey Edward Shults,2025-05-16T00:00:00Z,,2025
+Q122190665,Hurry Up Tomorrow,2025 film directed by Trey Edward Shults,2025-05-15T00:00:00Z,,2025
+Q122203155,Maria,2024 film directed by Pablo Larraín,2025-01-10T00:00:00Z,124.0,2025
+Q122203155,Maria,2024 film directed by Pablo Larraín,2025-01-02T00:00:00Z,124.0,2025
+Q122203155,Maria,2024 film directed by Pablo Larraín,2025-01-01T00:00:00Z,124.0,2025
+Q122234107,Trippen,"film directed by Joel Adolphson, Victor Beer, Emil Beer",2025-09-26T00:00:00Z,98.0,2025
+Q122329458,Resurrection,2025 film directed by Bi Gan,2025-12-12T00:00:00Z,156.0,2025
+Q122329458,Resurrection,2025 film directed by Bi Gan,2025-11-22T00:00:00Z,156.0,2025
+Q122329458,Resurrection,2025 film directed by Bi Gan,2025-05-22T00:00:00Z,156.0,2025
+Q122396990,The Strangers: Chapter 2,2025 film directed by Renny Harlin,2025-09-26T00:00:00Z,162.0,2025
+Q122396990,The Strangers: Chapter 2,2025 film directed by Renny Harlin,2025-09-01T00:00:00Z,162.0,2025
+Q122396990,The Strangers: Chapter 2,2025 film directed by Renny Harlin,2025-01-16T00:00:00Z,162.0,2025
+Q122469990,Pokkhirajer Dim,2025 film directed by Soukarya Ghosal,2025-06-13T00:00:00Z,,2025
+Q122585845,The Rivals of Amziah King,2025 film directed by Andrew Patterson,2025-03-10T00:00:00Z,131.0,2025
+Q122741016,Hamnet,2025 film directed by Chloé Zhao,2025-11-27T00:00:00Z,125.0,2025
+Q122741016,Hamnet,2025 film directed by Chloé Zhao,2025-09-07T00:00:00Z,125.0,2025
+Q122741016,Hamnet,2025 film directed by Chloé Zhao,2025-08-29T00:00:00Z,125.0,2025
+Q122827342,Silent Friend,2025 film directed by Ildikó Enyedi,2025-11-13T00:00:00Z,147.0,2025
+Q122827342,Silent Friend,2025 film directed by Ildikó Enyedi,2025-09-05T00:00:00Z,147.0,2025
+Q122946886,The Wrecker,2025 film directed by Art Camacho,2025-10-31T00:00:00Z,,2025
+Q123050485,The Home,2025 film directed by James DeMonaco,2025-07-25T00:00:00Z,95.0,2025
+Q123094814,Brave the Dark,2023 film directed by Damian Harris,2025-01-24T00:00:00Z,122.0,2025
+Q123113807,In the Hand of Dante,2025 film directed by Julian Schnabel,2025-09-03T00:00:00Z,,2025
+Q123125161,Saint Clare,2024 film directed by Mitzi Peirone,2025-07-18T00:00:00Z,,2025
+Q123137223,Not Without Hope,2025 film directed by Joe Carnahan,2025-10-25T00:00:00Z,,2025
+Q123144593,Behind the Shadows,2025 Hong Kong film,2025-01-01T00:00:00Z,,2025
+Q123169096,The Dutchman,2025 film directed by Andre Gaines,2025-03-08T00:00:00Z,,2025
+Q123169098,The Life of Chuck,2024 film directed by Mike Flanagan,2025-06-06T00:00:00Z,111.0,2025
+Q123169098,The Life of Chuck,2024 film directed by Mike Flanagan,2025-09-19T00:00:00Z,111.0,2025
+Q123169098,The Life of Chuck,2024 film directed by Mike Flanagan,2025-09-04T00:00:00Z,111.0,2025
+Q123169098,The Life of Chuck,2024 film directed by Mike Flanagan,2025-06-13T00:00:00Z,111.0,2025
+Q123169098,The Life of Chuck,2024 film directed by Mike Flanagan,2025-06-11T00:00:00Z,111.0,2025
+Q123179308,There Is Still Tomorrow,2023 Italian film by Paola Cortellesi,2025-01-02T00:00:00Z,118.0,2025
+Q123181935,William Tell,historical drama film,2025-03-14T00:00:00Z,133.0,2025
+Q123181935,William Tell,historical drama film,2025-01-10T00:00:00Z,133.0,2025
+Q123185886,The Unholy Trinity,2024 film directed by Richard Gray,2025-06-13T00:00:00Z,,2025
+Q123263821,Psycho Therapy: The Shallow Tale of a Writer Who Decided to Write About a Serial Killer,2024 film directed by Tolga Karaçelik,2025-04-04T00:00:00Z,,2025
+Q123330555,Peg O' My Heart,2025 Hong Kong film,2025-03-27T00:00:00Z,97.0,2025
+Q123339531,A House on Fire,2024 film directed by Dani de la Orden,2025-07-03T00:00:00Z,,2025
+Q123353613,Flight Risk,2025 film directed by Mel Gibson,2025-01-24T00:00:00Z,91.0,2025
+Q123354232,The Dumpling Queen,2025 film directed by Andrew Lau,2025-04-30T00:00:00Z,119.0,2025
+Q123370370,Cleaner,2025 film by Martin Campbell,2025-02-21T00:00:00Z,97.0,2025
+Q123370370,Cleaner,2025 film by Martin Campbell,2025-02-20T00:00:00Z,97.0,2025
+Q123403594,Hamlet,2025 film directed by Aneil Karia,2025-08-30T00:00:00Z,114.0,2025
+Q123420921,Code 3,2025 film directed by Christopher Leone,2025-09-12T00:00:00Z,104.0,2025
+Q123457713,The Braid,2023 film directed by Lætitia Colombani,2025-05-08T00:00:00Z,119.0,2025
+Q123457713,The Braid,2023 film directed by Lætitia Colombani,2025-05-08T00:00:00Z,121.0,2025
+Q123472177,Eden,2024 film directed by Ron Howard,2025-10-30T00:00:00Z,129.0,2025
+Q123472177,Eden,2024 film directed by Ron Howard,2025-08-22T00:00:00Z,129.0,2025
+Q123477948,The Surfer,2024 film directed by Lorcan Finnegan,2025-05-15T00:00:00Z,100.0,2025
+Q123477948,The Surfer,2024 film directed by Lorcan Finnegan,2025-05-09T00:00:00Z,100.0,2025
+Q123477948,The Surfer,2024 film directed by Lorcan Finnegan,2025-05-02T00:00:00Z,100.0,2025
+Q123511612,Riff Raff,2024 film directed by Dito Montiel,2025-03-27T00:00:00Z,103.0,2025
+Q123511612,Riff Raff,2024 film directed by Dito Montiel,2025-02-28T00:00:00Z,103.0,2025
+Q123583548,The Last Front,2024 film directed by Julien Hayet-Kerknawi,2025-06-27T00:00:00Z,98.0,2025
+Q123594168,Harvest,2024 film directed by Athina Rachel Tsangari,2025-05-22T00:00:00Z,131.0,2025
+Q123594168,Harvest,2024 film directed by Athina Rachel Tsangari,2025-04-18T00:00:00Z,131.0,2025
+Q123594168,Harvest,2024 film directed by Athina Rachel Tsangari,2025-04-16T00:00:00Z,131.0,2025
+Q123653417,Bon Schuur Ticino,Swiss comedy film from 2023,2025-07-10T00:00:00Z,88.0,2025
+Q123690366,Love Me,2024 film directed by Sam and Andy Zuchero,2025-01-31T00:00:00Z,92.0,2025
+Q123690368,A Real Pain,2024 film by Jesse Eisenberg,2025-02-27T00:00:00Z,90.0,2025
+Q123690368,A Real Pain,2024 film by Jesse Eisenberg,2025-01-16T00:00:00Z,90.0,2025
+Q123690382,Presence,2024 film directed by Steven Soderbergh,2025-04-03T00:00:00Z,85.0,2025
+Q123690382,Presence,2024 film directed by Steven Soderbergh,2025-02-06T00:00:00Z,85.0,2025
+Q123690382,Presence,2024 film directed by Steven Soderbergh,2025-01-24T00:00:00Z,85.0,2025
+Q123693164,Ponyboi,2024 film directed by Esteban Arango,2025-06-27T00:00:00Z,103.0,2025
+Q123754013,Opus,2025 film directed by Mark Anthony Green,2025-03-14T00:00:00Z,104.0,2025
+Q123754013,Opus,2025 film directed by Mark Anthony Green,2025-01-27T00:00:00Z,104.0,2025
+Q123819147,When in Rome,2024 film directed by Niclas Bendixen,2025-07-03T00:00:00Z,,2025
+Q123822933,Eternal Return,2025 film directed by Yaniv Raz,2025-09-08T00:00:00Z,,2025
+Q123823141,All Shall Be Well,2024 film by Ray Yeung,2025-02-01T00:00:00Z,93.0,2025
+Q123859861,Love Forever,2025 film by Staffan Lindberg,2025-02-14T00:00:00Z,,2025
+Q123861757,Babygirl,2024 film by Halina Reijn,2025-01-30T00:00:00Z,114.0,2025
+Q123861757,Babygirl,2024 film by Halina Reijn,2025-01-15T00:00:00Z,114.0,2025
+Q123862686,Ash,2025 film directed by Flying Lotus,2025-03-21T00:00:00Z,95.0,2025
+Q123862686,Ash,2025 film directed by Flying Lotus,2025-03-11T00:00:00Z,95.0,2025
+Q123908641,Inside,2024 film directed by Charles Williams,2025-02-27T00:00:00Z,,2025
+Q123910761,Jingle Bell Heist,2025 film directed by Michael Fimognari,2025-11-26T00:00:00Z,96.0,2025
+Q123928072,Emilia Pérez,2024 film by,2025-02-27T00:00:00Z,132.0,2025
+Q123985273,Amsterdamned II,2025 Dutch film directed by Dick Maas,2025-12-01T00:00:00Z,,2025
+Q123986303,King Ivory,2024 film directed by John Swab,2025-11-14T00:00:00Z,,2025
+Q124098394,Soul on Fire,2025 film directed by Sean McNamara,2025-10-10T00:00:00Z,,2025
+Q124131345,Screamboat,2025 film directed by Steven LaMorte,2025-04-02T00:00:00Z,102.0,2025
+Q124196410,The Last Dance,2024 Hong Kong drama film,2025-01-29T00:00:00Z,127.0,2025
+Q124215661,Hedda,2025 film directed by Nia DaCosta,2025-10-22T00:00:00Z,,2025
+Q124215661,Hedda,2025 film directed by Nia DaCosta,2025-09-07T00:00:00Z,,2025
+Q124216482,Five Nights at betios,2025 American film directed by Emma Tammi,2025-12-05T00:00:00Z,104.0,2025
+Q124216482,Five Nights at betios,2025 American film directed by Emma Tammi,2025-12-04T00:00:00Z,104.0,2025
+Q124246470,Karate Kid: Legends,2025 film by Jonathan Entwistle,2025-05-30T00:00:00Z,94.0,2025
+Q124246470,Karate Kid: Legends,2025 film by Jonathan Entwistle,2025-05-29T00:00:00Z,94.0,2025
+Q124246470,Karate Kid: Legends,2025 film by Jonathan Entwistle,2025-05-28T00:00:00Z,94.0,2025
+Q124248117,Riley,2023 film directed by Benjamin Howard,2025-01-14T00:00:00Z,93.0,2025
+Q124250689,My Dead Friend Zoe,2024 film by Kyle Hausmann-Stokes,2025-02-28T00:00:00Z,98.0,2025
+Q124253867,I Wish You All The Best,2024 film by Tommy Dorfman,2025-11-07T00:00:00Z,92.0,2025
+Q124255913,A Nice Indian Boy,2024 film directed by Roshan Sethi,2025-04-04T00:00:00Z,96.0,2025
+Q124256183,Rumours,"2024 film directed by Guy Maddin, Evan Johnson and Galen Johnson",2025-05-15T00:00:00Z,104.0,2025
+Q124256460,Fountain of Youth,2025 film directed by Guy Ritchie,2025-05-23T00:00:00Z,125.0,2025
+Q124260477,We Strangers,2024 film directed by Anu Valia,2025-08-22T00:00:00Z,80.0,2025
+Q124262351,I'm Still Here,2024 film directed by Walter Salles,2025-03-20T00:00:00Z,135.0,2025
+Q124262351,I'm Still Here,2024 film directed by Walter Salles,2025-02-23T00:00:00Z,135.0,2025
+Q124262351,I'm Still Here,2024 film directed by Walter Salles,2025-01-17T00:00:00Z,135.0,2025
+Q124262351,I'm Still Here,2024 film directed by Walter Salles,2025-01-16T00:00:00Z,135.0,2025
+Q124262351,I'm Still Here,2024 film directed by Walter Salles,2025-01-15T00:00:00Z,135.0,2025
+Q124289803,Bride Hard,2025 American film directed by Simon West,2025-08-28T00:00:00Z,105.0,2025
+Q124289803,Bride Hard,2025 American film directed by Simon West,2025-07-17T00:00:00Z,105.0,2025
+Q124289803,Bride Hard,2025 American film directed by Simon West,2025-06-20T00:00:00Z,105.0,2025
+Q124308286,Young Hearts,2024 film by Anthony Schatteman,2025-02-19T00:00:00Z,97.0,2025
+Q124308286,Young Hearts,2024 film by Anthony Schatteman,2025-01-16T00:00:00Z,97.0,2025
+Q124311829,Waiting for the Storms,Feature film by director François Delisle,2025-04-18T00:00:00Z,,2025
+Q124323597,Ice Road: Vengeance,2025 film directed by Jonathan Hensleigh,2025-07-01T00:00:00Z,112.0,2025
+Q124323597,Ice Road: Vengeance,2025 film directed by Jonathan Hensleigh,2025-06-27T00:00:00Z,112.0,2025
+Q124326764,Lucky Winners,2024 film directed by Maxime Govare and Romain Choay,2025-01-30T00:00:00Z,103.0,2025
+Q124331620,Grand Tour,2024 film by Miguel Gomes,2025-05-22T00:00:00Z,129.0,2025
+Q124334469,La cocina,2024 film directed by Alonso Ruizpalacios,2025-03-06T00:00:00Z,139.0,2025
+Q124335053,Foreign Tongue,2024 film by Claire Burger,2025-08-29T00:00:00Z,105.0,2025
+Q124335053,Foreign Tongue,2024 film by Claire Burger,2025-06-19T00:00:00Z,105.0,2025
+Q124337176,G20,2025 film directed by Patricia Riggen,2025-04-10T00:00:00Z,108.0,2025
+Q124352605,Honey Don't!,2025 film directed by Ethan Coen,2025-08-22T00:00:00Z,89.0,2025
+Q124352605,Honey Don't!,2025 film directed by Ethan Coen,2025-05-24T00:00:00Z,89.0,2025
+Q124353875,Play Dirty,2025 film directed by Shane Black,2025-10-01T00:00:00Z,128.0,2025
+Q124359261,The Room Next Door,2024 film by Pedro Almodóvar,2025-01-10T00:00:00Z,107.0,2025
+Q124364048,Father Mother Sister Brother,2025 film directed by Jim Jarmusch,2025-12-24T00:00:00Z,110.0,2025
+Q124364048,Father Mother Sister Brother,2025 film directed by Jim Jarmusch,2025-08-31T00:00:00Z,110.0,2025
+Q124364757,Good Fortune,2025 film directed by Aziz Ansari,2025-10-17T00:00:00Z,97.0,2025
+Q124364757,Good Fortune,2025 film directed by Aziz Ansari,2025-10-16T00:00:00Z,97.0,2025
+Q124364757,Good Fortune,2025 film directed by Aziz Ansari,2025-09-06T00:00:00Z,97.0,2025
+Q124370375,Locked,2025 film directed by David Yarovesky,2025-04-09T00:00:00Z,95.0,2025
+Q124370375,Locked,2025 film directed by David Yarovesky,2025-03-21T00:00:00Z,95.0,2025
+Q124370375,Locked,2025 film directed by David Yarovesky,2025-03-20T00:00:00Z,95.0,2025
+Q124373035,Black Bag,2025 film directed by Steven Soderbergh,2025-04-03T00:00:00Z,93.0,2025
+Q124373035,Black Bag,2025 film directed by Steven Soderbergh,2025-03-28T00:00:00Z,93.0,2025
+Q124373035,Black Bag,2025 film directed by Steven Soderbergh,2025-03-14T00:00:00Z,93.0,2025
+Q124373035,Black Bag,2025 film directed by Steven Soderbergh,2025-03-12T00:00:00Z,93.0,2025
+Q124380480,Jurassic World Rebirth,2025 film directed by Gareth Edwards,2025-07-03T00:00:00Z,133.0,2025
+Q124380480,Jurassic World Rebirth,2025 film directed by Gareth Edwards,2025-07-02T00:00:00Z,133.0,2025
+Q124382485,Winter of the Crow,2025 film directed by Kasia Adamik,2025-09-06T00:00:00Z,112.0,2025
+Q124393045,Frankenstein,2025 film directed by Guillermo del Toro,2025-11-07T00:00:00Z,149.0,2025
+Q124393045,Frankenstein,2025 film directed by Guillermo del Toro,2025-08-30T00:00:00Z,149.0,2025
+Q124393313,Nuremberg,2025 film directed by James Vanderbilt,2025-12-05T00:00:00Z,148.0,2025
+Q124393313,Nuremberg,2025 film directed by James Vanderbilt,2025-11-07T00:00:00Z,148.0,2025
+Q124393313,Nuremberg,2025 film directed by James Vanderbilt,2025-09-07T00:00:00Z,148.0,2025
+Q124397410,Madea's Destination Wedding,2025 film directed by Tyler Perry,2025-07-11T00:00:00Z,,2025
+Q124408474,Ella McCay,2025 film directed by James L. Brooks,2025-12-12T00:00:00Z,115.0,2025
+Q124408474,Ella McCay,2025 film directed by James L. Brooks,2025-12-11T00:00:00Z,115.0,2025
+Q124408474,Ella McCay,2025 film directed by James L. Brooks,2025-12-10T00:00:00Z,115.0,2025
+Q124408474,Ella McCay,2025 film directed by James L. Brooks,2025-12-09T00:00:00Z,115.0,2025
+Q124426106,The Damned,2024 film directed by Thordur Palsson,2025-01-03T00:00:00Z,89.0,2025
+Q124435493,Black Phone 2,2025 American film directed by Scott Derrickson,2025-10-23T00:00:00Z,114.0,2025
+Q124435493,Black Phone 2,2025 American film directed by Scott Derrickson,2025-10-17T00:00:00Z,114.0,2025
+Q124435493,Black Phone 2,2025 American film directed by Scott Derrickson,2025-10-16T00:00:00Z,114.0,2025
+Q124436027,The Great Flood,2025 South Korean film by Kim Byung-woo,2025-12-19T00:00:00Z,,2025
+Q124436027,The Great Flood,2025 South Korean film by Kim Byung-woo,2025-09-18T00:00:00Z,,2025
+Q124439306,Deep Cover,2025 film directed by Tom Kingsley,2025-06-12T00:00:00Z,100.0,2025
+Q124439306,Deep Cover,2025 film directed by Tom Kingsley,2025-06-04T00:00:00Z,100.0,2025
+Q124450734,If I Had Legs I'd Kick You,2025 film directed by Mary Bronstein,2025-10-17T00:00:00Z,113.0,2025
+Q124450734,If I Had Legs I'd Kick You,2025 film directed by Mary Bronstein,2025-10-10T00:00:00Z,113.0,2025
+Q124450734,If I Had Legs I'd Kick You,2025 film directed by Mary Bronstein,2025-01-24T00:00:00Z,113.0,2025
+Q124450737,Atropia,2025 film directed by Hailey Gates,2025-01-25T00:00:00Z,,2025
+Q124464617,She Rides Shotgun,2025 film directed by Nick Rowland,2025-08-01T00:00:00Z,120.0,2025
+Q124497778,A Big Bold Beautiful Journey,2025 film directed by Kogonada,2025-09-19T00:00:00Z,109.0,2025
+Q124497778,A Big Bold Beautiful Journey,2025 film directed by Kogonada,2025-09-18T00:00:00Z,109.0,2025
+Q124512337,Highest 2 Lowest,2025 film directed by Spike Lee,2025-09-05T00:00:00Z,133.0,2025
+Q124512337,Highest 2 Lowest,2025 film directed by Spike Lee,2025-08-15T00:00:00Z,133.0,2025
+Q124512337,Highest 2 Lowest,2025 film directed by Spike Lee,2025-05-19T00:00:00Z,133.0,2025
+Q124528247,The Man In My Basement,2025 film directed by Nadia Latif,2025-09-12T00:00:00Z,,2025
+Q124528247,The Man In My Basement,2025 film directed by Nadia Latif,2025-09-05T00:00:00Z,,2025
+Q124537378,Hard Truths,2024 film directed by Mike Leigh,2025-02-28T00:00:00Z,97.0,2025
+Q124537378,Hard Truths,2024 film directed by Mike Leigh,2025-01-01T00:00:00Z,97.0,2025
+Q124608269,Steve,2025 film directed by Tim Mielants,2025-09-19T00:00:00Z,91.0,2025
+Q124608269,Steve,2025 film directed by Tim Mielants,2025-09-05T00:00:00Z,91.0,2025
+Q124615876,We Bury the Dead,2024 film directed by Zak Hilditch,2025-03-09T00:00:00Z,94.0,2025
+Q124622268,The Three Investigators – Carpathian Dog,2025 film directed by Tim Dünschede,2025-01-23T00:00:00Z,,2025
+Q124625067,Osiris,2025 film directed by William Kaufman,2025-07-25T00:00:00Z,120.0,2025
+Q124630194,The Threesome,2025 film directed by Chad Hartigan,2025-09-05T00:00:00Z,,2025
+Q124630194,The Threesome,2025 film directed by Chad Hartigan,2025-03-07T00:00:00Z,,2025
+Q124635920,Love Fail Repeat,2025 Dutch film directed by Erwin van den Eshof,2025-02-20T00:00:00Z,,2025
+Q124652747,London Calling,2025 film directed by Allan Ungar,2025-09-19T00:00:00Z,,2025
+Q124664023,When Fall Is Coming,2024 film by François Ozon,2025-08-28T00:00:00Z,102.0,2025
+Q124664023,When Fall Is Coming,2024 film by François Ozon,2025-06-26T00:00:00Z,102.0,2025
+Q124664023,When Fall Is Coming,2024 film by François Ozon,2025-05-30T00:00:00Z,102.0,2025
+Q124664023,When Fall Is Coming,2024 film by François Ozon,2025-04-10T00:00:00Z,102.0,2025
+Q124664023,When Fall Is Coming,2024 film by François Ozon,2025-03-21T00:00:00Z,102.0,2025
+Q124664023,When Fall Is Coming,2024 film by François Ozon,2025-01-31T00:00:00Z,102.0,2025
+Q124694260,Tunnel: Sun in the Dark,2025 Vietnamese war historical drama film,2025-04-04T00:00:00Z,128.0,2025
+Q124695390,Kronprinsen och tyrannens återkomst,2025 film directed by Tord Danielsson,2025-02-07T00:00:00Z,,2025
+Q124706420,Bridget Jones: Mad About the Boy,2025 film directed by Michael Morris,2025-02-27T00:00:00Z,125.0,2025
+Q124706420,Bridget Jones: Mad About the Boy,2025 film directed by Michael Morris,2025-02-14T00:00:00Z,125.0,2025
+Q124706420,Bridget Jones: Mad About the Boy,2025 film directed by Michael Morris,2025-02-13T00:00:00Z,125.0,2025
+Q124706420,Bridget Jones: Mad About the Boy,2025 film directed by Michael Morris,2025-02-12T00:00:00Z,125.0,2025
+Q124707042,Novocaine,2025 film directed by Dan Berk and Robert Olsen,2025-03-12T00:00:00Z,110.0,2025
+Q124707042,Novocaine,2025 film directed by Dan Berk and Robert Olsen,2025-03-27T00:00:00Z,110.0,2025
+Q124707042,Novocaine,2025 film directed by Dan Berk and Robert Olsen,2025-03-26T00:00:00Z,110.0,2025
+Q124707042,Novocaine,2025 film directed by Dan Berk and Robert Olsen,2025-03-14T00:00:00Z,110.0,2025
+Q124707042,Novocaine,2025 film directed by Dan Berk and Robert Olsen,2025-03-13T00:00:00Z,110.0,2025
+Q124749841,Hallow Road,2025 film directed by Babak Anvari,2025-05-16T00:00:00Z,80.0,2025
+Q124749841,Hallow Road,2025 film directed by Babak Anvari,2025-03-07T00:00:00Z,80.0,2025
+Q124749841,Hallow Road,2025 film directed by Babak Anvari,2025-01-01T00:00:00Z,80.0,2025
+Q124758292,The Disappearance of Josef Mengele,2025 film directed by Kirill Serebrennikov,2025-11-13T00:00:00Z,135.0,2025
+Q124758292,The Disappearance of Josef Mengele,2025 film directed by Kirill Serebrennikov,2025-05-20T00:00:00Z,135.0,2025
+Q124758337,The Phoenician Scheme,2025 film directed by Wes Anderson,2025-05-30T00:00:00Z,105.0,2025
+Q124758337,The Phoenician Scheme,2025 film directed by Wes Anderson,2025-05-29T00:00:00Z,105.0,2025
+Q124758337,The Phoenician Scheme,2025 film directed by Wes Anderson,2025-05-18T00:00:00Z,105.0,2025
+Q124758337,The Phoenician Scheme,2025 film directed by Wes Anderson,2025-04-30T00:00:00Z,105.0,2025
+Q124811245,Tornado,2025 film directed by John Maclean,2025-06-13T00:00:00Z,91.0,2025
+Q124811245,Tornado,2025 film directed by John Maclean,2025-06-06T00:00:00Z,91.0,2025
+Q124811245,Tornado,2025 film directed by John Maclean,2025-05-30T00:00:00Z,91.0,2025
+Q124811245,Tornado,2025 film directed by John Maclean,2025-02-26T00:00:00Z,91.0,2025
+Q124814444,Afterburn,2025 film directed by J.J. Perry,2025-09-19T00:00:00Z,,2025
+Q124814444,Afterburn,2025 film directed by J.J. Perry,2025-09-11T00:00:00Z,,2025
+Q124829697,Jay Kelly,2025 film directed by Noah Baumbach,2025-12-05T00:00:00Z,132.0,2025
+Q124829697,Jay Kelly,2025 film directed by Noah Baumbach,2025-11-14T00:00:00Z,132.0,2025
+Q124829697,Jay Kelly,2025 film directed by Noah Baumbach,2025-08-28T00:00:00Z,132.0,2025
+Q124841936,The Monkey,2025 film directed by Oz Perkins,2025-03-06T00:00:00Z,98.0,2025
+Q124841936,The Monkey,2025 film directed by Oz Perkins,2025-02-27T00:00:00Z,98.0,2025
+Q124841936,The Monkey,2025 film directed by Oz Perkins,2025-02-21T00:00:00Z,98.0,2025
+Q124841936,The Monkey,2025 film directed by Oz Perkins,2025-02-20T00:00:00Z,98.0,2025
+Q124841936,The Monkey,2025 film directed by Oz Perkins,2025-02-19T00:00:00Z,98.0,2025
+Q124844804,Bob Trevino Likes It,2024 film directed by Tracie Laymon,2025-03-21T00:00:00Z,,2025
+Q124845026,Cold Wallet,2024 film directed by Cutter Hodierne,2025-02-28T00:00:00Z,93.0,2025
+Q124847512,Doin' It,2024 film directed by Sara Zandieh,2025-09-19T00:00:00Z,,2025
+Q124847605,I Love You Forever,2024 film directed by Cazzie David and Elisa Kalani,2025-02-07T00:00:00Z,,2025
+Q124848369,The Accountant 2,2025 film directed by Gavin O'Connor,2025-04-25T00:00:00Z,132.0,2025
+Q124848369,The Accountant 2,2025 film directed by Gavin O'Connor,2025-04-24T00:00:00Z,132.0,2025
+Q124848369,The Accountant 2,2025 film directed by Gavin O'Connor,2025-03-08T00:00:00Z,132.0,2025
+Q124852530,War 2,2025 film by Ayan Mukerji,2025-08-14T00:00:00Z,,2025
+Q124852795,Oddity,2024 film directed by Damian Mc Carthy,2025-07-20T00:00:00Z,98.0,2025
+Q124853345,Sew Torn,2024 film directed by Freddy Macdonald,2025-05-09T00:00:00Z,95.0,2025
+Q124853968,The Friend,2024 film directed by Scott McGehee and David Siegel,2025-06-19T00:00:00Z,120.0,2025
+Q124853968,The Friend,2024 film directed by Scott McGehee and David Siegel,2025-03-28T00:00:00Z,120.0,2025
+Q124856152,Vicious,2025 film directed by Bryan Bertino,2025-10-10T00:00:00Z,98.0,2025
+Q124856152,Vicious,2025 film directed by Bryan Bertino,2025-09-01T00:00:00Z,98.0,2025
+Q124947229,Rental Family,2025 film directed by Hikari,2025-11-21T00:00:00Z,110.0,2025
+Q124947229,Rental Family,2025 film directed by Hikari,2025-09-06T00:00:00Z,110.0,2025
+Q124947655,Dead of Winter,2025 film directed by Brian Kirk,2025-11-28T00:00:00Z,98.0,2025
+Q124947655,Dead of Winter,2025 film directed by Brian Kirk,2025-09-26T00:00:00Z,98.0,2025
+Q124947655,Dead of Winter,2025 film directed by Brian Kirk,2025-08-08T00:00:00Z,98.0,2025
+Q124948054,Worldbreaker,2025 film directed by Brad Anderson,2025-10-30T00:00:00Z,,2025
+Q124979080,Alarum,2025 film directed by Michael Polish,2025-01-17T00:00:00Z,,2025
+Q125020375,Sisu: Road to Revenge,2025 film directed by Jalmari Helander,2025-11-21T00:00:00Z,89.0,2025
+Q125020375,Sisu: Road to Revenge,2025 film directed by Jalmari Helander,2025-11-20T00:00:00Z,89.0,2025
+Q125020375,Sisu: Road to Revenge,2025 film directed by Jalmari Helander,2025-10-22T00:00:00Z,89.0,2025
+Q125020375,Sisu: Road to Revenge,2025 film directed by Jalmari Helander,2025-09-21T00:00:00Z,89.0,2025
+Q125027720,Un p'tit truc en plus,2024 film directed by Artus,2025-02-20T00:00:00Z,99.0,2025
+Q125029885,Bad Apples,2025 film directed by Jonatan Etzler,2025-09-07T00:00:00Z,100.0,2025
+Q125029935,Alma and the Wolf,2025 film directed by Michael Patrick Jann,2025-06-20T00:00:00Z,,2025
+Q125029935,Alma and the Wolf,2025 film directed by Michael Patrick Jann,2025-03-22T00:00:00Z,,2025
+Q125078429,Kiss of the Spider Woman,2025 film directed by Bill Condon,2025-10-10T00:00:00Z,,2025
+Q125078429,Kiss of the Spider Woman,2025 film directed by Bill Condon,2025-01-26T00:00:00Z,,2025
+Q125085856,Jamais sans mon psy,2024 film directed by Arnaud Lemort,2025-04-10T00:00:00Z,91.0,2025
+Q125085856,Jamais sans mon psy,2024 film directed by Arnaud Lemort,2025-01-09T00:00:00Z,91.0,2025
+Q125102928,Plainclothes,2025 film directed by Carmen Emmi,2025-09-19T00:00:00Z,92.0,2025
+Q125102928,Plainclothes,2025 film directed by Carmen Emmi,2025-01-26T00:00:00Z,92.0,2025
+Q125106002,A World Apart,2024 film directed by Riccardo Milani,2025-02-13T00:00:00Z,113.0,2025
+Q125144809,8,Spanish film,2025-01-01T00:00:00Z,126.0,2025
+Q125153299,The Lost Bus,2025 film directed by Paul Greengrass,2025-09-19T00:00:00Z,,2025
+Q125153299,The Lost Bus,2025 film directed by Paul Greengrass,2025-09-05T00:00:00Z,,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-12-25T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-11-21T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-10-31T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-10-30T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-09-11T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-08-21T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-08-15T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-08-14T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-08-08T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-08-07T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-08-01T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-07-31T00:00:00Z,129.0,2025
+Q125187519,Dracula: A Love Tale,2025 film directed by Luc Besson,2025-07-30T00:00:00Z,129.0,2025
+Q125201436,Zombies 4: Dawn of the Vampires,2025 film,2025-07-10T00:00:00Z,,2025
+Q125212257,Never Alone,2024 film directed by Klaus Härö,2025-10-31T00:00:00Z,85.0,2025
+Q125212257,Never Alone,2024 film directed by Klaus Härö,2025-08-08T00:00:00Z,85.0,2025
+Q125212257,Never Alone,2024 film directed by Klaus Härö,2025-01-17T00:00:00Z,85.0,2025
+Q125217247,Warfare,2025 film directed by Ray Mendoza and Alex Garland,2025-04-18T00:00:00Z,95.0,2025
+Q125217247,Warfare,2025 film directed by Ray Mendoza and Alex Garland,2025-04-11T00:00:00Z,95.0,2025
+Q125217247,Warfare,2025 film directed by Ray Mendoza and Alex Garland,2025-03-16T00:00:00Z,95.0,2025
+Q125265183,Love Hurts,2025 film directed by Jonathan Eusebio,2025-02-07T00:00:00Z,83.0,2025
+Q125265183,Love Hurts,2025 film directed by Jonathan Eusebio,2025-02-06T00:00:00Z,83.0,2025
+Q125274110,The Ballad of Wallis Island,British comedy film,2025-05-30T00:00:00Z,99.0,2025
+Q125274110,The Ballad of Wallis Island,British comedy film,2025-01-25T00:00:00Z,99.0,2025
+Q125295778,Deva,2024 Indian film directed by Rosshan Andrrews,2025-01-31T00:00:00Z,,2025
+Q125295880,God Save the Tuche,,2025-02-05T00:00:00Z,,2025
+Q125371155,Another Simple Favor,2025 film directed by Paul Feig,2025-05-01T00:00:00Z,120.0,2025
+Q125371155,Another Simple Favor,2025 film directed by Paul Feig,2025-03-07T00:00:00Z,120.0,2025
+Q125388230,Trap House,2025 film directed by Michael Dowse,2025-11-14T00:00:00Z,,2025
+Q125392328,28 Years Later,2025 film directed by Danny Boyle,2025-07-03T00:00:00Z,115.0,2025
+Q125392328,28 Years Later,2025 film directed by Danny Boyle,2025-06-20T00:00:00Z,115.0,2025
+Q125401070,Springsteen: Deliver Me from Nowhere,2025 film directed by Scott Cooper,2025-10-24T00:00:00Z,119.0,2025
+Q125401070,Springsteen: Deliver Me from Nowhere,2025 film directed by Scott Cooper,2025-10-23T00:00:00Z,119.0,2025
+Q125408538,Tow,2025 film directed by Stephanie Laing,2025-06-07T00:00:00Z,105.0,2025
+Q125422231,The Girl with the Needle,2024 film directed by Magnus von Horn,2025-01-23T00:00:00Z,115.0,2025
+Q125422231,The Girl with the Needle,2024 film directed by Magnus von Horn,2025-01-09T00:00:00Z,115.0,2025
+Q125422662,All We Imagine as Light,2024 film by Payal Kapadia,2025-02-13T00:00:00Z,118.0,2025
+Q125422662,All We Imagine as Light,2024 film by Payal Kapadia,2025-01-03T00:00:00Z,118.0,2025
+Q125422670,Who Let the Dog Bite?,"French-Swiss movie by Lætitia Dosch, 2024",2025-02-06T00:00:00Z,83.0,2025
+Q125422898,Wild Diamond,2024 film directed by Agathe Riedinger,2025-04-24T00:00:00Z,103.0,2025
+Q125422899,Caught by the Tides,2024 film directed by Jia Zhangke,2025-05-09T00:00:00Z,111.0,2025
+Q125445898,Broke,2025 film directed by Carlyle Eubank,2025-05-06T00:00:00Z,103.0,2025
+Q125449414,The Running Man,2025 film directed by Edgar Wright,2025-11-19T00:00:00Z,133.0,2025
+Q125449414,The Running Man,2025 film directed by Edgar Wright,2025-11-14T00:00:00Z,133.0,2025
+Q125449414,The Running Man,2025 film directed by Edgar Wright,2025-11-13T00:00:00Z,133.0,2025
+Q125449414,The Running Man,2025 film directed by Edgar Wright,2025-11-12T00:00:00Z,133.0,2025
+Q125449414,The Running Man,2025 film directed by Edgar Wright,2025-11-05T00:00:00Z,133.0,2025
+Q125457216,On Becoming a Guinea Fowl,British comedy drama film,2025-03-07T00:00:00Z,99.0,2025
+Q125469562,Le Roman de Jim,2024 film by Arnaud and Jean-Marie Larrieu,2025-04-17T00:00:00Z,101.0,2025
+Q125469653,She's Got No Name,2024 film directed by Peter Chan,2025-06-21T00:00:00Z,150.0,2025
+Q125473145,Sinners,2025 film directed by Ryan Coogler,2025-04-18T00:00:00Z,137.0,2025
+Q125473145,Sinners,2025 film directed by Ryan Coogler,2025-04-17T00:00:00Z,137.0,2025
+Q125473145,Sinners,2025 film directed by Ryan Coogler,2025-04-16T00:00:00Z,137.0,2025
+Q125490455,Way Home,2024 film directed by Charlotte Sieling,2025-02-21T00:00:00Z,97.0,2025
+Q125495342,A Working Man,2025 film directed by David Ayer,2025-03-28T00:00:00Z,116.0,2025
+Q125495342,A Working Man,2025 film directed by David Ayer,2025-03-27T00:00:00Z,116.0,2025
+Q125495342,A Working Man,2025 film directed by David Ayer,2025-03-26T00:00:00Z,116.0,2025
+Q125499005,Julie Keeps Quiet,2024 film by Leonardo Van Dijl,2025-08-15T00:00:00Z,97.0,2025
+Q125499005,Julie Keeps Quiet,2024 film by Leonardo Van Dijl,2025-04-24T00:00:00Z,97.0,2025
+Q125507012,Jazzy,2024 film directed by Morrisa Maltz,2025-02-07T00:00:00Z,86.0,2025
+Q125517151,The Other Way Around,2024 film,2025-02-13T00:00:00Z,114.0,2025
+Q125523347,Queen of the Ring,2024 film directed by Ash Avildsen,2025-03-07T00:00:00Z,130.0,2025
+Q125532822,La Dolce Villa,2025 film directed by Mark Waters,2025-02-13T00:00:00Z,,2025
+Q125536940,To a Land Unknown,2024 film by Mahdi Fleifel,2025-07-17T00:00:00Z,105.0,2025
+Q125563776,The Seed of the Sacred Fig,2024 film directed by Mohammad Rasoulof,2025-01-30T00:00:00Z,168.0,2025
+Q125566469,Here Now,2024 film by Gabriele Muccino,2025-01-23T00:00:00Z,,2025
+Q125574208,One Spoon of Chocolate,2025 film directed by RZA,2025-06-08T00:00:00Z,112.0,2025
+Q125578001,Fear Street: Prom Queen,2025 film directed by Matt Palmer,2025-05-23T00:00:00Z,90.0,2025
+Q125578089,The Pickup,2025 film directed by Tim Story,2025-08-06T00:00:00Z,,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-08-21T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-08-20T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-08-14T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-08-07T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-07-31T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-07-24T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-07-10T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-07-03T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-07-02T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-30T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-26T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-20T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-13T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-12T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-11T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-06T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-06-05T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-05-30T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-05-29T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-05-27T00:00:00Z,98.0,2025
+Q125578090,The Ritual,2025 film directed by David Midell,2025-04-18T00:00:00Z,98.0,2025
+Q125585498,"Alexander and the Terrible, Horrible, No Good, Very Bad Road Trip",2025 film directed by Marvin Lemus,2025-03-28T00:00:00Z,,2025
+Q125613304,Giant,2025 film directed by Rowan Athale,2025-10-18T00:00:00Z,,2025
+Q125613308,The Thing with Feathers,2025 film directed by Dylan Southern,2025-01-25T00:00:00Z,,2025
+Q125620071,The Astronaut,2025 film directed by Jess Varley,2025-03-07T00:00:00Z,90.0,2025
+Q125621796,Kinda Pregnant,2025 film directed by Tyler Spindel,2025-02-05T00:00:00Z,81.0,2025
+Q125622191,The Thursday Murder Club,2025 film directed by Chris Columbus,2025-08-28T00:00:00Z,118.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-12-12T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-12-05T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-11-28T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-11-20T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-11-19T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-11-13T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-11-06T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-10-02T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-09-26T00:00:00Z,98.0,2025
+Q125627182,Eleanor the Great,2025 film directed by Scarlett Johansson,2025-09-04T00:00:00Z,98.0,2025
+Q125637377,Sitaare Zameen Par,2025 film by R. S. Prasanna,2025-06-22T00:00:00Z,,2025
+Q125637377,Sitaare Zameen Par,2025 film by R. S. Prasanna,2025-06-20T00:00:00Z,,2025
+Q125660863,The Wedding Banquet,2025 film directed by Andrew Ahn,2025-04-18T00:00:00Z,102.0,2025
+Q125660863,The Wedding Banquet,2025 film directed by Andrew Ahn,2025-01-27T00:00:00Z,102.0,2025
+Q125678238,The Woman in the Yard,2025 film directed by Jaume Collet-Serra,2025-03-28T00:00:00Z,,2025
+Q125726790,Materialists,2025 film directed by Celine Song,2025-09-04T00:00:00Z,116.0,2025
+Q125726790,Materialists,2025 film directed by Celine Song,2025-08-21T00:00:00Z,116.0,2025
+Q125726790,Materialists,2025 film directed by Celine Song,2025-08-15T00:00:00Z,116.0,2025
+Q125726790,Materialists,2025 film directed by Celine Song,2025-08-14T00:00:00Z,116.0,2025
+Q125726790,Materialists,2025 film directed by Celine Song,2025-06-13T00:00:00Z,116.0,2025
+Q125728863,The Captive,2025 film directed by Alejandro Amenábar,2025-09-12T00:00:00Z,133.0,2025
+Q125728863,The Captive,2025 film directed by Alejandro Amenábar,2025-09-07T00:00:00Z,133.0,2025
+Q125751075,Niki,2024 film directed by Céline Sallette,2025-03-20T00:00:00Z,98.0,2025
+Q125757803,Sacrifice,2025 film directed by Romain Gavras,2025-09-06T00:00:00Z,,2025
+Q125758998,Oh. What. Fun.,upcoming film directed by Michael Showalter,2025-12-03T00:00:00Z,106.0,2025
+Q125808089,Late Fame,2025 film directed by Kent Jones,2025-08-30T00:00:00Z,90.0,2025
+Q125831483,Queens of Drama,2024 film directed by Alexis Langlois,2025-08-07T00:00:00Z,115.0,2025
+Q125831483,Queens of Drama,2024 film directed by Alexis Langlois,2025-02-19T00:00:00Z,115.0,2025
+Q125843356,"Good Luck, Have Fun, Don't Die",2025 film directed by Gore Verbinski,2025-09-24T00:00:00Z,134.0,2025
+Q125843356,"Good Luck, Have Fun, Don't Die",2025 film directed by Gore Verbinski,2025-01-01T00:00:00Z,134.0,2025
+Q125861557,Sikandar,2025 film by A. R. Murugadoss,2025-03-30T00:00:00Z,135.0,2025
+Q125861561,The Luckiest Man in America,2024 film by Samir Oliveros,2025-04-04T00:00:00Z,90.0,2025
+Q125867250,Nouvelle Vague,2025 film directed by Richard Linklater,2025-10-31T00:00:00Z,105.0,2025
+Q125867250,Nouvelle Vague,2025 film directed by Richard Linklater,2025-10-08T00:00:00Z,105.0,2025
+Q125867250,Nouvelle Vague,2025 film directed by Richard Linklater,2025-05-17T00:00:00Z,105.0,2025
+Q125880828,DreamQuil,film directed by Alex Prager,2025-01-01T00:00:00Z,,2025
+Q125888131,Adulthood,2025 film directed by Alex Winter,2025-09-19T00:00:00Z,97.0,2025
+Q125888131,Adulthood,2025 film directed by Alex Winter,2025-09-11T00:00:00Z,97.0,2025
+Q125897105,Kid Snow,2024 film by Paul Goldman,2025-02-14T00:00:00Z,127.0,2025
+Q125900284,Los Tigres,2025 film directed by Alberto Rodríguez,2025-12-31T00:00:00Z,109.0,2025
+Q125900284,Los Tigres,2025 film directed by Alberto Rodríguez,2025-10-31T00:00:00Z,109.0,2025
+Q125900284,Los Tigres,2025 film directed by Alberto Rodríguez,2025-09-20T00:00:00Z,109.0,2025
+Q125908027,The Naked Gun,2025 film directed by Akiva Schaffer,2025-08-14T00:00:00Z,85.0,2025
+Q125908027,The Naked Gun,2025 film directed by Akiva Schaffer,2025-08-07T00:00:00Z,85.0,2025
+Q125908027,The Naked Gun,2025 film directed by Akiva Schaffer,2025-08-01T00:00:00Z,85.0,2025
+Q125908027,The Naked Gun,2025 film directed by Akiva Schaffer,2025-07-31T00:00:00Z,85.0,2025
+Q125913481,Jimpa,2025 film directed by Sophie Hyde,2025-01-23T00:00:00Z,,2025
+Q125933907,Companion,2025 film directed by Drew Hancock,2025-02-06T00:00:00Z,97.0,2025
+Q125933907,Companion,2025 film directed by Drew Hancock,2025-01-31T00:00:00Z,97.0,2025
+Q125933907,Companion,2025 film directed by Drew Hancock,2025-01-30T00:00:00Z,97.0,2025
+Q125933907,Companion,2025 film directed by Drew Hancock,2025-01-25T00:00:00Z,97.0,2025
+Q125940265,When the Light Breaks,2024 film directed by Rúnar Rúnarsson,2025-02-19T00:00:00Z,82.0,2025
+Q125948183,The Furious,2025 film directed by Kenji Tanigaki,2025-09-06T00:00:00Z,113.0,2025
+Q125951554,Everybody Loves Touda,2024 film directed by Nabil Ayouch,2025-05-29T00:00:00Z,102.0,2025
+Q125960257,Natacha (Almost) Air Hostess,2025 film by Noémie Saglio,2025-06-05T00:00:00Z,90.0,2025
+Q125960257,Natacha (Almost) Air Hostess,2025 film by Noémie Saglio,2025-04-02T00:00:00Z,90.0,2025
+Q125962650,Last Days,2025 film directed by Justin Lin,2025-10-24T00:00:00Z,,2025
+Q125962650,Last Days,2025 film directed by Justin Lin,2025-01-28T00:00:00Z,,2025
+Q125966692,Swiped,2025 film directed by Rachel Lee Goldenberg,2025-09-19T00:00:00Z,110.0,2025
+Q125966692,Swiped,2025 film directed by Rachel Lee Goldenberg,2025-09-09T00:00:00Z,110.0,2025
+Q125971387,Bugonia,2025 film directed by Yorgos Lanthimos,2025-11-07T00:00:00Z,118.0,2025
+Q125971387,Bugonia,2025 film directed by Yorgos Lanthimos,2025-11-06T00:00:00Z,118.0,2025
+Q125971387,Bugonia,2025 film directed by Yorgos Lanthimos,2025-10-31T00:00:00Z,118.0,2025
+Q125971387,Bugonia,2025 film directed by Yorgos Lanthimos,2025-08-28T00:00:00Z,118.0,2025
+Q125975336,Pillion,2025 film directed by Harry Lighton,2025-11-28T00:00:00Z,106.0,2025
+Q125975336,Pillion,2025 film directed by Harry Lighton,2025-05-18T00:00:00Z,106.0,2025
+Q125983478,Drop,2025 film directed by Christopher Landon,2025-04-17T00:00:00Z,95.0,2025
+Q125983478,Drop,2025 film directed by Christopher Landon,2025-04-11T00:00:00Z,95.0,2025
+Q125983478,Drop,2025 film directed by Christopher Landon,2025-04-10T00:00:00Z,95.0,2025
+Q125983478,Drop,2025 film directed by Christopher Landon,2025-03-09T00:00:00Z,95.0,2025
+Q125999766,Putin,2024 film,2025-01-16T00:00:00Z,,2025
+Q125999766,Putin,2024 film,2025-01-10T00:00:00Z,,2025
+Q125999766,Putin,2024 film,2025-01-09T00:00:00Z,,2025
+Q126008203,Deathstalker,2025 film directed by Steven Kostanski,2025-10-10T00:00:00Z,103.0,2025
+Q126008203,Deathstalker,2025 film directed by Steven Kostanski,2025-08-15T00:00:00Z,103.0,2025
+Q126009194,The Wizard of the Kremlin,2025 film directed by Olivier Assayas,2025-11-26T00:00:00Z,156.0,2025
+Q126009194,The Wizard of the Kremlin,2025 film directed by Olivier Assayas,2025-08-31T00:00:00Z,156.0,2025
+Q126012569,The Smashing Machine,2025 film directed by Benny Safdie,2025-12-11T00:00:00Z,123.0,2025
+Q126012569,The Smashing Machine,2025 film directed by Benny Safdie,2025-10-17T00:00:00Z,123.0,2025
+Q126012569,The Smashing Machine,2025 film directed by Benny Safdie,2025-10-03T00:00:00Z,123.0,2025
+Q126012569,The Smashing Machine,2025 film directed by Benny Safdie,2025-09-01T00:00:00Z,123.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-04-11T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-04-03T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-03-28T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-03-14T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-02-13T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-02-07T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-02-06T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-01-31T00:00:00Z,90.0,2025
+Q126013176,Holy Cow,2024 film directed by Louise Courvoisier,2025-01-16T00:00:00Z,90.0,2025
+Q126074918,Black Dog,2024 Chinese film,2025-03-06T00:00:00Z,110.0,2025
+Q126075285,The Kingdom,2024 film directed by Julien Colonna,2025-10-23T00:00:00Z,108.0,2025
+Q126077186,Night Always Comes,2025 film directed by Benjamin Caron,2025-08-15T00:00:00Z,,2025
+Q126086644,The Assessment,2024 sci-fi drama film,2025-03-21T00:00:00Z,114.0,2025
+Q126086662,Train Dreams,2025 film directed by Clint Bentley,2025-01-01T00:00:00Z,102.0,2025
+Q126086666,Nirvanna the Band the Show the Movie,2025 film directed by Matt Johnson,2025-11-17T00:00:00Z,95.0,2025
+Q126086666,Nirvanna the Band the Show the Movie,2025 film directed by Matt Johnson,2025-10-29T00:00:00Z,95.0,2025
+Q126086666,Nirvanna the Band the Show the Movie,2025 film directed by Matt Johnson,2025-10-25T00:00:00Z,95.0,2025
+Q126086666,Nirvanna the Band the Show the Movie,2025 film directed by Matt Johnson,2025-09-04T00:00:00Z,95.0,2025
+Q126086666,Nirvanna the Band the Show the Movie,2025 film directed by Matt Johnson,2025-03-09T00:00:00Z,95.0,2025
+Q126099163,The Swedish Torpedo,2024 film directed by Frida Kempff,2025-10-16T00:00:00Z,120.0,2025
+Q126119788,The Woman in Cabin 10,2025 film directed by Simon Stone,2025-10-10T00:00:00Z,92.0,2025
+Q126142548,Bastion 36,2025 French movie from Olivier Marchal,2025-01-01T00:00:00Z,124.0,2025
+Q126203157,Eternity,2025 film directed by David Freyne,2025-12-04T00:00:00Z,114.0,2025
+Q126203157,Eternity,2025 film directed by David Freyne,2025-11-01T00:00:00Z,114.0,2025
+Q126203157,Eternity,2025 film directed by David Freyne,2025-09-07T00:00:00Z,114.0,2025
+Q126209905,Playdate,2025 film directed by Luke Greenfield,2025-11-12T00:00:00Z,,2025
+Q126209959,The Plot,2024 South Korea film,2025-06-20T00:00:00Z,99.0,2025
+Q126281957,Gazer,2024 film by Ryan J. Sloan,2025-04-04T00:00:00Z,114.0,2025
+Q126281957,Gazer,2024 film by Ryan J. Sloan,2025-04-03T00:00:00Z,114.0,2025
+Q126285655,A Bathroom of One's Own,2025 film,2025-01-01T00:00:00Z,102.0,2025
+Q126290878,Easy's Waltz,2025 film directed by Nic Pizzolatto,2025-09-11T00:00:00Z,,2025
+Q126326956,The Knife,2024 film directed by Nnamdi Asomugha,2025-08-15T00:00:00Z,82.0,2025
+Q126396314,Predator: Badlands,2025 film directed by Dan Trachtenberg,2025-11-07T00:00:00Z,108.0,2025
+Q126396314,Predator: Badlands,2025 film directed by Dan Trachtenberg,2025-11-06T00:00:00Z,108.0,2025
+Q126396314,Predator: Badlands,2025 film directed by Dan Trachtenberg,2025-11-05T00:00:00Z,108.0,2025
+Q126414863,Gabby's Dollhouse: The Movie,2025 film directed by Ryan Crego,2025-09-26T00:00:00Z,98.0,2025
+Q126417279,Karmele,2025 film directed by Asier Altuna,2025-10-10T00:00:00Z,120.0,2025
+Q126417279,Karmele,2025 film directed by Asier Altuna,2025-09-01T00:00:00Z,120.0,2025
+Q126426508,Diplo: The Mighty Dinosaur,animated movie,2025-04-17T00:00:00Z,93.0,2025
+Q126426508,Diplo: The Mighty Dinosaur,animated movie,2025-04-17T00:00:00Z,99.0,2025
+Q126453800,Mrs.,2024 film directed by Arati Kadav,2025-02-07T00:00:00Z,111.0,2025
+Q126487478,Weapons,2025 film directed by Zach Cregger,2025-01-11T00:00:00Z,128.0,2025
+Q126487478,Weapons,2025 film directed by Zach Cregger,2025-01-10T00:00:00Z,128.0,2025
+Q126487478,Weapons,2025 film directed by Zach Cregger,2025-01-09T00:00:00Z,128.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-11-21T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-10-01T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-09-26T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-09-19T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-09-18T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-09-12T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-09-11T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-09-10T00:00:00Z,108.0,2025
+Q126511469,The Long Walk,2025 film directed by Francis Lawrence,2025-08-20T00:00:00Z,108.0,2025
+Q126537613,Dhadak 2,2025 film by Shazia Iqbal,2025-02-21T00:00:00Z,,2025
+Q126537613,Dhadak 2,2025 film by Shazia Iqbal,2025-01-01T00:00:00Z,,2025
+Q126599500,The Marching Band,2024 film directed by Emmanuel Courcol,2025-03-28T00:00:00Z,103.0,2025
+Q126599500,The Marching Band,2024 film directed by Emmanuel Courcol,2025-03-27T00:00:00Z,103.0,2025
+Q126682448,Nobody 2,2025 film directed by Timo Tjahjanto,2025-08-21T00:00:00Z,89.0,2025
+Q126682448,Nobody 2,2025 film directed by Timo Tjahjanto,2025-08-15T00:00:00Z,89.0,2025
+Q126682448,Nobody 2,2025 film directed by Timo Tjahjanto,2025-08-14T00:00:00Z,89.0,2025
+Q126682448,Nobody 2,2025 film directed by Timo Tjahjanto,2025-01-01T00:00:00Z,89.0,2025
+Q126724933,The Prophet: Omniscient Reader,2025 South Korean film,2025-07-30T00:00:00Z,117.0,2025
+Q126724933,The Prophet: Omniscient Reader,2025 South Korean film,2025-07-23T00:00:00Z,117.0,2025
+Q126734403,Hot Milk,2025 film,2025-02-14T00:00:00Z,,2025
+Q126734403,Hot Milk,2025 film,2025-07-04T00:00:00Z,,2025
+Q126810973,The Roses,2025 film directed by Jay Roach,2025-08-29T00:00:00Z,105.0,2025
+Q126810973,The Roses,2025 film directed by Jay Roach,2025-08-28T00:00:00Z,105.0,2025
+Q126870507,Magma,2025 film directed by Cyprien Vial,2025-03-19T00:00:00Z,85.0,2025
+Q126874131,Surviving The Death Committee,2025 documentary film by Nima Sarvestani,2025-01-01T00:00:00Z,83.0,2025
+Q126897811,Freakier Friday,2025 film directed by Nisha Ganatra,2025-08-08T00:00:00Z,,2025
+Q126897811,Freakier Friday,2025 film directed by Nisha Ganatra,2025-08-07T00:00:00Z,,2025
+Q126918442,Extremely Unique Dynamic,"2024 film directed by Katherine Dudas, Ivan Leung and Harrison Xu",2025-01-10T00:00:00Z,73.0,2025
+Q126921922,Revolver,2024 South Korean film,2025-11-20T00:00:00Z,114.0,2025
+Q126924306,The Goldsmith's Secret,2025 film directed by Olga Osorio,2025-02-28T00:00:00Z,99.0,2025
+Q126930039,Vulcanizadora,2024 film directed by Joel Potrykus,2025-05-02T00:00:00Z,85.0,2025
+Q126942775,Breaking Walls,2025 film directed by Borja Cobeaga,2025-03-21T00:00:00Z,88.0,2025
+Q126952961,Mala influencia,2025 Spanish film,2025-01-01T00:00:00Z,,2025
+Q127118129,Blue Moon,2025 film directed by Richard Linklater,2025-11-06T00:00:00Z,100.0,2025
+Q127118129,Blue Moon,2025 film directed by Richard Linklater,2025-10-17T00:00:00Z,100.0,2025
+Q127118129,Blue Moon,2025 film directed by Richard Linklater,2025-02-18T00:00:00Z,100.0,2025
+Q127118132,Coolie,2025 film by Lokesh Kanagaraj,2025-08-14T00:00:00Z,170.0,2025
+Q127118132,Coolie,2025 film by Lokesh Kanagaraj,2025-08-13T00:00:00Z,170.0,2025
+Q127162841,The Choral,2025 film directed by Nicholas Hytner,2025-11-07T00:00:00Z,,2025
+Q127162841,The Choral,2025 film directed by Nicholas Hytner,2025-09-05T00:00:00Z,,2025
+Q127163221,Heart Eyes,2025 film directed by Josh Ruben,2025-02-07T00:00:00Z,97.0,2025
+Q127312272,Shepherds,film by Sophie Deraspe,2025-06-12T00:00:00Z,113.0,2025
+Q127312272,Shepherds,film by Sophie Deraspe,2025-04-09T00:00:00Z,113.0,2025
+Q127324468,Fuze,2025 film directed by David Mackenzie,2025-09-05T00:00:00Z,98.0,2025
+Q127327216,Moon,2024 film directed by Kurdwin Ayub,2025-03-27T00:00:00Z,92.0,2025
+Q127327950,A Girl Named Willow,2025 film by Mike Marzuk,2025-02-27T00:00:00Z,,2025
+Q127382372,After the Hunt,2025 film directed by Luca Guadagnino,2025-10-16T00:00:00Z,138.0,2025
+Q127382372,After the Hunt,2025 film directed by Luca Guadagnino,2025-10-10T00:00:00Z,138.0,2025
+Q127382372,After the Hunt,2025 film directed by Luca Guadagnino,2025-08-29T00:00:00Z,138.0,2025
+Q127384884,Guns & Moses,2024 film by Salvador Litvak,2025-07-18T00:00:00Z,,2025
+Q127510067,Harbin,2024 film directed by Woo Min-ho,2025-01-01T00:00:00Z,,2025
+Q127514804,My Daddy My Superhero,Upcoming Pakistani animated film,2025-01-01T00:00:00Z,85.0,2025
+Q127602137,Mr Burton,2025 film directed by Marc Evans,2025-04-04T00:00:00Z,,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-08-21T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-08-15T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-08-14T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-08-01T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-07-31T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-07-30T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-07-26T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-07-16T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-07-04T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-06-06T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-05-30T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-05-29T00:00:00Z,104.0,2025
+Q127602379,Bring Her Back,2025 film directed by Danny and Michael Philippou,2025-05-28T00:00:00Z,104.0,2025
+Q127602909,Dog 51,2025 film directed by Cédric Jimenez,2025-10-15T00:00:00Z,106.0,2025
+Q127602909,Dog 51,2025 film directed by Cédric Jimenez,2025-09-06T00:00:00Z,106.0,2025
+Q127619022,Clown in a Cornfield,2025 film directed by Eli Craig,2025-06-05T00:00:00Z,97.0,2025
+Q127619022,Clown in a Cornfield,2025 film directed by Eli Craig,2025-05-09T00:00:00Z,97.0,2025
+Q127619022,Clown in a Cornfield,2025 film directed by Eli Craig,2025-03-10T00:00:00Z,97.0,2025
+Q127688495,September 5,2024 film by Tim Fehlbaum,2025-02-20T00:00:00Z,91.0,2025
+Q127688495,September 5,2024 film by Tim Fehlbaum,2025-01-17T00:00:00Z,91.0,2025
+Q127688495,September 5,2024 film by Tim Fehlbaum,2025-01-09T00:00:00Z,91.0,2025
+Q127692200,Duse,2025 film directed by Pietro Marcello,2025-09-18T00:00:00Z,,2025
+Q127692200,Duse,2025 film directed by Pietro Marcello,2025-09-03T00:00:00Z,,2025
+Q127697922,Cesium Fallout,2024 film by Anthony Pun,2025-04-03T00:00:00Z,136.0,2025
+Q127697922,Cesium Fallout,2024 film by Anthony Pun,2025-04-02T00:00:00Z,136.0,2025
+Q127697922,Cesium Fallout,2024 film by Anthony Pun,2025-01-28T00:00:00Z,136.0,2025
+Q127697922,Cesium Fallout,2024 film by Anthony Pun,2025-01-23T00:00:00Z,136.0,2025
+Q127697922,Cesium Fallout,2024 film by Anthony Pun,2025-01-15T00:00:00Z,136.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-11-20T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-06-05T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-04-17T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-03-20T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-03-19T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-03-07T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-02-14T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-01-17T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-01-03T00:00:00Z,119.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-11-20T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-06-05T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-04-17T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-03-20T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-03-19T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-03-07T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-02-14T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-01-17T00:00:00Z,120.0,2025
+Q127699542,Vermiglio,2024 film by Maura Delpero,2025-01-03T00:00:00Z,120.0,2025
+Q127699891,The Quiet Son,2024 film by Delphine and Muriel Coulin,2025-01-22T00:00:00Z,120.0,2025
+Q127700776,Kill the Jockey,2024 film by Luis Ortega,2025-07-02T00:00:00Z,96.0,2025
+Q127700776,Kill the Jockey,2024 film by Luis Ortega,2025-05-30T00:00:00Z,96.0,2025
+Q127709937,Diva Futura,2024 film directed by Giulia Louise Steigerwalt,2025-12-11T00:00:00Z,120.0,2025
+Q127710707,Three Friends,2024 French film by Emmanuel Mouret,2025-03-13T00:00:00Z,117.0,2025
+Q127713636,Stranger Eyes,2024 film directed by Yeo Siew Hua,2025-06-25T00:00:00Z,125.0,2025
+Q127713636,Stranger Eyes,2024 film directed by Yeo Siew Hua,2025-01-09T00:00:00Z,125.0,2025
+Q127726954,Love,2024 Norwegian film directed by Dag Johan Haugerud,2025-03-13T00:00:00Z,119.0,2025
+Q127756492,Perempuan Pembawa Sial,2024 Indonesian horror film,2025-09-18T00:00:00Z,,2025
+Q127763750,Good Bad Things,2024 film directed by Shane D. Stanger,2025-02-04T00:00:00Z,96.0,2025
+Q127778663,The Shrinking Man,2025 film directed by Jan Kounen,2025-11-06T00:00:00Z,100.0,2025
+Q127778663,The Shrinking Man,2025 film directed by Jan Kounen,2025-01-01T00:00:00Z,100.0,2025
+Q127785559,2073,2024 film by Asif Kapadia,2025-01-07T00:00:00Z,85.0,2025
+Q127785559,2073,2024 film by Asif Kapadia,2025-01-01T00:00:00Z,85.0,2025
+Q127785576,Sicilian Letters,2024 film directed by Fabio Grassadonia and Antonio Piazza,2025-09-18T00:00:00Z,122.0,2025
+Q127821688,Friendship,2024 film directed by Andrew DeYoung,2025-05-23T00:00:00Z,100.0,2025
+Q127821688,Friendship,2024 film directed by Andrew DeYoung,2025-05-16T00:00:00Z,100.0,2025
+Q127821688,Friendship,2024 film directed by Andrew DeYoung,2025-05-09T00:00:00Z,100.0,2025
+Q127850158,Mr. K,2024 surreal drama film,2025-08-14T00:00:00Z,94.0,2025
+Q128210357,December 31st Express,2025 film,2025-01-01T00:00:00Z,90.0,2025
+Q128214361,War Through the Eyes of Animals,,2025-11-06T00:00:00Z,97.0,2025
+Q128214361,War Through the Eyes of Animals,,2025-11-06T00:00:00Z,98.0,2025
+Q128474263,Telusu Kada,film by Neeraja Kona,2025-10-17T00:00:00Z,,2025
+Q128602012,Until Dawn,2025 film directed by David F. Sandberg,2025-04-25T00:00:00Z,103.0,2025
+Q128602012,Until Dawn,2025 film directed by David F. Sandberg,2025-04-24T00:00:00Z,103.0,2025
+Q128602012,Until Dawn,2025 film directed by David F. Sandberg,2025-04-23T00:00:00Z,103.0,2025
+Q128635597,Eephus,2024 film directed by Carson Lund,2025-03-07T00:00:00Z,98.0,2025
+Q128774983,The Cut,2024 film directed by Sean Ellis,2025-09-05T00:00:00Z,,2025
+Q128787358,Romería,Catalan 2025 film by Carla Simón,2025-11-27T00:00:00Z,114.0,2025
+Q128787358,Romería,Catalan 2025 film by Carla Simón,2025-09-05T00:00:00Z,114.0,2025
+Q128787358,Romería,Catalan 2025 film by Carla Simón,2025-05-21T00:00:00Z,114.0,2025
+Q128787363,Sunshine,2024 film directed by Antoinette Jadaone,2025-07-23T00:00:00Z,92.0,2025
+Q128799557,Fear Below,2025 film directed by Matthew Holmes,2025-05-15T00:00:00Z,,2025
+Q128942948,Millers in Marriage,2024 film directed by Edward Burns,2025-02-21T00:00:00Z,117.0,2025
+Q129099102,All of You,2024 film by William Bridges,2025-09-26T00:00:00Z,,2025
+Q129130325,Diciannove,2024 film by Giovanni Tortorici,2025-02-27T00:00:00Z,108.0,2025
+Q129370495,The Ice Tower,2025 film by Lucile Hadžihalilović,2025-09-17T00:00:00Z,118.0,2025
+Q129370495,The Ice Tower,2025 film by Lucile Hadžihalilović,2025-02-16T00:00:00Z,118.0,2025
+Q129498450,Dream Story,2024 film by Florian Frerichs,2025-01-16T00:00:00Z,,2025
+Q129571549,Woodwalkers,,2025-01-02T00:00:00Z,,2025
+Q129759798,Dreams,2024 Norwegian film directed by Dag Johan Haugerud,2025-10-02T00:00:00Z,,2025
+Q129759798,Dreams,2024 Norwegian film directed by Dag Johan Haugerud,2025-07-02T00:00:00Z,,2025
+Q129763135,Molotov cocktail (2023 movie),"Iranian comedy film produced in 2023, directed by Hossein Amiri Domari",2025-03-05T00:00:00Z,,2025
+Q129906152,No Other Choice,2025 film directed by Park Chan-wook,2025-12-25T00:00:00Z,139.0,2025
+Q129906152,No Other Choice,2025 film directed by Park Chan-wook,2025-09-01T00:00:00Z,139.0,2025
+Q129906152,No Other Choice,2025 film directed by Park Chan-wook,2025-08-29T00:00:00Z,139.0,2025
+Q129918307,Under the Volcano,2024 film by Damian Kocur,2025-08-14T00:00:00Z,105.0,2025
+Q129978691,Twinless,2025 film directed by James Sweeney,2025-09-05T00:00:00Z,100.0,2025
+Q129978691,Twinless,2025 film directed by James Sweeney,2025-01-23T00:00:00Z,100.0,2025
+Q129993664,My Fathers' Daughter,2024 film by Egil Pedersen,2025-02-07T00:00:00Z,78.0,2025
+Q130118681,Marty Supreme,2025 film directed by Josh Safdie,2025-12-25T00:00:00Z,150.0,2025
+Q130118681,Marty Supreme,2025 film directed by Josh Safdie,2025-10-06T00:00:00Z,150.0,2025
+Q130138166,Broken Rage,2024 film by Takeshi Kitano,2025-02-14T00:00:00Z,62.0,2025
+Q130164694,Familiar Touch,2024 film directed by Sarah Friedland,2025-10-16T00:00:00Z,,2025
+Q130164694,Familiar Touch,2024 film directed by Sarah Friedland,2025-06-20T00:00:00Z,,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-10-16T00:00:00Z,94.0,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-08-22T00:00:00Z,94.0,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-08-07T00:00:00Z,94.0,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-06-26T00:00:00Z,94.0,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-06-12T00:00:00Z,94.0,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-05-16T00:00:00Z,94.0,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-03-28T00:00:00Z,94.0,2025
+Q130240842,Jane Austen Wrecked My Life,French romantic comedy film,2025-01-22T00:00:00Z,94.0,2025
+Q130244395,Renner,2025 film directed by Robert Rippberger,2025-02-07T00:00:00Z,,2025
+Q130248726,Caught Stealing,2025 film directed by Darren Aronofsky,2025-08-29T00:00:00Z,107.0,2025
+Q130248726,Caught Stealing,2025 film directed by Darren Aronofsky,2025-08-28T00:00:00Z,107.0,2025
+Q130254094,Happy Holidays,2024 film by Scandar Copti,2025-09-04T00:00:00Z,,2025
+Q130254094,Happy Holidays,2024 film by Scandar Copti,2025-08-13T00:00:00Z,,2025
+Q130254094,Happy Holidays,2024 film by Scandar Copti,2025-07-03T00:00:00Z,,2025
+Q130254094,Happy Holidays,2024 film by Scandar Copti,2025-01-31T00:00:00Z,,2025
+Q130254094,Happy Holidays,2024 film by Scandar Copti,2025-01-26T00:00:00Z,,2025
+Q130254094,Happy Holidays,2024 film by Scandar Copti,2025-01-14T00:00:00Z,,2025
+Q130267916,Aztec Batman: Clash of Empires,2025 animated film by Juan Meza-León,2025-09-18T00:00:00Z,89.0,2025
+Q130269576,Happy Gilmore 2,2025 film directed by Kyle Newacheck,2025-07-25T00:00:00Z,114.0,2025
+Q130276120,Sketch,2024 film by Seth Worley,2025-09-18T00:00:00Z,,2025
+Q130276120,Sketch,2024 film by Seth Worley,2025-08-06T00:00:00Z,,2025
+Q130284176,Carolina Caroline,2025 film directed by Adam Carter Rehmeier,2025-09-05T00:00:00Z,,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-12-26T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-12-18T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-12-11T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-12-05T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-12-04T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-11-07T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-10-23T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-10-17T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-09-26T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-09-12T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-09-11T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-08-20T00:00:00Z,133.0,2025
+Q130284179,Sentimental Value,2025 film directed by Joachim Trier,2025-05-21T00:00:00Z,133.0,2025
+Q130287347,Summer of 69,2025 film directed by Jillian Bell,2025-05-09T00:00:00Z,,2025
+Q130287347,Summer of 69,2025 film directed by Jillian Bell,2025-03-13T00:00:00Z,,2025
+Q130287348,Lilly,2024 American film,2025-05-09T00:00:00Z,93.0,2025
+Q130300335,Judas' Gospel,2025 film directed by Giulio Base,2025-08-11T00:00:00Z,93.0,2025
+Q130305038,"Chopin, a Sonata in Paris",2025 Polish film by Michał Kwieciński,2025-09-10T00:00:00Z,133.0,2025
+Q130318949,Last Breath,2024 film by Costa-Gavras,2025-01-29T00:00:00Z,99.0,2025
+Q130322166,The Birthday Party,2025 film directed by Miguel Angel Jimenéz,2025-08-07T00:00:00Z,,2025
+Q130324647,Håkan Bråkan 003,film directed by Ted Kjellsson,2025-12-19T00:00:00Z,,2025
+Q130341202,One of Them Days,2025 film directed by Lawrence Lamont,2025-03-31T00:00:00Z,97.0,2025
+Q130341202,One of Them Days,2025 film directed by Lawrence Lamont,2025-01-17T00:00:00Z,97.0,2025
+Q130367820,How to Make a Killing,2024 film by Franck Dubosc,2025-11-07T00:00:00Z,,2025
+Q130367820,How to Make a Killing,2024 film by Franck Dubosc,2025-11-06T00:00:00Z,,2025
+Q130367820,How to Make a Killing,2024 film by Franck Dubosc,2025-10-09T00:00:00Z,,2025
+Q130367820,How to Make a Killing,2024 film by Franck Dubosc,2025-08-01T00:00:00Z,,2025
+Q130367820,How to Make a Killing,2024 film by Franck Dubosc,2025-01-01T00:00:00Z,,2025
+Q130368011,I Know What You Did Last Summer,2025 film directed by Jennifer Kaytin Robinson,2025-07-18T00:00:00Z,111.0,2025
+Q130368011,I Know What You Did Last Summer,2025 film directed by Jennifer Kaytin Robinson,2025-07-17T00:00:00Z,111.0,2025
+Q130381618,Prodigieuses,,2025-05-15T00:00:00Z,107.0,2025
+Q130381618,Prodigieuses,,2025-04-04T00:00:00Z,107.0,2025
+Q130381683,School of the Magical Animals 3,2024 film directed by Sven Unterwaldt,2025-02-20T00:00:00Z,105.0,2025
+Q130381683,School of the Magical Animals 3,2024 film directed by Sven Unterwaldt,2025-01-30T00:00:00Z,105.0,2025
+Q130383564,My Oxford Year,2025 film directed by Iain Morris,2025-08-01T00:00:00Z,,2025
+Q130383565,The Life List,2025 film directed by Adam Brooks,2025-03-28T00:00:00Z,123.0,2025
+Q130393156,U Are the Universe,2024 film by Pavlo Ostrikov,2025-11-20T00:00:00Z,90.0,2025
+Q130394023,Anemone,2025 film directed by Ronan Day-Lewis,2025-11-07T00:00:00Z,121.0,2025
+Q130394023,Anemone,2025 film directed by Ronan Day-Lewis,2025-10-03T00:00:00Z,121.0,2025
+Q130394023,Anemone,2025 film directed by Ronan Day-Lewis,2025-09-28T00:00:00Z,121.0,2025
+Q130403642,Christy,2025 film directed by David Michôd,2025-11-27T00:00:00Z,135.0,2025
+Q130403642,Christy,2025 film directed by David Michôd,2025-09-05T00:00:00Z,135.0,2025
+Q130410549,Him,2025 film directed by Justin Tipping,2025-09-19T00:00:00Z,96.0,2025
+Q130417367,The Safe House,2025 French film,2025-03-26T00:00:00Z,90.0,2025
+Q130417367,The Safe House,2025 French film,2025-03-19T00:00:00Z,90.0,2025
+Q130472957,Off Track 2,,2025-01-01T00:00:00Z,,2025
+Q130474795,The Home,2025 film directed by Mattias Johansson Skoglund,2025-10-29T00:00:00Z,87.0,2025
+Q130474861,The Dance Club,2025 Swedish film,2025-09-19T00:00:00Z,,2025
+Q130487629,Fréwaka,2024 Irish horror film,2025-03-21T00:00:00Z,103.0,2025
+Q130492782,Untitled Home Invasion Romance,2025 film directed by Jason Biggs,2025-09-18T00:00:00Z,,2025
+Q130493576,Invincibles,2025 Czech film,2025-11-20T00:00:00Z,118.0,2025
+Q130494024,Legends of the Condor Heroes: The Gallants,2025 Chinese film,2025-02-26T00:00:00Z,,2025
+Q130502864,The Kidnapping of Arabella,2025 film directed by Carolina Cavalli,2025-10-25T00:00:00Z,107.0,2025
+Q130502864,The Kidnapping of Arabella,2025 film directed by Carolina Cavalli,2025-10-12T00:00:00Z,107.0,2025
+Q130502864,The Kidnapping of Arabella,2025 film directed by Carolina Cavalli,2025-08-28T00:00:00Z,107.0,2025
+Q130532642,To Die For,2025 film directed by Daniel Rehder,2025-04-03T00:00:00Z,100.0,2025
+Q130532687,Song Sung Blue,2025 film directed by Craig Brewer,2025-12-25T00:00:00Z,,2025
+Q130532687,Song Sung Blue,2025 film directed by Craig Brewer,2025-10-26T00:00:00Z,,2025
+Q130549234,Glenrothan,2025 film directed by Brian Cox,2025-09-11T00:00:00Z,,2025
+Q130553764,Long Day's Journey Into Night,2025 film directed by Jonathan Kent,2025-02-27T00:00:00Z,,2025
+Q130569520,The Mastermind,2025 film directed by Kelly Reichardt,2025-10-17T00:00:00Z,110.0,2025
+Q130569520,The Mastermind,2025 film directed by Kelly Reichardt,2025-05-23T00:00:00Z,110.0,2025
