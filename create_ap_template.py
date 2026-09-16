@@ -14,6 +14,7 @@ def build_ap_csv_template(
     sql_query: str,
     csv_files: List[str],
     delimiter: str = ",",
+    probability_columns: Dict[str, str] | None = None,
 ) -> Dict[str, Any]:
     ap_id = str(uuid.uuid4())
     operator_id = str(uuid.uuid4())
@@ -48,7 +49,7 @@ def build_ap_csv_template(
         },
         {
             "id": csv_set_id,
-            "labels": ["CSV_Set", "Data"],
+            "labels": ["CsvSet", "Data"],
             "properties": {
                 "delimiter": delimiter,
             },
@@ -76,12 +77,12 @@ def build_ap_csv_template(
                 "id": csv_id,
                 "labels": ["CSV", "Data", "cr:FileObject"],
                 "properties": {
-                    "contentSize": "1000 B",
                     "contentUrl": f"s3:/{csv_file}",
+                    **({"probabilityColumn": probability_columns[csv_file]}
+                       if probability_columns and csv_file in probability_columns else {}),
                     "description": "",
                     "encodingFormat": "text/csv",
                     "name": csv_file,
-                    "sha256": "",
                     "type": "cr:FileObject",
                 },
             }
@@ -103,19 +104,21 @@ def build_ap_csv_template(
         "nodes": nodes,
     }
 
-sql_query = """
-SELECT c.c_name, n.n_name FROM customer c JOIN nation n ON c.c_nationkey = n.n_nationkey LIMIT 5
-""".strip()
 
-csv_files = [
-    "customer.csv",
-    "nation.csv",
-]
+if __name__ == "__main__":
+    sql_query = """
+    SELECT c.c_name, n.n_name FROM customer c JOIN nation n ON c.c_nationkey = n.n_nationkey LIMIT 5
+    """.strip()
 
-payload = build_ap_csv_template(
-    sql_query=sql_query,
-    csv_files=csv_files,
-    delimiter=",",
-)
+    csv_files = [
+        "customer.csv",
+        "nation.csv",
+    ]
 
-print(json.dumps(payload, indent=2, ensure_ascii=False))
+    payload = build_ap_csv_template(
+        sql_query=sql_query,
+        csv_files=csv_files,
+        delimiter=",",
+    )
+
+    print(json.dumps(payload, indent=2, ensure_ascii=False))

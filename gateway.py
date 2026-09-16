@@ -19,8 +19,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from embedding_strategies import EmbeddingStrategies
 from explanation_client import ExplanationClient
-from explanation_pipeline import run_planner_first_explanation_pipeline
+from explanation_pipeline import run_planner_first_explanation_pipeline, render_explanation_markdown
 from json_to_csv import clean_bucket, planner_result_to_csv_files
+from row_probability import resolve_row_probabilities, valid_probability
 from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
 from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required_leaf_columns
@@ -125,7 +126,7 @@ RETRIEVER_CANDIDATE_K = int(os.getenv(
 
 # For ap-explanation service:
 EXPLANATION_URL = os.getenv("EXPLANATION_URL", "http://explanation_app:5000")
-EXPLANATION_ENDPOINT = os.getenv("EXPLANATION_ENDPOINT", "/api/v1/aps/explanation/why",)
+EXPLANATION_ENDPOINT = os.getenv("EXPLANATION_ENDPOINT", "/api/v1/aps/explanation")
 EXPLANATION_BUCKET_DIR = Path(os.getenv("EXPLANATION_BUCKET_DIR", "/shared_bucket"))
 EXPLANATION_REQUEST_TIMEOUT = float(os.getenv("EXPLANATION_REQUEST_TIMEOUT", "300"))
 
@@ -2687,6 +2688,7 @@ def _run_ui_ap_explanation(
         "generated_csv_files": pipeline_result["generated_csv_files"],
         "explanation_output": pipeline_result["explanation_output"],
         "response_text": pipeline_result["response_text"],
+        "probability_metadata": pipeline_result.get("probability_metadata", {}),
     }
 
 def _planner_result_from_ui_run(
@@ -2704,10 +2706,12 @@ def _generate_ui_csv_files(
     sql_query: str,
     plan: Dict[str, Any],
     leaf_outputs: List[Dict[str, Any]],
+    probability_metadata: Dict[str, Any] | None = None,
 ) -> List[str]:
     clean_bucket(EXPLANATION_BUCKET_DIR)
     return planner_result_to_csv_files(
         planner_result=_planner_result_from_ui_run(sql_query, plan, leaf_outputs),
+        probability_metadata=probability_metadata,
         output_dir=EXPLANATION_BUCKET_DIR,
         delimiter=EXPLANATION_CSV_DELIMITER,
         keep_rownum=EXPLANATION_KEEP_ROWNUM,
@@ -2940,30 +2944,30 @@ QUESTION:
 GENERATED OUTPUT:
 {json.dumps(generated_output, ensure_ascii=False)}
 """
-    raw_assessment = _call_model_with_retry(
-        model,
-        assessment_prompt,
-        temperature,
-        provider=provider,
-        max_tries=2,
-        validator=validate_assessment,
-        retry_suffix=(
-            "Return ONLY one JSON object with level, reason, and row_assessments. "
-            f"Include exactly {len(generated_output)} assessments, one per output row in order, with row_index starting at 1, "
-            "level (low, medium, or high), and a nonempty reason."
-        ),
-        status_event=status_event,
-    )
     assessment_error = None
     try:
+        raw_assessment = _call_model_with_retry(
+            model,
+            assessment_prompt,
+            temperature,
+            provider=provider,
+            max_tries=2,
+            validator=validate_assessment,
+            retry_suffix=(
+                "Return ONLY one JSON object with level, reason, and row_assessments. "
+                f"Include exactly {len(generated_output)} assessments, one per output row in order, with row_index starting at 1, "
+                "level (low, medium, or high), and a nonempty reason."
+            ),
+            status_event=status_event,
+        )
         assessment = parse_assessment(raw_assessment)
-    except ValueError as exc:
-        # Confidence is optional metadata: malformed ratings must not discard
+    except Exception as exc:
+        # Confidence is optional metadata: failed requests or malformed ratings must not discard
         # the generated answer or be presented as a factual low-confidence rating.
         assessment_error = str(exc)
         assessment = {
             "level": "unknown",
-            "reason": "Confidence assessment unavailable: the model returned an invalid assessment after retries.",
+            "reason": "Confidence assessment unavailable: the request failed or the model returned an invalid assessment.",
             "row_assessments": [],
         }
     return {
@@ -2984,6 +2988,7 @@ def _run_ui_ap_explanation_for_csv_files(
     sql_query: str,
     csv_files: List[str],
     dataset: Optional[str] = None,
+    probability_metadata: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     service_sql_query = _service_sql_for_dataset(sql_query, dataset)
     explanation_client = ExplanationClient(
@@ -2994,20 +2999,15 @@ def _run_ui_ap_explanation_for_csv_files(
     explanation_output = explanation_client.run_explanation(
         sql_query=service_sql_query,
         csv_files=csv_files,
+        compute_probability=(probability_metadata or {}).get("compute_probability", True),
+        probability_columns=(probability_metadata or {}).get("probability_columns", {}),
+        csv_columns=(probability_metadata or {}).get("csv_columns", {}),
         delimiter=EXPLANATION_CSV_DELIMITER,
     )
-    generated_files_markdown = "\n".join(f"- `{name}`" for name in csv_files) or "No CSV files generated."
-    response_text = (
-        "### Full Pipeline Result\n\n"
-        "#### Query\n\n"
-        f"```sql\n{sql_query}\n```\n\n"
-        "#### Generated CSV files\n\n"
-        f"{generated_files_markdown}\n\n"
-        "#### Explanation Service Output\n\n"
-        "```json\n"
-        f"{json.dumps(explanation_output, ensure_ascii=False, indent=2)}\n"
-        "```\n"
+    response_text = render_explanation_markdown(
+        sql_query, csv_files, explanation_output, probability_metadata,
     )
+
     return {
         "scope": "query",
         "query_sql": sql_query,
@@ -3015,6 +3015,7 @@ def _run_ui_ap_explanation_for_csv_files(
         "generated_csv_files": csv_files,
         "explanation_output": explanation_output,
         "response_text": response_text,
+        "probability_metadata": probability_metadata or {},
     }
 
 def _answer_from_ap_explanation(explanation: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -3040,6 +3041,12 @@ def _answer_from_ap_explanation(explanation: Dict[str, Any]) -> List[Dict[str, A
         answer.append({
             "result": row,
             "provenance": derivation.get("provenance"),
+            "probability": derivation.get("probability"),
+            "probability_unavailable_reason": (
+                "Probability computation skipped because input probabilities are unknown."
+                if explanation.get("probability_metadata", {}).get("compute_probability") is False
+                else "The explanation service did not return a probability."
+            ),
         })
     return answer
 
@@ -3147,6 +3154,7 @@ def _annotate_final_answer(
     rows_by_id: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
     leaf_annotations = _collect_leaf_annotations(leaf_outputs)
+    resolved_probabilities = resolve_row_probabilities(leaf_outputs)
     known_row_ids = set(rows_by_id)
     provenance_aliases = _page_zero_provenance_aliases(leaf_outputs)
     rag_evidence: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
@@ -3284,62 +3292,19 @@ def _annotate_final_answer(
                 "scope": {"type": "result", "index": result_index},
             })
 
-        row_probabilities: List[Dict[str, Any]] = []
-        missing_probability_row_ids: List[str] = []
-        for row_id in provenance_row_ids:
-            source = rows_by_id.get(row_id) or {}
-            pipeline = str(source.get("pipeline") or "")
-            if pipeline == SQL_TABLE_PIPELINE_ID:
-                row_probabilities.append({
-                    "row_id": row_id,
-                    "table": str(source.get("table") or ""),
-                    "pipeline": pipeline,
-                    "probability": 1.0,
-                    "metric": "deterministic_execution",
-                })
-                continue
-
-            available_scores = [
-                float(evidence["score"])
-                for evidence in rag_evidence.get(row_id, [])
-                if isinstance(evidence.get("score"), (int, float))
-            ]
-            if available_scores:
-                row_probabilities.append({
-                    "row_id": row_id,
-                    "table": str(source.get("table") or ""),
-                    "pipeline": pipeline,
-                    "probability": min(available_scores),
-                    "metric": "faiss_relevance",
-                })
-            else:
-                missing_probability_row_ids.append(row_id)
-
-        available_probabilities = [
-            float(source["probability"])
-            for source in row_probabilities
-        ]
-        probability_complete = bool(provenance_row_ids) and not missing_probability_row_ids
-        available_probability: Optional[float] = None
-        if available_probabilities:
-            available_probability = 1.0
-            for source_probability in available_probabilities:
-                available_probability *= source_probability
+        row_probabilities = [source for source in resolved_probabilities.values()
+                             if source["row_id"] in provenance_row_ids]
+        probability = item.get("probability")
         probability_annotations = [{
             "type": "final_answer_probability",
-            "source_type": "pipeline_probability",
-            "probability": available_probability if probability_complete else None,
-            "available_probability": available_probability,
-            "aggregation": "product_contributing_probability",
+            "source_type": "explanation_service",
+            "probability": probability if valid_probability(probability) else None,
+            "aggregation": "service_provenance",
             "source_probabilities": row_probabilities,
-            "source_row_ids": provenance_row_ids,
-            "missing_probability_row_ids": missing_probability_row_ids,
-            "complete": probability_complete,
-            "reason": (
-                "SQL rows contribute probability 1.0; other rows reuse their pipeline's "
-                "available numeric probability, with all contributing row probabilities "
-                "multiplied for the final answer."
-            ),
+            "complete": valid_probability(probability),
+            "reason": ("Computed by the explanation service from tuple probabilities and provenance."
+                       if valid_probability(probability) else item.get("probability_unavailable_reason")
+                       or "The explanation service did not return a probability."),
             "scope": {"type": "result", "index": result_index},
         }]
 
@@ -4173,10 +4138,12 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
 
             try:
                 with _EXPLANATION_PIPELINE_LOCK:
+                    probability_metadata: Dict[str, Any] = {}
                     generated_csv_files = _generate_ui_csv_files(
                         sql_query=sql_query,
                         plan=req.plan,
                         leaf_outputs=leaf_outputs,
+                        probability_metadata=probability_metadata,
                     )
                     yield encode_event("csv_done", {
                         "files": generated_csv_files,
@@ -4188,6 +4155,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         sql_query=sql_query,
                         csv_files=generated_csv_files,
                         dataset=dataset,
+                        probability_metadata=probability_metadata,
                     )
                     explanations.append(explanation)
                     answer = _answer_from_ap_explanation(explanation)

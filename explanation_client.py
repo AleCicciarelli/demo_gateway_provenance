@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from create_ap_template import build_ap_csv_template
+from row_probability import protect_probability_projection
 
 
 logger = logging.getLogger(__name__)
@@ -44,11 +45,17 @@ class ExplanationClient:
         sql_query: str,
         csv_files: List[str],
         delimiter: str = ",",
+        compute_probability: bool = True,
+        probability_columns: Dict[str, str] | None = None,
+        csv_columns: Dict[str, List[str]] | None = None,
     ) -> Dict[str, Any]:
+        if probability_columns:
+            sql_query = protect_probability_projection(sql_query, csv_columns)
         payload = build_ap_csv_template(
             sql_query=sql_query,
             csv_files=csv_files,
             delimiter=delimiter,
+            probability_columns=probability_columns,
         )
 
         post_url = f"{self.base_url}{self.post_endpoint}"
@@ -56,6 +63,7 @@ class ExplanationClient:
         response = requests.post(
             post_url,
             json=payload,
+            params={"probability": str(compute_probability).lower()},
             headers=self._headers(),
             timeout=self.timeout,
         )

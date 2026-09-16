@@ -1444,23 +1444,22 @@ function renderFinalAnswerConfidence(annotations) {
       ...source,
       type: "probability_component",
       source_type: "probability_component",
-      display_label: `${source.metric === "deterministic_execution" ? "SQL" : "RAG"}${
+      display_label: `${source.metric === "deterministic_execution" ? "SQL" : source.metric === "llm_self_assessment" ? "LLM" : source.metric === "mixed_pipeline" ? "Mixed" : "RAG"}${
         source.table ? ` · ${source.table}` : ` ${index + 1}`
       }`,
       reason: `Probability contributed by ${source.row_id || `source ${index + 1}`}.`,
     }));
 
-    // An incomplete probability has no defensible final product. Keep any
-    // known components visible, but do not display an "unavailable" badge.
+    // Keep known inputs visible even when result probability is unavailable.
     if (!annotation.complete || !Number.isFinite(annotation.probability)) {
-      return sourceEntries;
+      return [...sourceEntries, {...annotation, display_label: "Probability unavailable", level: "unknown"}];
     }
     return [
       ...sourceEntries,
       {
         ...annotation,
         display_label: "Final probability",
-        level: "product",
+        level: "computed",
       },
     ];
   });
@@ -1494,7 +1493,7 @@ function renderFinalAnswerConfidence(annotations) {
           const score = Number.isFinite(numericValue)
             ? ` · ${numericValue.toFixed(4)}`
             : "";
-          const levelText = annotation.type === "probability_component" || level === "product"
+          const levelText = annotation.type === "probability_component" || level === "computed"
             ? ""
             : `: ${level}`;
           return `
