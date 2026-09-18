@@ -82,6 +82,9 @@ services:
       # Explanation service 
       EXPLANATION_URL: http://explanation_app:5000
       EXPLANATION_ENDPOINT: /api/v1/aps/explanation
+      LLM_PROBABILITY_HIGH: ${LLM_PROBABILITY_HIGH:-0.9}
+      LLM_PROBABILITY_MEDIUM: ${LLM_PROBABILITY_MEDIUM:-0.6}
+      LLM_PROBABILITY_LOW: ${LLM_PROBABILITY_LOW:-0.3}
       EXPLANATION_BUCKET_DIR: /shared_bucket
       EXPLANATION_CSV_DELIMITER: ","
       EXPLANATION_KEEP_ROWNUM: "true"
@@ -89,6 +92,11 @@ services:
 
     volumes:
       - ./gateway.py:/app/gateway.py:ro
+      - ./row_probability.py:/app/row_probability.py:ro
+      - ./json_to_csv.py:/app/json_to_csv.py:ro
+      - ./create_ap_template.py:/app/create_ap_template.py:ro
+      - ./explanation_client.py:/app/explanation_client.py:ro
+      - ./explanation_pipeline.py:/app/explanation_pipeline.py:ro
       - ./embedding_strategies.py:/app/embedding_strategies.py:ro
       - ./planner.py:/app/planner.py:ro
       - ./build_row_ind.sh:/app/build_row_ind.sh:ro
@@ -117,10 +125,12 @@ services:
 #              count: all
 #              capabilities: [gpu]
   explanation_app:
-    image: ghcr.io/datagems-eosc/datagems-eosc/ap-explanation:v0.13.1
+    image: demo-ap-explanation:v1.1.0-probability-fix
+    build:
+      context: ./docker/ap-explanation
     container_name: explanation_app
     depends_on:
-      postgres-provsql:
+      explanation-postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -131,12 +141,12 @@ services:
     volumes:
       - ./bucket:/mnt/s3:rw
     environment:
-    - POSTGRES_HOST=postgres-provsql
+    - POSTGRES_HOST=explanation-postgres
     - POSTGRES_PORT=5432
     - POSTGRES_DB=mathe
     - POSTGRES_USER=provdemo
     - POSTGRES_PASSWORD=provdemo
-    - POSTGRES_TIMESCALE_HOST=postgres-provsql
+    - POSTGRES_TIMESCALE_HOST=explanation-postgres
     - POSTGRES_TIMESCALE_PORT=5432
     - CELERY_BROKER_URL=redis://redis:6379/0
     - CELERY_RESULT_BACKEND=redis://redis:6379/0
@@ -148,6 +158,23 @@ services:
     - LLM_SSL_VERIFY=${LLM_SSL_VERIFY:-false}
     - LLM_CONNECT_TIMEOUT=${LLM_CONNECT_TIMEOUT:-5}
     - LLM_READ_TIMEOUT=${LLM_READ_TIMEOUT:-120}
+
+  explanation-postgres:
+    # ap-explanation v1.1.0 requires maintained mappings (ProvSQL >= 1.11).
+    # Use a fresh volume: the legacy 1.7.0-dev extension has no upgrade path.
+    image: ghcr.io/datagems-eosc/postgres-provsql:17-v1.12.0
+    volumes:
+      - explanation_postgres_1_12_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=provdemo
+      - POSTGRES_PASSWORD=provdemo
+      - POSTGRES_DB=mathe
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U provdemo -d mathe"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres-provsql:
     image: sotrx/postgres-provsql:v0.10.0
@@ -178,3 +205,4 @@ services:
 volumes:
   ollama_data:
   wp4_poc_postgres_data:
+  explanation_postgres_1_12_data:

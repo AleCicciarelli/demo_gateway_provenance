@@ -49,6 +49,7 @@ def build_ap_csv_template(
         },
         {
             "id": csv_set_id,
+            # The explanation service matches this label exactly.
             "labels": ["CsvSet", "Data"],
             "properties": {
                 "delimiter": delimiter,
@@ -88,8 +89,7 @@ def build_ap_csv_template(
             }
         )
 
-        # Nota: uso la direzione come nel tuo template:
-        # CSV_Set --containedIn--> CSV
+        # The service resolves CSV children through outgoing containedIn edges.
         edges.append(
             {
                 "from": csv_set_id,

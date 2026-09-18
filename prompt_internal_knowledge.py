@@ -89,7 +89,6 @@ PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE = """
 Answer the QUESTION using your internal knowledge about Formula 1.
 
 Return only a valid JSON array. Each object must contain:
-- "id": an integer starting at 1 and increasing by 1 for each row.
 - The required output columns listed below.
 
 Answer the question directly. Do not invent facts or unknown values.
@@ -109,7 +108,6 @@ Answer the QUESTION using your internal knowledge about arXiv papers
 and their authors.
 
 Return only a valid JSON array. Each object must contain:
-- "id": an integer starting at 1 and increasing by 1 for each row.
 - The required output columns listed below.
 
 Answer the question directly. Do not invent facts or unknown values.
