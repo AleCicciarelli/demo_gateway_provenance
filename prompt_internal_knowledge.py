@@ -1,3 +1,9 @@
+import json
+
+import sqlglot
+from sqlglot import exp
+
+
 PROMPT_TPCH_INTERNAL_KNOWLEDGE_TEMPLATE = """
 Answer the QUESTION using only your internal knowledge of the standard TPC-H
 benchmark. You are NOT given rows from the database instance.
@@ -85,15 +91,51 @@ QUESTION:
 """
 
 
-PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE = """
-Answer the QUESTION using your internal knowledge about Formula 1.
+_PLAIN_INTERNAL_KNOWLEDGE_TEMPLATE = """
+Use your internal knowledge to identify real entities or facts that satisfy
+all constraints expressed in the QUESTION.
 
-Return only a valid JSON array. Each object must contain:
-- The required output columns listed below.
+Values explicitly provided in the QUESTION are retrieval cues. Use them to
+recall potentially matching entities or facts.
 
-Answer the question directly. Do not invent facts or unknown values.
-If you cannot answer, return [].
-Do not include explanations, markdown, or additional fields.
+A value appearing in the QUESTION is not, by itself, proof that the
+corresponding entity or fact exists. Do not create a result solely by
+copying information from the QUESTION.
+
+Return results that are consistent with your internal knowledge.
+
+Do not fabricate entities or factual values.
+Do not guess unknown attributes.
+
+When evaluating the QUESTION:
+
+- Use the provided values to recall matching knowledge.
+- Ensure that the identified entity satisfies all stated constraints.
+- For textual equality, minor differences in capitalization, punctuation,
+  spacing, or formatting may be ignored when they clearly refer to the same
+  value.
+- Do not return merely related or similar entities.
+- Return [] only if you cannot identify any matching entity from your
+  internal knowledge.
+
+For requested attributes:
+
+- Return the factual value when it is available in your internal knowledge.
+- If the entity can be identified but a requested attribute is not known,
+  return null for that attribute.
+- Never invent a missing value.
+
+KNOWLEDGE DOMAIN:
+{knowledge_domain}
+
+OUTPUT RULES:
+Omit identifiers; they are assigned after your answer.
+
+Return only a valid JSON array.
+Each object must contain exactly the required output columns listed below.
+
+Do not include explanations, markdown, reasoning, confidence scores, or
+additional fields.
 
 REQUIRED OUTPUT COLUMNS:
 {output_columns}
@@ -102,24 +144,12 @@ QUESTION:
 {question}
 """
 
-
-PROMPT_RELARXIV_INTERNAL_KNOWLEDGE_TEMPLATE = """
-Answer the QUESTION using your internal knowledge about arXiv papers
-and their authors.
-
-Return only a valid JSON array. Each object must contain:
-- The required output columns listed below.
-
-Answer the question directly. Do not invent facts or unknown values.
-If you cannot answer, return [].
-Do not include explanations, markdown, or additional fields.
-
-REQUIRED OUTPUT COLUMNS:
-{output_columns}
-
-QUESTION:
-{question}
-"""
+PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE = _PLAIN_INTERNAL_KNOWLEDGE_TEMPLATE.replace(
+    "{knowledge_domain}", "Formula 1",
+)
+PROMPT_RELARXIV_INTERNAL_KNOWLEDGE_TEMPLATE = _PLAIN_INTERNAL_KNOWLEDGE_TEMPLATE.replace(
+    "{knowledge_domain}", "arXiv papers and their authors",
+)
 
 
 PROMPT_RELF1_MINIMAL_INTERNAL_KNOWLEDGE_TEMPLATE = PROMPT_RELF_INTERNAL_KNOWLEDGE_TEMPLATE
@@ -154,18 +184,66 @@ def get_internal_knowledge_prompt_template(domain: str) -> str:
     raise ValueError(f"Unsupported internal-knowledge prompt domain: {domain}")
 
 
+def internal_knowledge_output_columns(columns: list[str] | None) -> list[str] | None:
+    """Request descriptive values, leaving row identifiers to postprocessing."""
+    if columns is None:
+        return None
+    result = []
+    for column in columns:
+        name = column.rsplit(".", 1)[-1].strip('`"[] ')
+        if (name.casefold() == "id" or name.casefold().endswith(("_id", "_rownum"))
+                or name.endswith(("Id", "ID"))):
+            continue
+        if column not in result:
+            result.append(column)
+    return result
+
+
+def build_internal_knowledge_question(subject: str, predicates: list[str]) -> str:
+    """Phrase simple comparisons as questions without altering literal values."""
+    comparisons = {
+        exp.EQ: "equal to", exp.NEQ: "not equal to",
+        exp.GT: "greater than", exp.GTE: "greater than or equal to",
+        exp.LT: "less than", exp.LTE: "less than or equal to",
+    }
+    conditions = []
+    for predicate in predicates:
+        # Preserve unsupported expressions verbatim rather than weaken a constraint.
+        condition = f"satisfy the condition ({predicate})"
+        try:
+            expressions = sqlglot.parse(predicate)
+            expression = expressions[0].unnest() if len(expressions) == 1 and expressions[0] else None
+        except sqlglot.errors.ParseError:
+            expression = None
+        if type(expression) in comparisons:
+            column, value = expression.left.unnest(), expression.right.unnest()
+            if isinstance(expression, exp.EQ) and isinstance(column, exp.Literal) and isinstance(value, exp.Column):
+                column, value = value, column
+            if isinstance(column, exp.Column) and isinstance(value, exp.Literal):
+                literal = json.dumps(value.this, ensure_ascii=False) if value.is_string else value.this
+                if isinstance(expression, exp.EQ) and value.is_string and column.name.casefold() in {"title", "name"}:
+                    condition = f"have the exact {column.name.lower()} {literal}"
+                else:
+                    condition = f"have {column.name} {comparisons[type(expression)]} {literal}"
+        conditions.append(condition)
+    if conditions:
+        return f"Which {subject} " + " and ".join(conditions) + "?"
+    return f"Which {subject} can you reliably identify?"
+
+
 def build_internal_knowledge_prompt(
     domain: str, question: str, output_columns: list[str] | None = None,
 ) -> str:
-    columns = list(dict.fromkeys(column for column in output_columns or [] if column != "id"))
+    output_columns = internal_knowledge_output_columns(output_columns)
+    columns = output_columns or []
     template = get_internal_knowledge_prompt_template(domain)
     # An explicit empty projection requests rows without column instructions.
     if output_columns == []:
-        template = template.replace("- The required output columns listed below.\n",
-                                    "- All available information about each item requested in the QUESTION.\n")
+        template = template.replace("Each object must contain exactly the required output columns listed below.\n",
+                                    "Each object must contain:\n- All available information about each item requested in the QUESTION.\n")
         template = template.replace("REQUIRED OUTPUT COLUMNS:\n{output_columns}\n\n", "")
-        template = template.replace("Do not include explanations, markdown, or additional fields.",
-                                    "Do not include explanations or markdown.")
+        template = template.replace("Do not include explanations, markdown, reasoning, confidence scores, or\nadditional fields.",
+                                    "Do not include explanations, markdown, reasoning, or confidence scores.")
     return template.format(
         question=question,
         output_columns=(", ".join(columns) if columns else

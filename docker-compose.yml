@@ -61,17 +61,12 @@ services:
       # Fall back locally when Kimi is unreachable or rejects the request.
       PLANNER_LLM_FALLBACK_ENABLED: "true"
       PLANNER_LLM_FALLBACK_MODEL: llama3:8b
-      # Local CPU inference can exceed three minutes for full-row JSON output.
-      # Keep Kimi fail-fast, but do not cancel a healthy Ollama generation.
-      OLLAMA_REQUEST_TIMEOUT: "700"
       LLM_API_BASE: ${LLM_API_BASE}
       LLM_API_KEY: ${LLM_API_KEY}
-      LLM_API_MODEL: ${LLM_API_MODEL:-openai/kimi-k2.6}
-      LLM_API_MODEL_ALIASES: ${LLM_API_MODEL_ALIASES:-kimi-k2.6}
+      LLM_API_MODEL: ${LLM_API_MODEL}
+      LLM_API_MODEL_ALIASES: ${LLM_API_MODEL_ALIASES}
       LLM_SSL_VERIFY: ${LLM_SSL_VERIFY:-false}
-      LLM_CONNECT_TIMEOUT: ${LLM_CONNECT_TIMEOUT:-5}
-      LLM_READ_TIMEOUT: ${LLM_READ_TIMEOUT:-120}
-      LLM_CIRCUIT_BREAKER_SECONDS: ${LLM_CIRCUIT_BREAKER_SECONDS:-300}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-200}
       VERBOSE_MODEL_LOGS: "false"
       RETRIEVER_CANDIDATE_K: "10"
       EMB_DEVICE: ${EMB_DEVICE:-auto}
@@ -88,7 +83,7 @@ services:
       EXPLANATION_BUCKET_DIR: /shared_bucket
       EXPLANATION_CSV_DELIMITER: ","
       EXPLANATION_KEEP_ROWNUM: "true"
-      EXPLANATION_REQUEST_TIMEOUT: "1800"
+      EXPLANATION_REQUEST_TIMEOUT: "300"
 
     volumes:
       - ./gateway.py:/app/gateway.py:ro
@@ -125,9 +120,7 @@ services:
 #              count: all
 #              capabilities: [gpu]
   explanation_app:
-    image: demo-ap-explanation:v1.1.0-probability-fix
-    build:
-      context: ./docker/ap-explanation
+    image: ghcr.io/datagems-eosc/datagems-eosc/ap-explanation:v1.1.1
     container_name: explanation_app
     depends_on:
       explanation-postgres:
@@ -153,15 +146,12 @@ services:
     - UV_OFFLINE=1
     - LLM_API_BASE=${LLM_API_BASE}
     - LLM_API_KEY=${LLM_API_KEY}
-    - LLM_API_MODEL=${LLM_API_MODEL:-openai/kimi-k2.6}
-    - LLM_API_MODEL_ALIASES=${LLM_API_MODEL_ALIASES:-kimi-k2.6}
+    - LLM_API_MODEL=${LLM_API_MODEL}
+    - LLM_API_MODEL_ALIASES=${LLM_API_MODEL_ALIASES}
     - LLM_SSL_VERIFY=${LLM_SSL_VERIFY:-false}
-    - LLM_CONNECT_TIMEOUT=${LLM_CONNECT_TIMEOUT:-5}
-    - LLM_READ_TIMEOUT=${LLM_READ_TIMEOUT:-120}
+    - LLM_TIMEOUT=${LLM_TIMEOUT:-200}
 
   explanation-postgres:
-    # ap-explanation v1.1.0 requires maintained mappings (ProvSQL >= 1.11).
-    # Use a fresh volume: the legacy 1.7.0-dev extension has no upgrade path.
     image: ghcr.io/datagems-eosc/postgres-provsql:17-v1.12.0
     volumes:
       - explanation_postgres_1_12_data:/var/lib/postgresql/data
@@ -177,7 +167,7 @@ services:
       retries: 5
 
   postgres-provsql:
-    image: sotrx/postgres-provsql:v0.10.0
+    image: inriavalda/provsql:1.12.0
     container_name: postgres-provsql
     volumes:
       - wp4_poc_postgres_data:/var/lib/postgresql/data

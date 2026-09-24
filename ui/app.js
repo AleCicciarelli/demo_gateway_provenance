@@ -1369,7 +1369,7 @@ function renderErrors(errors) {
   `;
 }
 
-function renderAnswerTable(answer, confidenceLabel = "Final confidence") {
+function renderAnswerTable(answer, confidenceLabel = "Probabilities") {
   const rows = answer.map((item) => item.result ?? {});
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
   const hasConfidence = answer.some(
@@ -1416,6 +1416,15 @@ function renderAnswerTable(answer, confidenceLabel = "Final confidence") {
   `;
 }
 
+function probabilityColorClass(probability) {
+  if (!Number.isFinite(probability) || probability < 0 || probability > 1) {
+    return "similarity-unknown";
+  }
+  if (probability >= 0.75) return "similarity-green";
+  if (probability >= 0.5) return "similarity-yellow";
+  return "similarity-red";
+}
+
 function renderFinalAnswerConfidence(annotations) {
   if (!Array.isArray(annotations) || !annotations.length) {
     return `<span class="muted">No confidence annotation</span>`;
@@ -1433,6 +1442,11 @@ function renderFinalAnswerConfidence(annotations) {
   };
 
   const renderedAnnotations = annotations.flatMap((annotation) => {
+    // The service probability is the final result assessment. The minimum
+    // retrieval score is already represented by the source probabilities.
+    if (annotation.type === "final_answer_confidence" && annotation.source_type === "rag_retrieval") {
+      return [];
+    }
     if (annotation.type !== "final_answer_probability") {
       return [annotation];
     }
@@ -1496,9 +1510,13 @@ function renderFinalAnswerConfidence(annotations) {
           const levelText = annotation.type === "probability_component" || level === "computed"
             ? ""
             : `: ${level}`;
+          const colorClass = annotation.type === "probability_component" || annotation.type === "final_answer_probability"
+            ? probabilityColorClass(annotation.type === "final_answer_probability" && !annotation.complete
+                ? null : annotation.probability)
+            : levelClass[level] ?? "similarity-unknown";
           return `
             <span
-              class="final-confidence-chip ${levelClass[level] ?? "similarity-unknown"}"
+              class="final-confidence-chip ${colorClass}"
               title="${escapeHtml(annotation.reason ?? "")}"
             >
               ${escapeHtml(sourceLabel)}${escapeHtml(levelText)}${escapeHtml(score)}

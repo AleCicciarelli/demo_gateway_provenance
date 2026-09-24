@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import requests
 
@@ -24,6 +25,7 @@ class ExplanationClient:
         poll_interval: float = 2,
         max_polls: Optional[int] = None,
         token: Optional[str] = None,
+        event_logger: Callable[[Dict[str, Any]], None] | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.post_endpoint = post_endpoint
@@ -31,6 +33,7 @@ class ExplanationClient:
         self.poll_interval = poll_interval
         self.max_polls = max_polls
         self.token = token
+        self.event_logger = event_logger
 
     def _headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -59,14 +62,24 @@ class ExplanationClient:
         )
 
         post_url = f"{self.base_url}{self.post_endpoint}"
+        params = {"probability": str(compute_probability).lower()}
+        event = {"type": "ap_explanation_request", "method": "POST",
+                 "url": post_url, "params": params, "ap": payload}
+        logger.info("AP explanation request: %s", json.dumps(event, ensure_ascii=False))
+        if self.event_logger is not None:
+            self.event_logger(event)
 
         response = requests.post(
             post_url,
             json=payload,
-            params={"probability": str(compute_probability).lower()},
+            params=params,
             headers=self._headers(),
             timeout=self.timeout,
         )
+        print("REQUEST URL:", response.request.url)
+        print("REQUEST BODY:", response.request.body)
+        print("RAW STATUS:", response.status_code)
+        print("RAW TEXT:", response.text)
 
         if response.status_code not in {200, 201, 202}:
             raise RuntimeError(
@@ -75,6 +88,8 @@ class ExplanationClient:
 
         task_data = response.json()
 
+        print("RAW JSON:")
+        print(json.dumps(task_data, indent=2))
         task_id = task_data.get("task_id") or task_data.get("id")
 
         if not task_id:
@@ -108,7 +123,15 @@ class ExplanationClient:
                 )
 
             data = response.json()
+            print(f"\n=== POLL {polls} ===")
+            print(json.dumps(data, indent=2))
+
             status = str(data.get("status", "")).strip().lower()
+
+            if status in {"success", "completed", "done"}:
+                print("\n=== COMPLETED TASK ===")
+                print(json.dumps(data, indent=2))
+                return data
             if status != last_status:
                 logger.info("Explanation task status: task_id=%s status=%s poll=%s", task_id, status, polls)
             last_status = status

@@ -27,6 +27,8 @@ from iterative_join_pipeline import run_iterative_join_pipeline
 from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required_leaf_columns
 from prompt_internal_knowledge import (
     build_internal_knowledge_prompt,
+    build_internal_knowledge_question,
+    internal_knowledge_output_columns,
     normalize_internal_result_id,
     uses_plain_internal_results,
 )
@@ -51,7 +53,7 @@ LOG_PATH = os.getenv("GATEWAY_LOG_PATH", "/app/logs/provsql_gateway_logs.jsonl")
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
-OLLAMA_REQUEST_TIMEOUT = float(os.getenv("OLLAMA_REQUEST_TIMEOUT", "700"))
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "200"))
 LLM_API_BASE = os.getenv("LLM_API_BASE", "").rstrip("/")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_API_MODEL = os.getenv("LLM_API_MODEL", "")
@@ -61,9 +63,6 @@ LLM_API_MODEL_ALIASES = [
     if item.strip()
 ]
 LLM_SSL_VERIFY = _env_bool("LLM_SSL_VERIFY", True)
-LLM_REQUEST_TIMEOUT = float(os.getenv("LLM_REQUEST_TIMEOUT", str(OLLAMA_REQUEST_TIMEOUT)))
-LLM_CONNECT_TIMEOUT = float(os.getenv("LLM_CONNECT_TIMEOUT", "5"))
-LLM_READ_TIMEOUT = float(os.getenv("LLM_READ_TIMEOUT", "120"))
 LLM_CIRCUIT_BREAKER_SECONDS = float(os.getenv("LLM_CIRCUIT_BREAKER_SECONDS", "300"))
 VERBOSE_MODEL_LOGS = _env_bool("VERBOSE_MODEL_LOGS", False)
 PLANNER_LLM_PROVIDER = os.getenv("PLANNER_LLM_PROVIDER", "ollama").strip().lower()
@@ -967,7 +966,7 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
         },
     }
     try:
-        r = requests.post(url, json=payload, timeout=OLLAMA_REQUEST_TIMEOUT)
+        r = requests.post(url, json=payload, timeout=LLM_TIMEOUT)
         if not r.ok:
             raise RuntimeError(f"Ollama error {r.status_code}: {r.text}")
         data = r.json()
@@ -1010,15 +1009,15 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
                 url,
                 json=payload,
                 headers=headers,
-                timeout=(LLM_CONNECT_TIMEOUT, LLM_READ_TIMEOUT),
+                timeout=LLM_TIMEOUT,
                 verify=LLM_SSL_VERIFY,
             )
         except requests.RequestException as exc:
             _log_event({
                 "type": "llm_api_request_failed", "model": model_candidate,
                 **_model_error_details(exc),
-                "connect_timeout_seconds": LLM_CONNECT_TIMEOUT,
-                "read_timeout_seconds": LLM_READ_TIMEOUT,
+                "connect_timeout_seconds": LLM_TIMEOUT,
+                "read_timeout_seconds": LLM_TIMEOUT,
                 "duration_seconds": round(time.monotonic() - started_at, 4),
             })
             raise
@@ -1630,12 +1629,12 @@ def retrieve_context_data_iterative(
     question: str,
     dataset: Optional[str] = None,
     target_tables: Optional[List[str]] = None,
-    include_correlated_rows: bool = True,
+    include_correlated_rows: bool = False,
     annotation_sink: Optional[List[Dict[str, Any]]] = None,
     annotation_scope: Optional[Dict[str, str]] = None,
     annotation_pipeline: str = "rag",
 ) -> Dict[str, Any]:
-    """Retrieve the configured candidate budget with one FAISS query embedding."""
+    """Retrieve FAISS candidates without correlated-row expansion by default."""
     retrieval_started_at = time.monotonic()
     config = _dataset_config(dataset)
     runtime = _dataset_runtime(config.name)
@@ -1868,16 +1867,6 @@ def _retrieve_context_data(
                 "rank": rank,
                 "score": float(relevance_score),
             })
-
-        remaining_correlated = max(MAX_CORRELATED_CONTEXT_ROWS - correlated_rows_added, 0)
-        added, additions = _add_correlated_rows_from_metadata(
-            ctx,
-            meta,
-            dataset=config.name,
-            remaining=remaining_correlated,
-        )
-        correlated_rows_added += added
-        correlated_additions.extend(additions)
 
         if used >= MAX_CONTEXT_ROWS:
             break
@@ -2213,8 +2202,8 @@ def _llm_internal_leaf_output(
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
-    leaf_question = _leaf_question_nl_internal(task)
-    columns = required_leaf_columns(task)
+    leaf_question = _leaf_question_nl_internal(task, dataset)
+    columns = internal_knowledge_output_columns(required_leaf_columns(task))
     generation_prompts: List[str] = []
     answer, raw_output, confidence, prompt = _run_llm_internal_query(
         leaf_question,
@@ -2231,7 +2220,7 @@ def _llm_internal_leaf_output(
         if provenance and isinstance(provenance[0], list) and provenance[0]:
             row_id = str(provenance[0][0])
         result = item["result"]
-        projected_result = dict(result) if task.get("all_columns") else {
+        projected_result = dict(result) if not columns else {
             column: result[column] for column in columns if column in result
         }
         if uses_plain_internal_results(dataset):
@@ -2610,14 +2599,10 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
     return sql + ";"
 
 
-def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
+def _leaf_question_nl_internal(task: Dict[str, Any], dataset: str = "") -> str:
     existing = str(task.get("question_nl") or "").strip()
-    columns = required_leaf_columns(task)
-    projection_instruction = " Include all available information about each item." if task.get("all_columns") else (
-        " Required answer columns: " + ", ".join(columns) + "."
-        if columns
-        else ""
-    )
+    columns = internal_knowledge_output_columns(required_leaf_columns(task))
+    projection_instruction = " Include all available information about each item." if not columns else ""
     if existing:
         return existing + projection_instruction
 
@@ -2626,30 +2611,28 @@ def _leaf_question_nl_internal(task: Dict[str, Any]) -> str:
         return "List the relevant information." + projection_instruction
 
     readable_table = table_name.replace("_", " ")
+    domain = dataset.strip().lower()
+    if domain in {"rel_arxiv", "rel-arxiv", "relarxiv"}:
+        subject = {
+            "authors": "authors of arXiv papers",
+            "papers": "arXiv papers",
+            "paperauthors": "authorship relationships for arXiv papers",
+            "papercategories": "category assignments for arXiv papers",
+            "categories": "arXiv subject categories",
+            "citations": "citations between arXiv papers",
+        }.get(table_name.lower(), f"{readable_table} related to arXiv papers")
+    elif domain in {"relf", "relf1", "rel-f1", "rel_f1", "f1", "formula1", "formula-1"}:
+        subject = f"{readable_table} related to Formula 1"
+    elif domain in {"tpch", "tpc-h"}:
+        subject = f"{readable_table} in the standard TPC-H benchmark"
+    else:
+        subject = readable_table
     predicates = [
         str(predicate).strip()
         for predicate in task.get("local_predicates") or []
         if str(predicate).strip()
     ]
-    if predicates:
-        def predicate_to_nl(predicate: str) -> str:
-            replacements = [
-                (" >= ", " greater than or equal to "),
-                (" <= ", " less than or equal to "),
-                (" <> ", " not equal to "),
-                (" != ", " not equal to "),
-                (" = ", " equal to "),
-                (" > ", " greater than "),
-                (" < ", " less than "),
-            ]
-            text = predicate
-            for operator, words in replacements:
-                text = text.replace(operator, words)
-            return text
-
-        conditions = " and ".join(predicate_to_nl(predicate) for predicate in predicates)
-        return f"List the Formula 1 {readable_table} where {conditions}." + projection_instruction
-    return f"List all the {readable_table} related to Formula 1." + projection_instruction
+    return build_internal_knowledge_question(subject, predicates) + projection_instruction
 
 def _run_ui_ap_explanation(
     sql_query: str,
@@ -2669,6 +2652,7 @@ def _run_ui_ap_explanation(
             base_url=EXPLANATION_URL,
             post_endpoint=EXPLANATION_ENDPOINT,
             timeout=EXPLANATION_REQUEST_TIMEOUT,
+            event_logger=_log_event,
         )
 
         pipeline_result = run_planner_first_explanation_pipeline(
@@ -2774,6 +2758,7 @@ def _run_llm_internal_query(
     prompt_sink: Optional[List[str]] = None,
 ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any], str]:
     use_plain_results = uses_plain_internal_results(dataset)
+    output_columns = internal_knowledge_output_columns(output_columns)
 
     def parse_plain_results(text: str) -> List[Dict[str, Any]]:
         array_text, extraction_error = _extract_json_array_text(text)
@@ -2995,6 +2980,7 @@ def _run_ui_ap_explanation_for_csv_files(
         base_url=EXPLANATION_URL,
         post_endpoint=EXPLANATION_ENDPOINT,
         timeout=EXPLANATION_REQUEST_TIMEOUT,
+        event_logger=_log_event,
     )
     explanation_output = explanation_client.run_explanation(
         sql_query=service_sql_query,
@@ -4407,6 +4393,7 @@ def chat_completions(
                     base_url=EXPLANATION_URL,
                     post_endpoint=EXPLANATION_ENDPOINT,
                     timeout=EXPLANATION_REQUEST_TIMEOUT,
+                    event_logger=_log_event,
                 )
 
                 pipeline_result = run_planner_first_explanation_pipeline(
@@ -4485,6 +4472,7 @@ def chat_completions(
                     base_url=EXPLANATION_URL,
                     post_endpoint=EXPLANATION_ENDPOINT,
                     timeout=EXPLANATION_REQUEST_TIMEOUT,
+                    event_logger=_log_event,
                 )
                 pipeline_result = run_planner_first_explanation_pipeline(
                     sql_query=question,

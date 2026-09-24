@@ -257,8 +257,19 @@ def _build_join_step_retrieval_query(
         parts.append("Columns: " + ", ".join(columns))
 
     predicates = _dedupe_strings(task.get("local_predicates") or [])
+    column_names = {column.casefold(): column for column in columns}
+    for column, values in inherited_bindings.items():
+        values = _dedupe_strings(values)
+        if not values:
+            continue
+        column = column_names.get(column.casefold(), column)
+        alternatives = [f"{column} is {value}" for value in values]
+        if len(values) == 1:
+            predicates.append(alternatives[0])
+        else:
+            predicates.append("(" + " or ".join(alternatives) + ")")
     if predicates:
-        parts.append("Filters: " + " and ".join(predicates))
+        parts.append("Filters: " + " and ".join(_dedupe_strings(predicates)))
 
     return ". ".join(part for part in parts if part)
 
