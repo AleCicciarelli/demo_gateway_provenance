@@ -52,14 +52,10 @@ class EmbeddingStrategies(Embeddings):
             print(f"[EMB] SentenceTransformer using device: {self.device}", flush=True)
             return
 
-        if self.device == "cpu":
-            os.environ["CUDA_VISIBLE_DEVICES"] = ""
-            use_fp16 = False
-        else:
-            use_fp16 = True
+        use_fp16 = self.device.startswith("cuda")
 
         if self.strategy == "bge-m3":
-            self.model = BGEM3FlagModel(model_name, use_fp16=use_fp16)
+            self.model = BGEM3FlagModel(model_name, use_fp16=use_fp16, devices=self.device)
         else:
             query_instruction = ""
             if model_name in self.BGE_V15_MODELS:
@@ -69,6 +65,7 @@ class EmbeddingStrategies(Embeddings):
                 model_name,
                 query_instruction_for_retrieval=query_instruction,
                 use_fp16=use_fp16,
+                devices=self.device,
             )
 
         print(
@@ -79,6 +76,7 @@ class EmbeddingStrategies(Embeddings):
 
     @staticmethod
     def _resolve_device(device: str) -> str:
+        device = (device or "auto").strip().lower()
         if device == "auto":
             return "cuda" if torch.cuda.is_available() else "cpu"
         return device

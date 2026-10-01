@@ -26,6 +26,32 @@ def clean_bucket(bucket_dir: Path) -> None:
             shutil.rmtree(item)
 
 
+def source_backed_columns(leaves):
+    """Columns preserved from the request's source dataset, across every leaf row."""
+    tables = {}
+    for leaf in leaves:
+        table = leaf.get("table_name")
+        if not table:
+            continue
+        columns = None
+        source_rows = (leaf.get("context_data") or {}).get(table) or {}
+        internal = leaf.get("pipeline") == "llm-internal"
+        sql_table = leaf.get("pipeline") == "sql-table" or leaf.get("prompt") == "SQL TABLE MODE"
+        for item in leaf.get("parsed_output") or []:
+            values = item.get("values") if isinstance(item, dict) else None
+            if not isinstance(values, dict):
+                continue
+            source = source_rows.get(item.get("row_id")) or {}
+            verified = set()
+            if not internal:
+                verified = {column for column, value in values.items()
+                            if sql_table or (column in source and value == source[column])}
+            columns = verified if columns is None else columns & verified
+        columns = columns or set()
+        tables[table] = columns if table not in tables else tables[table] & columns
+    return {table: sorted(columns) for table, columns in tables.items()}
+
+
 def planner_result_to_csv_files(
     planner_result: Dict[str, Any],
     output_dir: Path,
@@ -42,7 +68,8 @@ def planner_result_to_csv_files(
     # Skip custom columns too: ordinary explanations must retain the data schema.
     enabled = not missing
     metadata = {"compute_probability": enabled, "probability_columns": {}, "csv_columns": {},
-                "source_probabilities": list(resolved.values()), "missing_probabilities": missing}
+                "source_probabilities": list(resolved.values()), "missing_probabilities": missing,
+                "source_backed_columns": source_backed_columns(planner_result.get("leaf_outputs", []))}
     if probability_metadata is not None:
         probability_metadata.update(metadata)
 

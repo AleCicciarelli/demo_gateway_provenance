@@ -29,7 +29,8 @@ def render_explanation_markdown(
         markdown += "No CSV files generated.\n"
 
     if probability_metadata and not probability_metadata["compute_probability"]:
-        markdown += "\nProbability unavailable: one or more input rows have unknown probabilities. Explanation computed without probability.\n"
+        reason = probability_metadata.get("probability_unavailable_reason", "One or more input rows have unknown probabilities.")
+        markdown += f"\nProbability unavailable: {reason} Explanation computed without probability.\n"
 
     markdown += "\n#### Explanation Service Output\n\n"
 

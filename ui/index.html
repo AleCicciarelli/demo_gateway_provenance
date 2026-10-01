@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Provenance Query UI</title>
-    <link rel="stylesheet" href="/ui/styles.css?v=rag-options-9" />
+    <link rel="stylesheet" href="/ui/styles.css?v=matching-progress-3" />
   </head>
   <body>
     <main class="app-shell">
@@ -29,6 +29,13 @@
         <textarea id="query-input" spellcheck="false">SELECT *
 FROM drivers
 LIMIT 5;</textarea>
+
+        <label class="field-label" for="execution-mode">After CSV extraction</label>
+        <select id="execution-mode">
+          <option value="standard">AP execution (existing joins)</option>
+          <option value="semantic">Semantic matching → SQL rewriting → AP (experimental)</option>
+        </select>
+        <p class="status-note">Semantic mode supports two tables with one inner join. Matching is skipped when both join IDs are preserved from the source dataset. Relationships are inferred from the records; matches use probability 0.9 and uncertain pairs remain in the join with probability 0.3.</p>
 
         <div class="actions">
           <button id="plan-button" type="button">Generate plan</button>
@@ -67,6 +74,7 @@ LIMIT 5;</textarea>
           </div>
 
           <div id="generation-prompt-view" aria-live="polite"></div>
+          <div id="semantic-matching-view" aria-live="polite"></div>
 
           <div class="tabs" role="tablist" aria-label="Result views">
             <button class="tab active" type="button" data-tab="answer">Answer</button>
@@ -79,6 +87,6 @@ LIMIT 5;</textarea>
       </section>
     </main>
 
-    <script src="/ui/app.js?v=probability-colors-4"></script>
+    <script src="/ui/app.js?v=matching-progress-3"></script>
   </body>
 </html>

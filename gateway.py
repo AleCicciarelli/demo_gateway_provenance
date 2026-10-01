@@ -21,7 +21,8 @@ from embedding_strategies import EmbeddingStrategies
 from explanation_client import ExplanationClient
 from explanation_pipeline import run_planner_first_explanation_pipeline, render_explanation_markdown
 from json_to_csv import clean_bucket, planner_result_to_csv_files
-from row_probability import resolve_row_probabilities, valid_probability
+from semantic_join_pipeline import inspect_semantic_join, prepare_semantic_joins
+from row_probability import resolve_row_probabilities, valid_probability, protect_probability_projection
 from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
 from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required_leaf_columns
@@ -54,6 +55,7 @@ LOG_PATH = os.getenv("GATEWAY_LOG_PATH", "/app/logs/provsql_gateway_logs.jsonl")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "200"))
+LLM_MAX_TOKENS = max(1, int(os.getenv("LLM_MAX_TOKENS", "8192")))
 LLM_API_BASE = os.getenv("LLM_API_BASE", "").rstrip("/")
 LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_API_MODEL = os.getenv("LLM_API_MODEL", "")
@@ -900,6 +902,7 @@ class UiLeafPipelineOptions(BaseModel):
     iterative: bool = False
 
 class UiRunRequest(BaseModel):
+    semantic_matching: bool = False
     question: str
     sql: str
     plan: Dict[str, Any]
@@ -963,6 +966,7 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
         "options": {
             "temperature": temperature,
             "num_ctx": OLLAMA_NUM_CTX,
+            "num_predict": LLM_MAX_TOKENS,
         },
     }
     try:
@@ -981,7 +985,25 @@ def _model_error_details(error: Exception) -> Dict[str, Any]:
     return {"error_type": type(error).__name__, "reason": reason[:2000]}
 
 
-def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> str:
+class GenerationLimitError(RuntimeError):
+    """A response was stopped before it could become a valid result."""
+
+
+def _has_repeating_tail(text: str) -> bool:
+    # Require four exact cycles of substantial text. Inspect a bounded suffix;
+    # shared keys and ordinary duplicate rows alone should not trip this guard.
+    tail = text[-8192:]
+    for width in range(128, min(2048, len(tail) // 4) + 1):
+        block = tail[-width:]
+        if tail.endswith(block * 4):
+            return True
+    return False
+
+
+def _openai_compatible_generate(
+    model: str, prompt: str, temperature: float,
+    status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+) -> str:
     if not LLM_API_BASE:
         raise RuntimeError("LLM_API_BASE is required when PLANNER_LLM_PROVIDER=openai")
 
@@ -1001,7 +1023,8 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
             "model": model_candidate,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
-            "stream": False,
+            "stream": status_event is not None,
+            "max_tokens": LLM_MAX_TOKENS,
         }
         started_at = time.monotonic()
         try:
@@ -1011,6 +1034,7 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
                 headers=headers,
                 timeout=LLM_TIMEOUT,
                 verify=LLM_SSL_VERIFY,
+                stream=status_event is not None,
             )
         except requests.RequestException as exc:
             _log_event({
@@ -1030,10 +1054,86 @@ def _openai_compatible_generate(model: str, prompt: str, temperature: float) -> 
                 "duration_seconds": round(time.monotonic() - started_at, 4),
             })
             continue
+        if status_event is not None:
+            stream_id = uuid.uuid4().hex
+            metadata = {"stream_id": stream_id, "model": model_candidate,
+                        "model_provider": "openai", "request_status": "streaming"}
+            status_event("model_stream_start", {
+                **metadata, "message": f"Receiving live output from {model_candidate}.",
+            })
+            content_parts = []
+            completed = False
+            answer_tail = ""
+            chars_since_check = 0
+
+            def packets():
+                data_lines = []
+                for line in r.iter_lines(chunk_size=1):
+                    if isinstance(line, bytes):
+                        line = line.decode("utf-8")
+                    if not line:
+                        if data_lines:
+                            yield "\n".join(data_lines)
+                            data_lines = []
+                    elif line.startswith("data:"):
+                        data_lines.append(line[5:].lstrip(" "))
+                if data_lines:
+                    yield "\n".join(data_lines)
+
+            try:
+                for packet in packets():
+                    if packet == "[DONE]":
+                        completed = True
+                        break
+                    data = json.loads(packet)
+                    if data.get("error"):
+                        raise RuntimeError(f"LLM stream error: {data['error']}")
+                    choices = data.get("choices") or []
+                    if not choices:
+                        continue  # Usage-only chunks carry no text.
+                    choice = choices[0]
+                    delta = choice.get("delta") or {}
+                    reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+                    for channel, text in (("reasoning", reasoning), ("answer", delta.get("content"))):
+                        if not isinstance(text, str) or not text:
+                            continue
+                        if channel == "answer":
+                            content_parts.append(text)
+                            answer_tail = (answer_tail + text)[-8192:]
+                            chars_since_check += len(text)
+                            if chars_since_check >= 256:
+                                chars_since_check = 0
+                                if _has_repeating_tail(answer_tail):
+                                    raise GenerationLimitError("Sustained repetition detected in model output")
+                        status_event("model_stream_delta", {
+                            **metadata, "channel": channel, "text": text,
+                        })
+                    if choice.get("finish_reason") == "length":
+                        raise GenerationLimitError("Model output reached the token limit")
+                    if choice.get("finish_reason") is not None:
+                        completed = True
+                        break
+                if not completed:
+                    raise RuntimeError("LLM stream ended before completion")
+            except Exception as exc:
+                status_event("model_stream_end", {
+                    **metadata, "request_status": "failed",
+                    "message": f"Stream from {model_candidate} stopped: {_model_error_details(exc)['reason']}. Partial output is not a result.",
+                })
+                raise
+            finally:
+                r.close()
+            status_event("model_stream_end", {
+                **metadata, "request_status": "response_received",
+                "message": f"Stream from {model_candidate} complete.",
+            })
+            return "".join(content_parts)
         data = r.json()
         choices = data.get("choices") or []
         if not choices:
             raise RuntimeError(f"LLM API returned no choices: {data}")
+        if choices[0].get("finish_reason") == "length":
+            raise GenerationLimitError("Model output reached the token limit")
         message = choices[0].get("message") or {}
         content = message.get("content")
         if content is None:
@@ -1080,7 +1180,9 @@ def _generate_model(
                     f"LLM endpoint circuit is open for {circuit_remaining}s after: {circuit_error}"
                 )
             request_started_at = time.monotonic()
-            output = _openai_compatible_generate(model, prompt, temperature)
+            output = _openai_compatible_generate(
+                model, prompt, temperature, status_event=status_event,
+            )
             _close_llm_circuit()
             if status_event:
                 status_event("model_response_received", {
@@ -1091,6 +1193,9 @@ def _generate_model(
                     "duration_seconds": round(time.monotonic() - request_started_at, 4),
                 })
             return output
+        except GenerationLimitError:
+            # Bad generation is retryable, not an endpoint outage.
+            raise
         except Exception as primary_error:
             if not circuit_open:
                 _open_llm_circuit(primary_error)
@@ -1244,13 +1349,28 @@ def _call_model_with_retry(
             if status_event:
                 status_event(event_type, payload)
 
-        out = _generate_model(
-            provider,
-            ollama_model,
-            prompt,
-            temperature,
-            status_event=track_model_status,
-        )
+        try:
+            out = _generate_model(
+                provider,
+                ollama_model,
+                prompt,
+                temperature,
+                status_event=track_model_status,
+            )
+        except GenerationLimitError as exc:
+            _log_event({
+                "type": "generation_stopped", "model": ollama_model,
+                "attempt": attempt, **_model_error_details(exc),
+                "duration_seconds": round(time.monotonic() - attempt_started_at, 4),
+            })
+            if attempt == max_tries:
+                raise GenerationLimitError(
+                    f"{ollama_model} failed after {attempt} attempts: {exc}. "
+                    "No partial answer was accepted. Try another model or narrow the question."
+                ) from exc
+            prompt = (base_prompt + "\n\nPrevious generation was stopped: " + str(exc)
+                      + ". Return each entity once, then close the JSON array and stop.")
+            continue
         last = out
         ok, err = validate(out)
         score = scorer(out) if scorer is not None else (1 if ok else 0)
@@ -2610,23 +2730,7 @@ def _leaf_question_nl_internal(task: Dict[str, Any], dataset: str = "") -> str:
     if not table_name:
         return "List the relevant information." + projection_instruction
 
-    readable_table = table_name.replace("_", " ")
-    domain = dataset.strip().lower()
-    if domain in {"rel_arxiv", "rel-arxiv", "relarxiv"}:
-        subject = {
-            "authors": "authors of arXiv papers",
-            "papers": "arXiv papers",
-            "paperauthors": "authorship relationships for arXiv papers",
-            "papercategories": "category assignments for arXiv papers",
-            "categories": "arXiv subject categories",
-            "citations": "citations between arXiv papers",
-        }.get(table_name.lower(), f"{readable_table} related to arXiv papers")
-    elif domain in {"relf", "relf1", "rel-f1", "rel_f1", "f1", "formula1", "formula-1"}:
-        subject = f"{readable_table} related to Formula 1"
-    elif domain in {"tpch", "tpc-h"}:
-        subject = f"{readable_table} in the standard TPC-H benchmark"
-    else:
-        subject = readable_table
+    subject = table_name.replace("_", " ")
     predicates = [
         str(predicate).strip()
         for predicate in task.get("local_predicates") or []
@@ -2634,12 +2738,42 @@ def _leaf_question_nl_internal(task: Dict[str, Any], dataset: str = "") -> str:
     ]
     return build_internal_knowledge_question(subject, predicates) + projection_instruction
 
+def _prepare_ui_semantic_tasks(req: UiRunRequest, sql_query: str, dataset: str) -> None:
+    if not req.semantic_matching:
+        return
+    inspect_semantic_join(sql_query)
+    # Add entity names and location as descriptive context for matching.
+    source_dir = Path(_dataset_config(dataset).csv_dir)
+    for task in req.plan.get("leaf_tasks") or []:
+        table = task.get("table_name") or task.get("table")
+        if not isinstance(table, str) or Path(table).name != table:
+            continue
+        path = source_dir / (table + ".csv")
+        if not path.is_file():
+            continue
+        with path.open(newline="", encoding="utf-8-sig") as handle:
+            headers = next(csv.reader(handle), [])
+        columns = task.setdefault("columns", [])
+        for name in headers:
+            if name.lower() in {"name", "location"} or name.lower().endswith("_name"):
+                if name not in columns:
+                    columns.append(name)
+
+
 def _run_ui_ap_explanation(
     sql_query: str,
     plan: Dict[str, Any],
     leaf_outputs: List[Dict[str, Any]],
     dataset: Optional[str] = None,
+    semantic_matching: bool = False,
+    matching_event: Optional[Callable] = None,
 ) -> Dict[str, Any]:
+    if semantic_matching:
+        with _EXPLANATION_PIPELINE_LOCK:
+            metadata: Dict[str, Any] = {}
+            files = _generate_ui_csv_files(sql_query, plan, leaf_outputs, metadata, keep_rownum=True)
+            return _run_ui_ap_explanation_for_csv_files(
+                sql_query, files, dataset, metadata, semantic_matching=True, matching_event=matching_event)
     service_sql_query = _service_sql_for_dataset(sql_query, dataset)
     planner_result = {
         "sql": sql_query,
@@ -2691,6 +2825,7 @@ def _generate_ui_csv_files(
     plan: Dict[str, Any],
     leaf_outputs: List[Dict[str, Any]],
     probability_metadata: Dict[str, Any] | None = None,
+    keep_rownum: bool | None = None,
 ) -> List[str]:
     clean_bucket(EXPLANATION_BUCKET_DIR)
     return planner_result_to_csv_files(
@@ -2698,7 +2833,7 @@ def _generate_ui_csv_files(
         probability_metadata=probability_metadata,
         output_dir=EXPLANATION_BUCKET_DIR,
         delimiter=EXPLANATION_CSV_DELIMITER,
-        keep_rownum=EXPLANATION_KEEP_ROWNUM,
+        keep_rownum=EXPLANATION_KEEP_ROWNUM if keep_rownum is None else keep_rownum,
     )
 
 def _copy_dataset_csv_files(
@@ -2775,7 +2910,18 @@ def _run_llm_internal_query(
             if output_columns is not None and output_columns:
                 if set(row) != {"id", *output_columns}:
                     raise ValueError(f"Item {index} must contain only id and required columns {output_columns}")
-        return value
+        # Synthetic IDs do not make repeated LLM facts independent evidence.
+        # Deduplicate before confidence assessment, CSV export, and matching.
+        unique_rows = []
+        seen = set()
+        for row in value:
+            attributes = {key: item for key, item in row.items() if key != "id"}
+            signature = json.dumps(attributes, sort_keys=True, ensure_ascii=False)
+            if signature in seen:
+                continue
+            seen.add(signature)
+            unique_rows.append({**row, "id": len(unique_rows) + 1})
+        return unique_rows
 
     def validate(text: str) -> Tuple[bool, Optional[str]]:
         try:
@@ -2974,8 +3120,38 @@ def _run_ui_ap_explanation_for_csv_files(
     csv_files: List[str],
     dataset: Optional[str] = None,
     probability_metadata: Dict[str, Any] | None = None,
+    semantic_matching: bool = False,
+    matching_event: Optional[Callable] = None,
 ) -> Dict[str, Any]:
-    service_sql_query = _service_sql_for_dataset(sql_query, dataset)
+    matching_trace = None
+    if semantic_matching:
+        prepared = prepare_semantic_joins(
+            sql_query, csv_files, EXPLANATION_BUCKET_DIR,
+            lambda prompt: _generate_model(PLANNER_LLM_PROVIDER, PLANNER_LLM_MODEL, prompt, 0.0),
+            delimiter=EXPLANATION_CSV_DELIMITER, event=matching_event,
+            source_backed_columns=(probability_metadata or {}).get("source_backed_columns"),
+        )
+        matching_trace = prepared["trace"]
+        csv_files = prepared["csv_files"]
+        probability_metadata = dict(probability_metadata or {})
+        if matching_trace.get("mapping_file"):
+            probability_metadata.setdefault("compute_probability", True)
+            probability_metadata["probability_columns"] = {
+                **probability_metadata.get("probability_columns", {}),
+                matching_trace["mapping_file"]: "__probability",
+            }
+            probability_metadata["csv_columns"] = {
+                **probability_metadata.get("csv_columns", {}),
+                matching_trace["mapping_file"]: prepared["mapping_columns"],
+            }
+    service_sql_query = _service_sql_for_dataset(
+        matching_trace["rewritten_sql"] if matching_trace else sql_query, dataset)
+    if matching_trace:
+        if probability_metadata.get("probability_columns"):
+            service_sql_query = protect_probability_projection(service_sql_query, probability_metadata.get("csv_columns", {}))
+        matching_trace["service_sql"] = service_sql_query
+        if matching_event:
+            matching_event("matching_sql", {"semantic_matching": matching_trace})
     explanation_client = ExplanationClient(
         base_url=EXPLANATION_URL,
         post_endpoint=EXPLANATION_ENDPOINT,
@@ -2995,6 +3171,7 @@ def _run_ui_ap_explanation_for_csv_files(
     )
 
     return {
+        "semantic_matching": matching_trace,
         "scope": "query",
         "query_sql": sql_query,
         "service_sql": service_sql_query,
@@ -3029,7 +3206,8 @@ def _answer_from_ap_explanation(explanation: Dict[str, Any]) -> List[Dict[str, A
             "provenance": derivation.get("provenance"),
             "probability": derivation.get("probability"),
             "probability_unavailable_reason": (
-                "Probability computation skipped because input probabilities are unknown."
+                explanation.get("probability_metadata", {}).get("probability_unavailable_reason",
+                    "Probability computation skipped because input probabilities are unknown.")
                 if explanation.get("probability_metadata", {}).get("compute_probability") is False
                 else "The explanation service did not return a probability."
             ),
@@ -3138,11 +3316,38 @@ def _annotate_final_answer(
     answer: List[Dict[str, Any]],
     leaf_outputs: List[Dict[str, Any]],
     rows_by_id: Dict[str, Any],
+    semantic_matching: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
+    rows_by_id = dict(rows_by_id)
+    mapping_table = (semantic_matching or {}).get("mapping_table", "")
+    mapping_row_ids = []
+    for row in (semantic_matching or {}).get("mapping_rows", []):
+        row_id = row.get(mapping_table + "_rownum")
+        if row_id:
+            mapping_row_ids.append(row_id)
+            rows_by_id[row_id] = {
+                "table": mapping_table, "pipeline": "semantic-matching",
+                "source_identifier": row_id, "values": row,
+            }
     leaf_annotations = _collect_leaf_annotations(leaf_outputs)
     resolved_probabilities = resolve_row_probabilities(leaf_outputs)
+    for row_id in mapping_row_ids:
+        row = rows_by_id[row_id]["values"]
+        try:
+            probability = float(row.get("__probability"))
+        except (TypeError, ValueError):
+            probability = None
+        resolved_probabilities[(mapping_table, row_id)] = {
+            "table": mapping_table, "row_id": row_id, "pipeline": "semantic-matching",
+            "probability": probability if valid_probability(probability) else None,
+            "metric": "semantic_match_decision",
+        }
     known_row_ids = set(rows_by_id)
     provenance_aliases = _page_zero_provenance_aliases(leaf_outputs)
+    provenance_aliases.update({
+        f"{mapping_table}@p0r{index}": row_id
+        for index, row_id in enumerate(mapping_row_ids, start=1)
+    })
     rag_evidence: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     llm_annotations_by_table: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -3203,6 +3408,38 @@ def _annotate_final_answer(
             ],
             "scope": {"type": "result", "index": result_index},
         }]
+        # Semantic bridge rows are created after leaf extraction, so they are
+        # absent from rows_by_id. Attribute only tokens present in this result;
+        # retain AP's exact tuple identity instead of guessing a CSV row number.
+        semantic_tokens: List[str] = []
+
+        def collect_semantic_tokens(value: Any) -> None:
+            if isinstance(value, str):
+                for token in re.findall(
+                    r"(?<![A-Za-z0-9_])(?:semantic_matches_[A-Za-z0-9_]+"
+                    + ("|" + re.escape(mapping_table) if mapping_table else "")
+                    + r")@(?:k[0-9a-fA-F]+|p[0-9]+r[0-9]+)(?![A-Za-z0-9_])",
+                    value,
+                ):
+                    if token not in semantic_tokens:
+                        semantic_tokens.append(token)
+            elif isinstance(value, list):
+                for child in value:
+                    collect_semantic_tokens(child)
+            elif isinstance(value, dict):
+                for child in value.values():
+                    collect_semantic_tokens(child)
+
+        if not any(row_id in provenance_row_ids for row_id in mapping_row_ids):
+            collect_semantic_tokens(item.get("provenance"))
+        if semantic_tokens:
+            provenance_annotations[0]["pipelines"] = sorted({*source_pipelines, "semantic-matching"})
+            provenance_annotations[0]["source_rows"].extend({
+                "row_id": token,
+                "table": token.split("@", 1)[0],
+                "pipeline": "semantic-matching",
+                "source_identifier": token,
+            } for token in semantic_tokens)
         confidence_annotations: List[Dict[str, Any]] = []
 
         contributing_rag = [
@@ -3756,9 +3993,15 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
     temperature = 0.0 if req.temperature is None else float(req.temperature)
     leaf_outputs: List[Dict[str, Any]] = []
     pipeline_choices: List[Dict[str, str]] = []
+    matching_trace = None
+
+    def on_matching_event(kind, payload):
+        nonlocal matching_trace
+        matching_trace = payload["semantic_matching"]
 
     try:
         dataset = _dataset_config(req.dataset).name
+        _prepare_ui_semantic_tasks(req, sql_query, dataset)
         _apply_ui_leaf_pipeline_options(req, leaf_tasks)
         if _ui_uses_iterative_join_pipeline(leaf_tasks, req.leaf_pipeline_choices):
             print("\n[UI] Running iterative join-aware query pipeline\n", flush=True)
@@ -3814,10 +4057,13 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
                 plan=req.plan,
                 leaf_outputs=leaf_outputs,
                 dataset=dataset,
+                semantic_matching=req.semantic_matching,
+                matching_event=on_matching_event,
             )
             explanations.append(explanation)
             answer = _answer_from_ap_explanation(explanation)
-            answer = _annotate_final_answer(answer, leaf_outputs, rows_by_id)
+            answer = _annotate_final_answer(
+                answer, leaf_outputs, rows_by_id, explanation.get("semantic_matching"))
         except Exception as e:
             errors.append(f"ap-explanation: {e}")
             _log_event({
@@ -3827,6 +4073,7 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
             })
 
         result = {
+            "semantic_matching": matching_trace,
             "source": "gateway",
             "dataset": dataset,
             "sql": sql_query,
@@ -3881,6 +4128,10 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
 
     temperature = 0.0 if req.temperature is None else float(req.temperature)
     dataset = _dataset_config(req.dataset).name
+    try:
+        _prepare_ui_semantic_tasks(req, sql_query, dataset)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     _apply_ui_leaf_pipeline_options(req, leaf_tasks)
 
     def encode_event(event_type: str, payload: Dict[str, Any]) -> str:
@@ -3903,9 +4154,17 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
         leaf_answer: List[Dict[str, Any]] = []
         answer: List[Dict[str, Any]] = []
         generated_csv_files: List[str] = []
+        matching_trace: Dict[str, Any] | None = None
 
         def emit(event_type: str, payload: Dict[str, Any]) -> None:
             outgoing_events.put(encode_event(event_type, payload))
+
+        def on_matching_event(kind, payload):
+            nonlocal matching_trace, generated_csv_files
+            matching_trace = payload["semantic_matching"]
+            if kind == "matching_done":
+                generated_csv_files = [*generated_csv_files, matching_trace["mapping_file"]]
+            emit(kind, {**payload, "message": kind.replace("_", " ").capitalize()})
 
         try:
             yield encode_event("start", {
@@ -4036,7 +4295,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             **payload,
                             "table": table_name,
                             "pipeline": pipeline,
-                            "stage": "model_extraction",
+                            "stage": payload.get("stage", "model_extraction"),
                         })
 
                     if pipeline != SQL_TABLE_PIPELINE_ID:
@@ -4130,6 +4389,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         plan=req.plan,
                         leaf_outputs=leaf_outputs,
                         probability_metadata=probability_metadata,
+                        keep_rownum=True if req.semantic_matching else None,
                     )
                     yield encode_event("csv_done", {
                         "files": generated_csv_files,
@@ -4142,10 +4402,15 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                         csv_files=generated_csv_files,
                         dataset=dataset,
                         probability_metadata=probability_metadata,
+                        semantic_matching=req.semantic_matching,
+                        matching_event=on_matching_event,
                     )
+                    generated_csv_files = explanation["generated_csv_files"]
+                    matching_trace = explanation.get("semantic_matching")
                     explanations.append(explanation)
                     answer = _answer_from_ap_explanation(explanation)
-                    answer = _annotate_final_answer(answer, leaf_outputs, rows_by_id)
+                    answer = _annotate_final_answer(
+                        answer, leaf_outputs, rows_by_id, explanation.get("semantic_matching"))
                     yield encode_event("ap_explanation_done", {
                         "explanation": explanation,
                         "answer": answer,
@@ -4189,6 +4454,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 "pipeline_choices": pipeline_choices,
                 "errors": errors,
                 "explanations": explanations,
+                "semantic_matching": matching_trace,
                 "generated_csv_files": generated_csv_files,
                 "csv_page_url": "/ui/csv",
                 "csv_ready": bool(generated_csv_files),
@@ -4206,6 +4472,12 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
             yield encode_event("complete", {
                 "result": result,
                 "message": "Pipeline execution complete.",
+            })
+        except GenerationLimitError as e:
+            # A bounded generation failure is an expected outcome, not a server crash.
+            yield encode_event("fatal_error", {
+                "message": str(e),
+                "error_type": "generation_limit",
             })
         except Exception as e:
             import traceback

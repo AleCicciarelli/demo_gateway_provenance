@@ -27,6 +27,8 @@ const els = {
   datasetSelect: document.querySelector("#dataset-select"),
   planButton: document.querySelector("#plan-button"),
   runButton: document.querySelector("#run-button"),
+  executionMode: document.querySelector("#execution-mode"),
+  semanticMatchingView: document.querySelector("#semantic-matching-view"),
   backendStatus: document.querySelector("#backend-status"),
   leafCount: document.querySelector("#leaf-count"),
   planSummary: document.querySelector("#plan-summary"),
@@ -509,6 +511,27 @@ function describePostOp(postOp) {
   return Object.keys(payload).length ? JSON.stringify(payload) : "no extra parameters";
 }
 
+async function responseError(response) {
+  const fallback = `Request failed with ${response.status}`;
+  try {
+    const body = await response.json();
+    const detail = body.detail;
+    if (typeof detail === "string" && detail.trim()) {
+      return new Error(`${fallback}: ${detail}`);
+    }
+    if (Array.isArray(detail)) {
+      const messages = detail.map((item) => {
+        const location = Array.isArray(item.loc) ? item.loc.join(".") : "";
+        return [location, item.msg].filter(Boolean).join(": ");
+      }).filter(Boolean);
+      if (messages.length) return new Error(`${fallback}: ${messages.join("; ")}`);
+    }
+  } catch {
+    // Proxies may return an empty or non-JSON error response.
+  }
+  return new Error(fallback);
+}
+
 async function postJson(url, payload) {
   const response = await fetch(url, {
     method: "POST",
@@ -517,7 +540,7 @@ async function postJson(url, payload) {
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed with ${response.status}`);
+    throw await responseError(response);
   }
 
   return response.json();
@@ -531,7 +554,7 @@ async function postJsonStream(url, payload, onEvent) {
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed with ${response.status}`);
+    throw await responseError(response);
   }
 
   if (!response.body) {
@@ -627,6 +650,7 @@ async function runSelectedPipelines() {
     plan: state.plan.plan,
     leaf_pipeline_choices: state.selectedPipelines,
     leaf_pipeline_options: state.leafRagOptions,
+    semantic_matching: els.executionMode.value === "semantic",
     dataset: state.plan.dataset ?? state.dataset,
   };
 
@@ -695,6 +719,42 @@ function pushProgress(event, tone = "info") {
   });
 }
 
+function updateMatchingProgress(event) {
+  const trace = event.semantic_matching ?? {};
+  const calls = trace.calls ?? [];
+  const received = calls.filter((call) => typeof call.response === "string").length;
+  const total = trace.total_requests;
+  const completed = trace.completed_requests ?? received;
+  const percentage = Number.isFinite(total) && total > 0
+    ? Math.floor(100 * Math.min(completed, total) / total) : (trace.status === "complete" ? 100 : null);
+  const countText = Number.isFinite(total) ? `${completed}/${total} requests complete` : `${received} responses received`;
+  let message = "Preparing semantic matching…";
+  let tone = "info";
+  if (trace.status === "skipped") {
+    message = `Matching skipped — ${trace.reason}`;
+    tone = "success";
+  } else if (event.type === "matching_prompt") {
+    message = `Comparing records — request ${calls.length}${Number.isFinite(total) ? ` of ${total}` : ""} in progress (${percentage ?? 0}%).`;
+  } else if (["matching_response", "matching_progress"].includes(event.type)) {
+    message = `Comparing records — ${countText}${percentage !== null ? ` (${percentage}%)` : ""}…`;
+  } else if (event.type === "matching_done" || event.type === "matching_sql") {
+    const count = trace.accepted_count ?? 0;
+    message = `Matching complete — ${count} accepted ${count === 1 ? "pair" : "pairs"}.`;
+    tone = "success";
+  } else if (event.type === "matching_failed") {
+    message = `Matching failed: ${trace.error ?? "Unable to complete matching."}`;
+    tone = "warning";
+  }
+  let item = state.progress.find((entry) => entry.type === "semantic_matching");
+  if (!item) {
+    item = { type: "semantic_matching" };
+    state.progress.push(item);
+  }
+  Object.assign(item, { message, tone, matchingProgress: { total, completed, percentage,
+    retries: Math.max(0, (total ?? 0) - (trace.planned_requests ?? total ?? 0)) } });
+  setStatus(message);
+}
+
 function updateWaitingProgress(event) {
   const existing = [...state.progress]
     .reverse()
@@ -723,16 +783,75 @@ function updateWaitingProgress(event) {
   }
 }
 
+let streamRenderPending = false;
+
+function updateModelStream(event) {
+  let item = state.progress.find((entry) => entry.streamId === event.stream_id);
+  if (!item) {
+    item = {
+      type: "model_stream", streamId: event.stream_id, tone: "info",
+      table: event.table, pipeline: event.pipeline, stage: event.stage,
+      model: event.model, modelProvider: event.model_provider,
+      reasoningText: "", answerText: "",
+    };
+    state.progress.push(item);
+  }
+  item.requestStatus = event.request_status;
+  item.message = event.message ?? `Receiving live output from ${event.model}.`;
+  if (event.type === "model_stream_delta") {
+    const field = event.channel === "reasoning" ? "reasoningText" : "answerText";
+    // Bound the preview while the backend retains the complete answer.
+    item[field] = (item[field] + event.text).slice(-50000);
+  }
+  if (event.request_status === "failed") item.tone = "warning";
+  if (event.request_status === "response_received") item.tone = "success";
+}
+
+function renderModelStream(item) {
+  if (item.type !== "model_stream") return "";
+  return `
+    <div class="model-stream">
+      ${item.stage === "confidence_assessment" ? "<strong>Answer assessment</strong>" : ""}
+      <details open><summary>Reasoning exposed by the provider</summary>
+        <pre>${escapeHtml(item.reasoningText || "No reasoning text received.")}</pre>
+      </details>
+      <details open><summary>Answer preview</summary>
+        <pre>${escapeHtml(item.answerText || "Waiting for answer text…")}</pre>
+      </details>
+    </div>`;
+}
+
 function applyRunEvent(event) {
   if (!state.output) {
     state.output = makeEmptyRunOutput();
+  }
+
+  if (event.type.startsWith("model_stream_")) {
+    updateModelStream(event);
+    state.output.progress = state.progress;
+    if (!streamRenderPending) {
+      streamRenderPending = true;
+      requestAnimationFrame(() => {
+        streamRenderPending = false;
+        renderOutput();
+      });
+    }
+    return;
   }
 
   if (event.message) {
     setStatus(event.message);
   }
 
-  if (event.type === "leaf_start") {
+  if (event.type.startsWith("matching_")) {
+    state.output.semantic_matching = event.semantic_matching;
+    if (event.type === "matching_done") {
+      state.output.generated_csv_files = [...new Set([
+        ...(state.output.generated_csv_files ?? []), event.semantic_matching.mapping_file,
+      ])];
+    }
+    updateMatchingProgress(event);
+  } else if (event.type === "leaf_start") {
     pushProgress(event);
   } else if (event.type === "iterative_join_leaf_start") {
     pushProgress(event);
@@ -793,7 +912,7 @@ function applyRunEvent(event) {
     state.output.csv_ready = Array.isArray(state.output.generated_csv_files)
       && state.output.generated_csv_files.length > 0;
     state.output.progress = state.progress;
-    els.runStatus.textContent = "Complete";
+    els.runStatus.textContent = state.output.errors?.length ? "Error" : "Complete";
   } else if (event.type === "start") {
     pushProgress(event);
   } else if (event.type === "heartbeat") {
@@ -932,12 +1051,72 @@ function clearOutput() {
   els.runStatus.textContent = "Waiting";
   els.runStatus.classList.add("muted-pill");
   els.answerView.innerHTML = `<div class="empty-state">Run the selected pipelines to see final output.</div>`;
+  els.semanticMatchingView.innerHTML = "";
+  delete els.semanticMatchingView.dataset.rendered;
   els.generationPromptView.innerHTML = "";
   delete els.generationPromptView.dataset.rendered;
   els.provenanceView.innerHTML = `<div class="empty-state">Provenance will appear here after a run.</div>`;
 }
 
+function renderMatchedRecord(record, table) {
+  return `<div class="matched-record">
+    <h5>${escapeHtml(table || "Record")}</h5>
+    <dl>${Object.entries(record.attributes ?? {}).map(([key, value]) => `
+      <div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value ?? "Unknown")}</dd></div>
+    `).join("")}</dl>
+    <small>Row: <code>${escapeHtml(record.id)}</code></small>
+  </div>`;
+}
+
+function renderSemanticMatching(trace) {
+  if (!trace) return "";
+  if (trace.status === "skipped") {
+    return `<section class="matching-summary"><h3>Matching skipped</h3><p>${escapeHtml(trace.reason)}</p></section>`;
+  }
+  const accepted = trace.audit?.accepted_pairs ?? [];
+  const summary = trace.status === "complete" ? `<section class="matching-summary">
+    <h3>Retained pairs (${escapeHtml(trace.accepted_count ?? accepted.length)})</h3>
+    <p>The join retains matches at probability 0.9 and uncertain pairs at probability 0.3.</p>
+    ${accepted.length ? `<div class="matched-pairs">${accepted.map((pair, index) => `
+      <article class="matched-pair">
+        <h4>Pair ${index + 1}</h4>
+        <p>Decision: ${escapeHtml(pair.decision ?? "match")} · Probability: ${escapeHtml(pair.probability ?? "Unknown")}</p>
+        <div class="matched-records">
+          ${renderMatchedRecord(pair.left, trace.left_table)}
+          <span class="match-link" aria-label="matched with">↔</span>
+          ${renderMatchedRecord(pair.right, trace.right_table)}
+        </div>
+        <p class="match-reason"><strong>Reason:</strong> ${escapeHtml(pair.reason)}</p>
+        ${trace.mapping_rows?.[index]?.[trace.rownum_column] ? `<small>Mapping row: <code>${escapeHtml(trace.mapping_rows[index][trace.rownum_column])}</code></small>` : ""}
+      </article>`).join("")}</div>` : `<p class="empty-state">${trace.accepted_count ? "Pair details are unavailable for this run." : "No pairs were retained. Rejected pairs are excluded from the join."}</p>`}
+  </section>` : "";
+  const calls = (trace.calls ?? []).map((call, index) => `
+    <details class="matching-call" data-matching-detail="request-${index}">
+      <summary>Request ${index + 1} · ${call.response !== undefined ? "Response received" : trace.status === "failed" ? "Failed" : "In progress"}</summary>
+      <h4>Prompt</h4><pre>${escapeHtml(call.prompt)}</pre>
+      <h4>Model output</h4><pre>${escapeHtml(call.response ?? "Waiting for response…")}</pre>
+    </details>`).join("");
+  return `${summary}<details class="semantic-trace" data-matching-detail="overview">
+    <summary>Matching requests and details · ${escapeHtml(trace.status)}</summary>
+    ${Number.isFinite(trace.total_requests) ? `<p>${trace.completed_requests ?? 0} of ${trace.total_requests} requests complete. ${Math.max(0, trace.total_requests - (trace.calls?.length ?? 0))} not started yet. Extra retries are added if needed.</p>` : ""}
+    ${trace.error ? `<p>${escapeHtml(trace.error)}</p>` : ""}
+    ${calls}
+    ${trace.rewritten_sql ? `<h4>Rewritten SQL</h4><pre>${escapeHtml(trace.service_sql ?? trace.rewritten_sql)}</pre>` : ""}
+    ${trace.mapping_csv !== undefined ? `<h4>${escapeHtml(trace.mapping_file)}</h4><pre>${escapeHtml(trace.mapping_csv)}</pre>` : ""}
+  </details>`;
+}
+
 function renderOutput() {
+  const semanticHtml = renderSemanticMatching(state.output?.semantic_matching);
+  if (els.semanticMatchingView.dataset.rendered !== semanticHtml) {
+    const openDetails = new Set([...els.semanticMatchingView.querySelectorAll("details[open][data-matching-detail]")]
+      .map((detail) => detail.dataset.matchingDetail));
+    els.semanticMatchingView.innerHTML = semanticHtml;
+    els.semanticMatchingView.querySelectorAll("details[data-matching-detail]").forEach((detail) => {
+      detail.open = openDetails.has(detail.dataset.matchingDetail);
+    });
+    els.semanticMatchingView.dataset.rendered = semanticHtml;
+  }
   const answer = state.output?.answer ?? [];
   const promptHtml = renderGenerationPrompts(state.output?.leaf_outputs ?? []);
   // Avoid replacing this panel on every progress event, preserving its scroll
@@ -1233,7 +1412,9 @@ function renderProgress(progress) {
                 <span>${escapeHtml(item.message)}</span>
                 ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
               </div>
+              ${renderMatchingProgress(item)}
               ${renderProgressDetails(item)}
+              ${renderModelStream(item)}
               ${renderContextPreview(item.contextPreview)}
             </div>
           `;
@@ -1241,6 +1422,15 @@ function renderProgress(progress) {
         .join("")}
     </div>
   `;
+}
+
+function renderMatchingProgress(item) {
+  const progress = item.matchingProgress;
+  if (!progress || progress.percentage === null) return "";
+  return `<div class="matching-progress-meter">
+    <progress max="100" value="${progress.percentage}" aria-label="Matching requests completed"></progress>
+    <small>${escapeHtml(progress.completed)}/${escapeHtml(progress.total)} requests complete · ${progress.percentage}%${progress.retries ? ` · includes ${progress.retries} extra retries` : ""}</small>
+  </div>`;
 }
 
 function renderProgressDetails(item) {

@@ -1019,3 +1019,37 @@ tr:last-child td {
     text-align: left;
   }
 }
+
+.semantic-trace { margin: 1rem 0; padding: 1rem; border: 1px solid #cbd5e1; border-radius: 12px; }
+.semantic-trace pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; }
+.semantic-trace details { margin: 0.75rem 0; }
+
+.model-stream pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 18rem;
+  overflow-y: auto;
+  font-size: 0.8rem;
+}
+.model-stream details { margin-top: 0.5rem; }
+
+.matching-summary { margin: 1rem 0; }
+.matched-pairs { display: grid; gap: 1rem; }
+.matched-pair { padding: 1rem; border: 1px solid #a8d9d4; border-radius: 12px; background: #f5fcfb; }
+.matched-pair h4 { margin: 0 0 0.75rem; }
+.matched-records { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 1rem; align-items: center; }
+.matched-record { min-width: 0; padding: 0.75rem; background: white; border: 1px solid #dce6e5; border-radius: 8px; overflow-wrap: anywhere; }
+.matched-record h5 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.matched-record dl { margin: 0 0 0.75rem; }
+.matched-record dl > div { margin: 0.4rem 0; }
+.matched-record dt { color: #64748b; font-size: 0.8rem; }
+.matched-record dd { margin: 0; }
+.match-link { color: #247c72; font-size: 1.5rem; }
+.match-reason { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .matched-records { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .match-link { text-align: center; }
+}
+
+.matching-progress-meter { display: grid; gap: 0.35rem; margin-top: 0.65rem; }
+.matching-progress-meter progress { width: 100%; height: 0.65rem; accent-color: #247c72; }

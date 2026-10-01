@@ -92,50 +92,20 @@ QUESTION:
 
 
 _PLAIN_INTERNAL_KNOWLEDGE_TEMPLATE = """
-Use your internal knowledge to identify real entities or facts that satisfy
-all constraints expressed in the QUESTION.
-
-Values explicitly provided in the QUESTION are retrieval cues. Use them to
-recall potentially matching entities or facts.
-
-A value appearing in the QUESTION is not, by itself, proof that the
-corresponding entity or fact exists. Do not create a result solely by
-copying information from the QUESTION.
-
-Return results that are consistent with your internal knowledge.
-
-Do not fabricate entities or factual values.
-Do not guess unknown attributes.
-
-When evaluating the QUESTION:
-
-- Use the provided values to recall matching knowledge.
-- Ensure that the identified entity satisfies all stated constraints.
-- For textual equality, minor differences in capitalization, punctuation,
-  spacing, or formatting may be ignored when they clearly refer to the same
-  value.
-- Do not return merely related or similar entities.
-- Return [] only if you cannot identify any matching entity from your
-  internal knowledge.
-
-For requested attributes:
-
-- Return the factual value when it is available in your internal knowledge.
-- If the entity can be identified but a requested attribute is not known,
-  return null for that attribute.
-- Never invent a missing value.
+Answer the QUESTION using only your internal knowledge.
 
 KNOWLEDGE DOMAIN:
 {knowledge_domain}
 
+Return known entities or facts that satisfy every stated constraint.
+
+Use null for unknown requested attributes; keep otherwise valid entities.
+Do not guess attributes or derive them from relationships you do not know.
+
 OUTPUT RULES:
-Omit identifiers; they are assigned after your answer.
-
-Return only a valid JSON array.
+Return only a valid JSON array, with one object per entity and no duplicates.
 Each object must contain exactly the required output columns listed below.
-
-Do not include explanations, markdown, reasoning, confidence scores, or
-additional fields.
+Do not include explanations, markdown, reasoning, confidence scores, or additional fields.
 
 REQUIRED OUTPUT COLUMNS:
 {output_columns}
@@ -228,7 +198,7 @@ def build_internal_knowledge_question(subject: str, predicates: list[str]) -> st
         conditions.append(condition)
     if conditions:
         return f"Which {subject} " + " and ".join(conditions) + "?"
-    return f"Which {subject} can you reliably identify?"
+    return f"List {subject}."
 
 
 def build_internal_knowledge_prompt(
@@ -242,8 +212,8 @@ def build_internal_knowledge_prompt(
         template = template.replace("Each object must contain exactly the required output columns listed below.\n",
                                     "Each object must contain:\n- All available information about each item requested in the QUESTION.\n")
         template = template.replace("REQUIRED OUTPUT COLUMNS:\n{output_columns}\n\n", "")
-        template = template.replace("Do not include explanations, markdown, reasoning, confidence scores, or\nadditional fields.",
-                                    "Do not include explanations, markdown, reasoning, or confidence scores.")
+        template = template.replace("Do not include explanations, markdown, reasoning, confidence scores,\ncitations, comments, or additional fields.",
+                                    "Do not include explanations, markdown, reasoning, confidence scores, citations, or comments.")
     return template.format(
         question=question,
         output_columns=(", ".join(columns) if columns else
