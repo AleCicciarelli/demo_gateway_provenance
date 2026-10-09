@@ -479,6 +479,28 @@ def build_query_plan(sql: str) -> QueryPlan:
 
     #Extract all the components
     alias_map = _build_alias_map(tree)
+    # Single-source ON conjuncts in inner joins are scan filters. Keep outer
+    # joins intact: moving their ON predicates can change preserved rows.
+    join_nodes = list(tree.find_all(exp.Join))
+    if all(not j.args.get("side") and str(j.args.get("kind") or "").upper()
+           in ("", "INNER", "JOIN", "CROSS") for j in join_nodes):
+        scan_conditions = []
+        for join in join_nodes:
+            retained = []
+            for condition in _flatten_and_conditions(join.args.get("on")):
+                columns = [_normalize_column(c, alias_map)
+                           for c in condition.find_all(exp.Column)]
+                sources = {c.table_name for c in columns}
+                if len(sources) == 1 and None not in sources:
+                    scan_conditions.append(condition.copy())
+                else:
+                    retained.append(condition.copy())
+            join.set("on", exp.and_(*retained) if retained else None)
+        if scan_conditions:
+            where = tree.args.get("where")
+            if where is not None:
+                scan_conditions.insert(0, where.this.copy())
+            tree.set("where", exp.Where(this=exp.and_(*scan_conditions)))
     base_tables = _extract_base_tables(tree)
     joins = _extract_joins(tree, alias_map)
     select_items = _extract_select_items(tree, alias_map)
@@ -538,12 +560,20 @@ def build_query_plan(sql: str) -> QueryPlan:
 
     #JOIN columns
     for j in joins:
+        key_columns = set()
+        if j.on_sql:
+            for condition in _flatten_and_conditions(sqlglot.parse_one(j.on_sql)):
+                refs = [_normalize_column(c, alias_map)
+                        for c in condition.find_all(exp.Column)]
+                if len({c.table_name for c in refs if c.table_name}) > 1:
+                    key_columns.update(refs)
         for col in j.on_columns:
             if col.table_name is None:
                 continue
             _ensure_leaf(leaf_map, col.table_name, col.table_alias)
             _add_unique_str(leaf_map[col.table_name].columns, col.column_name)
-            _add_unique_str(leaf_map[col.table_name].join_keys, col.column_name)
+            if col in key_columns:
+                _add_unique_str(leaf_map[col.table_name].join_keys, col.column_name)
 
     #Local predicates
     #A predicate is local if it only involves one table and does not contain OR conditions (pushable). 

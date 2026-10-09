@@ -310,6 +310,17 @@ def _schema_info_from_profile(profile_path: str, csv_dir: Optional[str] = None) 
 
 
 DATASET_CONFIGS: Dict[str, DatasetConfig] = {
+    "mathe": DatasetConfig(
+        name="mathe",
+        csv_dir=os.getenv("MATHE_CSV_DIR", "/app/mathe_csv"),
+        faiss_index_folder=os.getenv("MATHE_FAISS_INDEX_FOLDER", "/app/faiss_index_mathe_rows_bge_m3"),
+        emb_model="BAAI/bge-m3",
+        emb_strategy="bge-m3",
+        index_set=set(),
+        schema_info=_schema_info_from_profile(
+            os.getenv("MATHE_SCHEMA_PROFILE", f"{os.getenv('MATHE_CSV_DIR', '/app/mathe_csv')}/schema_profile_mathe.json")
+        ),
+    ),
     "tpch": DatasetConfig(
         name="tpch",
         csv_dir=CSV_DIR,

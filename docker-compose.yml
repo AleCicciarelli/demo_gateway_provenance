@@ -114,6 +114,9 @@ services:
       - ./rel-arxiv_csv:/app/rel-arxiv_csv:ro
       - ./faiss_index_relarxiv_bge_m3_is:/app/faiss_index_relarxiv_bge_m3_is:ro
 
+      - ./mathe_csv:/app/mathe_csv:ro
+      - ./faiss_index_mathe_rows_bge_m3:/app/faiss_index_mathe_rows_bge_m3
+
       # Shared bucket for explanation service
       - ./bucket:/shared_bucket:rw
 #    deploy:
@@ -156,6 +159,12 @@ services:
     - LLM_TIMEOUT=${LLM_TIMEOUT:-200}
 
   explanation-postgres:
+    mem_limit: ${EXPLANATION_POSTGRES_MEMORY_LIMIT:-2g}
+    memswap_limit: ${EXPLANATION_POSTGRES_MEMORY_LIMIT:-2g}
+    deploy:
+      resources:
+        limits:
+          memory: ${EXPLANATION_POSTGRES_MEMORY_LIMIT:-2g}
     image: ghcr.io/datagems-eosc/postgres-provsql:17-v1.12.0
     volumes:
       - explanation_postgres_1_12_data:/var/lib/postgresql/data
@@ -171,10 +180,17 @@ services:
       retries: 5
 
   postgres-provsql:
+    mem_limit: ${PROVSQL_MEMORY_LIMIT:-2g}
+    memswap_limit: ${PROVSQL_MEMORY_LIMIT:-2g}
+    deploy:
+      resources:
+        limits:
+          memory: ${PROVSQL_MEMORY_LIMIT:-2g}
     image: inriavalda/provsql:1.12.0
     container_name: postgres-provsql
     volumes:
       - wp4_poc_postgres_data:/var/lib/postgresql/data
+      - ./01_mathe_pgsql.sql:/docker-entrypoint-initdb.d/01_mathe_pgsql.sql:ro
     environment:
       - POSTGRES_USER=provdemo
       - POSTGRES_PASSWORD=provdemo
