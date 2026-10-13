@@ -1756,6 +1756,31 @@ def _rag_source_identifier(table: str, row_id: str, chunk_id: str) -> str:
     return "_".join(parts)
 
 
+def _retrieval_metadata_rid(
+    metadata: Dict[str, Any],
+    row_index: Optional[Dict[str, int]] = None,
+) -> str:
+    """Accept gateway-built and offline row-index document identities."""
+    candidates = []
+    for key in ("rid", "rownum_value", "row_id"):
+        value = metadata.get(key)
+        if value is not None and str(value).strip():
+            if isinstance(value, float) and value.is_integer():
+                value = int(value)
+            candidates.append(str(value).strip())
+    if row_index is not None:
+        for rid in candidates:
+            if rid in row_index:
+                return rid
+            # Older Mathe indexes used numeric rownums. Resolve them to the
+            # corrected <table>_<number> CSV identity without re-embedding.
+            if rid.isdecimal():
+                prefixed = f"{metadata.get('table')}_{rid}"
+                if prefixed in row_index:
+                    return prefixed
+    return candidates[0] if candidates else ""
+
+
 def retrieve_context_data_iterative(
     question: str,
     dataset: Optional[str] = None,
@@ -1805,7 +1830,7 @@ def retrieve_context_data_iterative(
         for rank, (d, relevance_score) in enumerate(scored_docs, start=1):
             meta = d.metadata or {}
             table = meta.get("table")
-            rid = meta.get("rid")
+            rid = _retrieval_metadata_rid(meta, runtime.csv_rid_index.get(table, {}))
 
             if not table or not rid:
                 continue
@@ -1813,7 +1838,7 @@ def retrieve_context_data_iterative(
             if target_table_set and table not in target_table_set:
                 continue
 
-            if rid in seen_docs:
+            if (table, rid) in seen_docs:
                 continue
 
             idx0 = runtime.csv_rid_index.get(table, {}).get(rid)
@@ -1824,12 +1849,12 @@ def retrieve_context_data_iterative(
                 continue
 
             if rid in ctx[table]:
-                seen_docs.add(rid)
+                seen_docs.add((table, rid))
                 continue
 
             row = runtime.csv_cache[table][idx0]
             ctx[table][rid] = row
-            seen_docs.add(rid)
+            seen_docs.add((table, rid))
             new_count += 1
             new_rids.append((rank, table, rid))
             if relevance_score is not None:
@@ -1971,7 +1996,7 @@ def _retrieve_context_data(
     for rank, (d, relevance_score) in enumerate(scored_docs, start=1):
         meta = d.metadata or {}
         table = meta.get("table")
-        rid = meta.get("rid")
+        rid = _retrieval_metadata_rid(meta, runtime.csv_rid_index.get(table, {}))
         if not table or not rid:
             continue
 
@@ -3140,6 +3165,7 @@ def _run_ui_ap_explanation_for_csv_files(
             sql_query, csv_files, EXPLANATION_BUCKET_DIR,
             lambda prompt: _generate_model(PLANNER_LLM_PROVIDER, PLANNER_LLM_MODEL, prompt, 0.0),
             delimiter=EXPLANATION_CSV_DELIMITER, event=matching_event,
+            max_output_tokens=LLM_MAX_TOKENS,
             source_backed_columns=(probability_metadata or {}).get("source_backed_columns"),
         )
         matching_trace = prepared["trace"]

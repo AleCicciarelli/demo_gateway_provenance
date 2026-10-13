@@ -315,6 +315,10 @@ def iter_row_documents(
                 "linked_rows": linked_rows,
                 "textualization_strategy": textualization_strategy,
             }
+            if rownum_col:
+                # Use the CSV's provenance identity directly, as the gateway does.
+                metadata["rid"] = str(clean_value(row[rownum_col]))
+                metadata["chunk_id"] = metadata["rid"]
 
             yield Document(page_content=page_content, metadata=metadata)
 

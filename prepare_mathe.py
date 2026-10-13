@@ -23,7 +23,7 @@ def prepare(source, output):
         for line in body.splitlines():
             name, sql_type = line.strip().rstrip(",").split(" ", 1)
             columns[name] = {"type": sql_type.split(" NOT NULL")[0]}
-        columns[f"{table}_rownum"] = {"type": "bigint"}
+        columns[f"{table}_rownum"] = {"type": "text"}
         tables[table] = {"columns": columns, "primary_key_candidates": []}
     for table, columns in re.findall(
         r"ALTER TABLE ONLY mathe\.(\w+)\s+ADD CONSTRAINT \w+ PRIMARY KEY \(([^)]+)\);", text
@@ -55,7 +55,7 @@ def prepare(source, output):
                     if len(values) != len(columns):
                         raise ValueError(f"Invalid COPY row in {table}")
                     count += 1
-                    writer.writerow([decode_copy(v) for v in values] + [count])
+                    writer.writerow([decode_copy(v) for v in values] + [f"{table}_{count}"])
                 else:
                     raise ValueError(f"Unterminated COPY block: {table}")
             tables[table]["row_count"] = count
