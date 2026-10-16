@@ -68,6 +68,8 @@ def planner_result_to_csv_files(
     # Skip custom columns too: ordinary explanations must retain the data schema.
     enabled = not missing
     metadata = {"compute_probability": enabled, "probability_columns": {}, "csv_columns": {},
+                "llm_tables": sorted({leaf.get("table_name") for leaf in planner_result.get("leaf_outputs", [])
+                                      if leaf.get("pipeline") == "llm-internal" and leaf.get("table_name")}),
                 "source_probabilities": list(resolved.values()), "missing_probabilities": missing,
                 "source_backed_columns": source_backed_columns(planner_result.get("leaf_outputs", []))}
     if probability_metadata is not None:
@@ -75,11 +77,24 @@ def planner_result_to_csv_files(
 
     tables: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     seen_row_ids: Dict[str, set[str]] = defaultdict(set)
+    empty_columns: Dict[str, List[str]] = {}
 
     for leaf in planner_result.get("leaf_outputs", []):
         table_name = leaf.get("table_name")
         if not table_name:
             continue
+
+        tables.setdefault(table_name, [])
+        if not leaf.get("parsed_output"):
+            from prompt_internal_knowledge import internal_knowledge_output_columns
+            columns = leaf.get("output_columns")
+            if columns is None:
+                columns = (leaf.get("task") or {}).get("columns") or []
+                if leaf.get("pipeline") == "llm-internal":
+                    columns = internal_knowledge_output_columns(columns) or []
+            empty_columns[table_name] = list(columns)
+            if keep_rownum:
+                empty_columns[table_name].append(f"{table_name}_rownum")
 
         parsed_output = leaf.get("parsed_output") or []
 
@@ -124,12 +139,11 @@ def planner_result_to_csv_files(
     generated_files: List[str] = []
 
     for table_name, rows in tables.items():
-        if not rows:
-            continue
-
         csv_path = output_dir / f"{table_name}.csv"
 
-        columns: List[str] = []
+        columns: List[str] = [] if rows else list(dict.fromkeys(empty_columns.get(table_name) or []))
+        if not rows and not columns:
+            continue
         for row in rows:
             for key in row.keys():
                 if key not in columns:

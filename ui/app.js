@@ -734,7 +734,9 @@ function updateMatchingProgress(event) {
     message = `Matching skipped — ${trace.reason}`;
     tone = "success";
   } else if (event.type === "matching_prompt") {
-    message = `Comparing records — request ${calls.length}${Number.isFinite(total) ? ` of ${total}` : ""} in progress (${percentage ?? 0}%).`;
+    const pairCount = calls[calls.length - 1]?.pair_count;
+    const pairsText = Number.isFinite(pairCount) ? `${pairCount} ${pairCount === 1 ? "pair" : "pairs"} — ` : "";
+    message = `Comparing records — ${pairsText}request ${calls.length}${Number.isFinite(total) ? ` of ${total}` : ""} in progress (${percentage ?? 0}%).`;
   } else if (["matching_response", "matching_progress"].includes(event.type)) {
     message = `Comparing records — ${countText}${percentage !== null ? ` (${percentage}%)` : ""}…`;
   } else if (event.type === "matching_done" || event.type === "matching_sql") {
@@ -847,7 +849,9 @@ function applyRunEvent(event) {
     state.output.semantic_matching = event.semantic_matching;
     if (event.type === "matching_done") {
       state.output.generated_csv_files = [...new Set([
-        ...(state.output.generated_csv_files ?? []), event.semantic_matching.mapping_file,
+        ...(state.output.generated_csv_files ?? []),
+        ...(event.semantic_matching.mapping_files ?? []),
+        ...(event.semantic_matching.mapping_file ? [event.semantic_matching.mapping_file] : []),
       ])];
     }
     updateMatchingProgress(event);
@@ -1070,6 +1074,13 @@ function renderMatchedRecord(record, table) {
 
 function renderSemanticMatching(trace) {
   if (!trace) return "";
+  if (Array.isArray(trace.joins)) {
+    return `<section class="matching-summary"><h3>Join rewriting</h3>
+      ${trace.error ? `<p>${escapeHtml(trace.error)}</p>` : ""}
+      ${trace.rewritten_sql ? `<details><summary>SQL sent for execution</summary><pre>${escapeHtml(trace.service_sql ?? trace.rewritten_sql)}</pre></details>` : ""}
+      ${trace.joins.map((join) => `<section><h4>${escapeHtml(join.left_table)} → ${escapeHtml(join.right_table)}</h4>${renderSemanticMatching(join)}</section>`).join("")}
+    </section>`;
+  }
   if (trace.status === "skipped") {
     return `<section class="matching-summary"><h3>Matching skipped</h3><p>${escapeHtml(trace.reason)}</p></section>`;
   }
@@ -1092,7 +1103,7 @@ function renderSemanticMatching(trace) {
   </section>` : "";
   const calls = (trace.calls ?? []).map((call, index) => `
     <details class="matching-call" data-matching-detail="request-${index}">
-      <summary>Request ${index + 1} · ${call.response !== undefined ? "Response received" : trace.status === "failed" ? "Failed" : "In progress"}</summary>
+      <summary>Request ${index + 1}${Number.isFinite(call.pair_count) ? ` · ${call.pair_count} ${call.pair_count === 1 ? "pair" : "pairs"}` : ""}${call.is_retry ? " · Retry" : ""} · ${call.response !== undefined ? "Response received" : trace.status === "failed" ? "Failed" : "In progress"}</summary>
       <h4>Prompt</h4><pre>${escapeHtml(call.prompt)}</pre>
       <h4>Model output</h4><pre>${escapeHtml(call.response ?? "Waiting for response…")}</pre>
     </details>`).join("");
@@ -1107,6 +1118,7 @@ function renderSemanticMatching(trace) {
 }
 
 function renderOutput() {
+  preparedSourceSnapshots = new WeakSet();
   const semanticHtml = renderSemanticMatching(state.output?.semantic_matching);
   if (els.semanticMatchingView.dataset.rendered !== semanticHtml) {
     const openDetails = new Set([...els.semanticMatchingView.querySelectorAll("details[open][data-matching-detail]")]
@@ -1559,9 +1571,71 @@ function renderErrors(errors) {
   `;
 }
 
+const sourceSnapshots = new WeakMap();
+let preparedSourceSnapshots = new WeakSet();
+
+function resultSources(item) {
+  const annotated = (item.provenance_annotations ?? []).flatMap((entry) => entry.source_rows ?? []);
+  if (annotated.length) return annotated;
+  const ids = new Set((item.provenance ?? []).flat?.(Infinity) ?? []);
+  return Object.entries(state.output?.rows_by_id ?? {})
+    .filter(([id]) => ids.has(id))
+    .map(([row_id, source]) => ({ row_id, ...source }));
+}
+
+function sourceLink(source) {
+  const params = new URLSearchParams({
+    dataset: state.output?.dataset ?? state.dataset,
+    table: source.table,
+    row_id: source.row_id,
+  });
+  const generated = ["llm-internal", "semantic-matching"].includes(source.pipeline);
+  if (generated) {
+    let key = sourceSnapshots.get(state.output);
+    if (!key) {
+      const runId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      key = `provenance-sources-${runId}`;
+      sourceSnapshots.set(state.output, key);
+    }
+    if (!preparedSourceSnapshots.has(state.output)) {
+      const tables = {};
+      const seen = new Map();
+      for (const leaf of state.output?.leaf_outputs ?? []) {
+        if (leaf.pipeline !== "llm-internal") continue;
+        tables[leaf.table_name] ??= [];
+        if (!seen.has(leaf.table_name)) seen.set(leaf.table_name, new Set());
+        for (const item of leaf.parsed_output ?? []) {
+          if (!seen.get(leaf.table_name).has(item.row_id)) {
+            tables[leaf.table_name].push({ ...item.values, __rid__: item.row_id });
+            seen.get(leaf.table_name).add(item.row_id);
+          }
+        }
+      }
+      const matching = state.output?.semantic_matching;
+      for (const trace of matching?.joins ?? (matching ? [matching] : [])) {
+        if (trace.mapping_table) {
+          tables[trace.mapping_table] = (trace.mapping_rows ?? []).map((row) => ({
+            ...row, __rid__: row[`${trace.mapping_table}_rownum`],
+          }));
+        }
+      }
+      try {
+        localStorage.setItem(key, JSON.stringify(tables));
+        preparedSourceSnapshots.add(state.output);
+      } catch {
+        return `<span title="Browser storage is unavailable">${escapeHtml(source.table)} · ${escapeHtml(source.row_id)} (preview unavailable)</span>`;
+      }
+    }
+    params.set("snapshot", key);
+  }
+  return `<a class="source-link" href="/ui/source.html?${escapeHtml(params.toString())}" target="_blank" rel="noopener"><span class="source-link-heading"><strong>${escapeHtml(source.table)}</strong>${generated ? `<span class="source-kind">Generated</span>` : ""}<span class="source-open" aria-hidden="true">↗</span></span><span class="source-row-id">${escapeHtml(source.row_id)}</span></a>`;
+}
+
 function renderAnswerTable(answer, confidenceLabel = "Probabilities") {
   const rows = answer.map((item) => item.result ?? {});
   const columns = [...new Set(rows.flatMap((row) => Object.keys(row)))];
+  const hasSources = answer.some((item) => resultSources(item).length);
+  const hasProbabilities = answer.some((item) => item.probability_annotations?.some((entry) => entry.type === "final_answer_probability"));
   const hasConfidence = answer.some(
     (item) =>
       (Array.isArray(item.probability_annotations) && item.probability_annotations.length) ||
@@ -1572,12 +1646,19 @@ function renderAnswerTable(answer, confidenceLabel = "Probabilities") {
   }
 
   return `
+    ${hasProbabilities ? `<div class="probability-legend" aria-label="Probability color scale">
+      <span>Probability:</span>
+      <span><i class="legend-green" aria-hidden="true"></i>75–100%</span>
+      <span><i class="legend-yellow" aria-hidden="true"></i>50–&lt;75%</span>
+      <span><i class="legend-red" aria-hidden="true"></i>&lt;50%</span>
+    </div>` : ""}
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
             ${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}
             ${hasConfidence ? `<th>${escapeHtml(confidenceLabel)}</th>` : ""}
+            ${hasSources ? "<th>Sources</th>" : ""}
           </tr>
         </thead>
         <tbody>
@@ -1596,6 +1677,7 @@ function renderAnswerTable(answer, confidenceLabel = "Probabilities") {
                         ])}</td>`
                       : ""
                   }
+                  ${hasSources ? `<td><div class="source-links">${resultSources(item).map(sourceLink).join("") || "No source tuples available"}</div></td>` : ""}
                 </tr>
               `,
             )
@@ -1617,108 +1699,55 @@ function probabilityColorClass(probability) {
 
 function renderFinalAnswerConfidence(annotations) {
   if (!Array.isArray(annotations) || !annotations.length) {
-    return `<span class="muted">No confidence annotation</span>`;
+    return `<span class="muted">Assessment unavailable</span>`;
   }
-
-  const levelClass = {
-    close: "similarity-green",
-    relevant: "similarity-yellow",
-    weak: "similarity-orange",
-    far: "similarity-red",
-    high: "similarity-green",
-    medium: "similarity-yellow",
-    low: "similarity-red",
-    verified_execution: "final-confidence-deterministic",
-  };
-
-  const renderedAnnotations = annotations.flatMap((annotation) => {
-    // The service probability is the final result assessment. The minimum
-    // retrieval score is already represented by the source probabilities.
-    if (annotation.type === "final_answer_confidence" && annotation.source_type === "rag_retrieval") {
-      return [];
-    }
-    if (annotation.type !== "final_answer_probability") {
-      return [annotation];
-    }
-
-    const sourceProbabilities = Array.isArray(annotation.source_probabilities)
-      ? annotation.source_probabilities.filter((source) => Number.isFinite(source?.probability))
-      : [];
-    const sourceEntries = sourceProbabilities.map((source, index) => ({
-      ...source,
-      type: "probability_component",
-      source_type: "probability_component",
-      display_label: `${source.metric === "deterministic_execution" ? "SQL" : source.metric === "llm_self_assessment" ? "LLM" : source.metric === "mixed_pipeline" ? "Mixed" : "RAG"}${
-        source.table ? ` · ${source.table}` : ` ${index + 1}`
-      }`,
-      reason: `Probability contributed by ${source.row_id || `source ${index + 1}`}.`,
-    }));
-
-    // Keep known inputs visible even when result probability is unavailable.
-    if (!annotation.complete || !Number.isFinite(annotation.probability)) {
-      return [...sourceEntries, {...annotation, display_label: "Probability unavailable", level: "unknown"}];
-    }
-    return [
-      ...sourceEntries,
-      {
-        ...annotation,
-        display_label: "Final probability",
-        level: "computed",
-      },
-    ];
-  });
-
-  if (!renderedAnnotations.length) {
-    return "";
-  }
-
-  return `
-    <div class="final-confidence-list">
-      ${renderedAnnotations
-        .map((annotation) => {
-          const sourceLabel = annotation.display_label ?? ({
-            pipeline_probability: "Probability",
-            probability_component: "RAG",
-            rag_retrieval: "RAG",
-            llm_internal: "LLM",
-            deterministic_sql: "SQL",
-          }[annotation.source_type] ?? annotation.source_type ?? "Source");
-          const level = String(
-            annotation.level ??
-              (annotation.type === "final_answer_probability"
-                ? annotation.complete
-                  ? "complete"
-                  : "unavailable"
-                : "unknown"),
-          );
-          const numericValue = Number.isFinite(annotation.probability)
-            ? annotation.probability
-            : annotation.score;
-          const score = Number.isFinite(numericValue)
-            ? ` · ${numericValue.toFixed(4)}`
-            : "";
-          const levelText = annotation.type === "probability_component" || level === "computed"
-            ? ""
-            : `: ${level}`;
-          const colorClass = annotation.type === "probability_component" || annotation.type === "final_answer_probability"
-            ? probabilityColorClass(annotation.type === "final_answer_probability" && !annotation.complete
-                ? null : annotation.probability)
-            : levelClass[level] ?? "similarity-unknown";
-          return `
-            <span
-              class="final-confidence-chip ${colorClass}"
-              title="${escapeHtml(annotation.reason ?? "")}"
-            >
-              ${escapeHtml(sourceLabel)}${escapeHtml(levelText)}${escapeHtml(score)}
-            </span>
-            ${annotation.type === "llm_row_confidence"
-              ? `<span>${escapeHtml(annotation.reason ?? "")}</span>`
-              : ""}
-          `;
-        })
-        .join("")}
-    </div>
-  `;
+  const probability = annotations.find((entry) => entry.type === "final_answer_probability");
+  const sources = probability?.source_probabilities ?? [];
+  const valid = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
+  const percent = (value) => valid(value) ? `${(value * 100).toFixed(2)}%` : "Unavailable";
+  const tone = (value) => !valid(value) ? "probability-tone-unknown"
+    : value >= 0.75 ? "probability-tone-green" : value >= 0.5 ? "probability-tone-amber" : "probability-tone-red";
+  const pipelineName = (source) => ({
+    deterministic_execution: "SQL execution",
+    llm_self_assessment: "LLM self-assessment",
+    faiss_relevance: "RAG relevance",
+    semantic_match_decision: "Semantic match",
+    mixed_pipeline: "Mixed pipelines",
+  }[source.metric] ?? source.pipeline ?? "Source assessment");
+  const sourceRows = sources.map((source) => `
+    <div class="probability-source" title="${escapeHtml(source.row_id ?? "")}">
+      <div class="probability-source-label">
+        <strong>${escapeHtml(source.table || "Source")}</strong>
+        <span>${escapeHtml(pipelineName(source))}</span>
+      </div>
+      <div class="probability-indicator ${tone(source.probability)}">
+        <span class="probability-value">${percent(source.probability)}</span>
+        ${valid(source.probability) ? `<span class="probability-track" aria-hidden="true"><span style="width:${source.probability * 100}%"></span></span>` : ""}
+      </div>
+    </div>`).join("");
+  const supplemental = annotations.filter((entry) => {
+    if (entry.type === "final_answer_probability") return false;
+    if (entry.source_type === "rag_retrieval") return !probability;
+    if (entry.source_type === "llm_internal") return !sources.some((source) => source.metric === "llm_self_assessment");
+    if (entry.source_type === "deterministic_sql") return !sources.some((source) => source.metric === "deterministic_execution");
+    return true;
+  }).map((entry) => {
+    const label = entry.type === "llm_row_confidence" || entry.source_type === "llm_internal"
+      ? "LLM self-assessed confidence"
+      : entry.source_type === "deterministic_sql" ? "SQL execution" : "Retrieval assessment";
+    const level = ({high: "High", medium: "Medium", low: "Low", unknown: "Unavailable",
+      verified_execution: "Verified", close: "Close match", relevant: "Relevant", weak: "Weak match", far: "Distant match"})[entry.level] || "Unavailable";
+    return `<div class="assessment-note" title="${escapeHtml(entry.reason ?? "")}"><span>${label}</span><strong>${escapeHtml(level)}</strong></div>`;
+  }).join("");
+  const finalAvailable = probability?.complete && valid(probability.probability);
+  return `<div class="probability-panel">
+    ${probability ? `<div class="result-probability ${tone(finalAvailable ? probability.probability : null)}">
+      <span>Final result probability</span>
+      <strong title="${escapeHtml(probability.reason ?? "Computed by the explanation service")}">${finalAvailable ? percent(probability.probability) : "Unavailable"}</strong>
+    </div>` : ""}
+    ${sources.length ? `<div class="probability-source-heading">Contributing sources</div>${sourceRows}` : ""}
+    ${supplemental}
+  </div>`;
 }
 
 function renderProvenance(answer) {
@@ -1743,7 +1772,7 @@ function renderProvenance(answer) {
                       ${sourceRows
                         .map(
                           (source) =>
-                            `<span class="final-confidence-chip">${escapeHtml(source.source_identifier || source.row_id)} · ${escapeHtml(source.pipeline || "unknown pipeline")}</span>`,
+                            sourceLink(source),
                         )
                         .join("")}
                     </div>`

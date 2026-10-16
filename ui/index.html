@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Provenance Query UI</title>
-    <link rel="stylesheet" href="/ui/styles.css?v=matching-progress-3" />
+    <link rel="stylesheet" href="/ui/styles.css?v=probability-colors-2" />
   </head>
   <body>
     <main class="app-shell">
@@ -33,10 +33,10 @@ LIMIT 5;</textarea>
 
         <label class="field-label" for="execution-mode">After CSV extraction</label>
         <select id="execution-mode">
-          <option value="standard">AP execution (existing joins)</option>
+          <option value="standard">AP execution (automatic rewriting for LLM joins)</option>
           <option value="semantic">Semantic matching → SQL rewriting → AP (experimental)</option>
         </select>
-        <p class="status-note">Semantic mode supports two tables with one inner join. Matching is skipped when both join IDs are preserved from the source dataset. Relationships are inferred from the records; matches use probability 0.9 and uncertain pairs remain in the join with probability 0.3.</p>
+        <p class="status-note">Joins involving LLM-generated tables are rewritten automatically using semantic mappings. Multiple inner joins are supported. Joins with preserved source IDs remain unchanged. Semantic mode also enables matching for other joins; matches use probability 0.9 and uncertain pairs use 0.3.</p>
 
         <div class="actions">
           <button id="plan-button" type="button">Generate plan</button>
@@ -88,6 +88,6 @@ LIMIT 5;</textarea>
       </section>
     </main>
 
-    <script src="/ui/app.js?v=matching-progress-3"></script>
+    <script src="/ui/app.js?v=automatic-joins-1"></script>
   </body>
 </html>

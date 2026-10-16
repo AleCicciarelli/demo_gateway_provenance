@@ -83,7 +83,8 @@ def model_from_env(provider: str, model: str) -> Callable[[str], str]:
             response = requests.post(
                 os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/") + "/api/generate",
                 json={"model": model, "prompt": prompt, "stream": False, "format": "json",
-                      "options": {"temperature": 0, "num_ctx": int(os.getenv("OLLAMA_NUM_CTX", "8192"))}},
+                      "options": {"temperature": 0, "num_ctx": int(os.getenv("OLLAMA_NUM_CTX", "8192")),
+                                  "num_predict": max(1, int(os.getenv("LLM_MAX_TOKENS", "8192")))}},
                 timeout=(5, float(os.getenv("OLLAMA_REQUEST_TIMEOUT", "700"))),
             )
             response.raise_for_status()
@@ -97,7 +98,8 @@ def model_from_env(provider: str, model: str) -> Callable[[str], str]:
         response = requests.post(
             base + "/chat/completions", headers=headers,
             json={"model": model, "messages": [{"role": "user", "content": prompt}],
-                  "temperature": 0, "stream": False},
+                  "temperature": 0, "stream": False,
+                  "max_tokens": max(1, int(os.getenv("LLM_MAX_TOKENS", "8192")))},
             timeout=(float(os.getenv("LLM_CONNECT_TIMEOUT", "5")),
                      float(os.getenv("LLM_READ_TIMEOUT", "120"))),
             verify=os.getenv("LLM_SSL_VERIFY", "true").lower() not in ("0", "false", "no"),
@@ -112,16 +114,23 @@ def build_mapping(
     left: Path, right: Path, left_key: str, right_key: str,
     left_fields: list[str], right_fields: list[str], match_definition: str | None,
     output: Path, model_call: Callable[[str], str] | None,
-    *, batch_size: int = 5, max_pairs: int = 10000,
+    *, batch_size: int | None = None, max_pairs: int = 10000,
+    context_tokens: int | None = None, max_output_tokens: int | None = None,
     max_prompt_chars: int = 24000, cardinality: str = "one_to_one",
     model_info: dict | None = None, progress: Callable[[dict], None] | None = None,
+    request_started: Callable[[dict], None] | None = None,
 ) -> dict:
     """Compare all pairs. None model_call writes prompts only, for dry runs.
 
     A fresh run directory holds prompts, responses, audit, and matches.csv.
     On failure, retain diagnostics but never publish a partial mapping.
     """
-    if batch_size < 1 or max_pairs < 1 or max_prompt_chars < 1:
+    if context_tokens is None:
+        context_tokens = int(os.getenv("MATCH_CONTEXT_TOKENS") or os.getenv("OLLAMA_NUM_CTX", "8192"))
+    if max_output_tokens is None:
+        max_output_tokens = max(1, int(os.getenv("LLM_MAX_TOKENS", "8192")))
+    if ((batch_size is not None and batch_size < 1) or max_pairs < 1
+            or max_prompt_chars < 1 or context_tokens < 1 or max_output_tokens < 1):
         raise ValueError("Positive limits are required")
     match_definition = (match_definition or "").strip() or DEFAULT_MATCH_DEFINITION
     if cardinality not in ("one_to_one", "many_to_many"):
@@ -137,18 +146,33 @@ def build_mapping(
             pid = f"p{len(pairs)}"
             pairs.append({"pair_id": pid, "left": ra["attributes"], "right": rb["attributes"]})
             identities[pid] = {"idA": ra["id"], "idB": rb["id"]}
-    # Bound prompt size as well as pair count; never silently truncate rows.
+    # Estimate from UTF-8 bytes rather than characters to account for Unicode.
+    # This is a heuristic, not a model tokenizer; leave 20% context headroom.
+    token_budget = int(context_tokens * 0.8)
+
+    if max_output_tokens >= token_budget:
+        raise ValueError("LLM_MAX_TOKENS leaves no prompt budget within the context headroom; "
+                         "lower LLM_MAX_TOKENS or increase the configured model context")
+
+    def prompt_tokens(batch):
+        return (len(build_match_prompt(match_definition, batch).encode("utf-8")) + 2) // 3
+
+    def fits(batch):
+        return ((batch_size is None or len(batch) <= batch_size)
+                and len(build_match_prompt(match_definition, batch)) <= max_prompt_chars
+                and prompt_tokens(batch) + max_output_tokens <= token_budget)
+
     batches, current = [], []
     for pair in pairs:
         proposal = current + [pair]
-        if len(proposal) > batch_size or len(build_match_prompt(match_definition, proposal)) > max_prompt_chars:
+        if not fits(proposal):
             if current:
                 batches.append(current)
             current = [pair]
         else:
             current = proposal
-        if len(build_match_prompt(match_definition, current)) > max_prompt_chars:
-            raise ValueError("One candidate exceeds max_prompt_chars; select fewer fields or raise the limit")
+        if not fits(current):
+            raise ValueError("One candidate exceeds the prompt/context budget; select fewer fields or raise the limits")
     if current:
         batches.append(current)
 
@@ -158,9 +182,22 @@ def build_mapping(
              "right": {"path": str(right.resolve()), "key": right_key, "fields": right_fields, "sha256": b_hash},
              "match_definition": match_definition, "cardinality": cardinality,
              "model": model_info or {}, "candidate_count": len(pairs), "batch_count": len(batches),
-             "pair_ids": identities, "decisions": []}
+             "batching": {"mode": "dynamic" if batch_size is None else "capped",
+                          "batch_size_cap": batch_size, "context_tokens": context_tokens,
+                          "usable_tokens": token_budget, "max_prompt_chars": max_prompt_chars,
+                          "max_output_tokens": max_output_tokens,
+                          "pair_counts": [len(batch) for batch in batches],
+                          "estimated_prompt_tokens": [prompt_tokens(batch) for batch in batches]},
+             "pair_ids": identities, "decisions": [], "requests": []}
     total_requests = len(batches)
     completed_requests = 0
+
+    def record_request(batch, prompt_file, *, is_retry=False):
+        metadata = {"prompt_file": prompt_file, "pair_count": len(batch),
+                    "pair_ids": [pair["pair_id"] for pair in batch], "is_retry": is_retry}
+        audit["requests"].append(metadata)
+        if request_started:
+            request_started(dict(metadata))
 
     def report_progress():
         if progress:
@@ -172,6 +209,7 @@ def build_mapping(
         for index, batch in enumerate(batches):
             prompt = build_match_prompt(match_definition, batch)
             (output / f"prompt_{index:04d}.txt").write_text(prompt, encoding="utf-8")
+            record_request(batch, f"prompt_{index:04d}.txt")
             if model_call is None:
                 continue
             response = model_call(prompt)
@@ -195,6 +233,7 @@ def build_mapping(
                 retry_prompt = build_match_prompt(match_definition, [pair])
                 suffix = f"{index:04d}_retry_{pair['pair_id']}"
                 (output / f"prompt_{suffix}.txt").write_text(retry_prompt, encoding="utf-8")
+                record_request([pair], f"prompt_{suffix}.txt", is_retry=True)
                 retry_response = model_call(retry_prompt)
                 (output / f"response_{suffix}.txt").write_text(retry_response, encoding="utf-8")
                 completed_requests += 1
@@ -255,7 +294,8 @@ def main() -> None:
                         ("openai-compatible" if os.getenv("LLM_API_MODEL") else "ollama"))
     parser.add_argument("--model", default=os.getenv("LLM_API_MODEL") or os.getenv("PLANNER_LLM_MODEL") or "llama3:8b",
                         help="Model override (default: LLM_API_MODEL, then PLANNER_LLM_MODEL, then llama3:8b)")
-    parser.add_argument("--batch-size", type=int, default=5)
+    parser.add_argument("--batch-size", type=int, help="Optional pair cap; default: dynamic batching")
+    parser.add_argument("--context-tokens", type=int, help="Context budget (MATCH_CONTEXT_TOKENS, OLLAMA_NUM_CTX, or 8192)")
     parser.add_argument("--max-pairs", type=int, default=10000)
     parser.add_argument("--max-prompt-chars", type=int, default=24000)
     parser.add_argument("--cardinality", choices=["one_to_one", "many_to_many"], default="one_to_one")
@@ -272,6 +312,7 @@ def main() -> None:
         args.match_definition, args.output_dir,
         None if args.dry_run else model_from_env(args.provider, args.model),
         batch_size=args.batch_size, max_pairs=args.max_pairs, max_prompt_chars=args.max_prompt_chars,
+        context_tokens=args.context_tokens,
         cardinality=args.cardinality, model_info={"provider": args.provider, "model": args.model},
     )
     print(json.dumps({"status": audit["status"], "candidates": audit["candidate_count"],

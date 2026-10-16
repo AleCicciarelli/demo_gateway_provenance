@@ -21,7 +21,7 @@ from embedding_strategies import EmbeddingStrategies
 from explanation_client import ExplanationClient
 from explanation_pipeline import run_planner_first_explanation_pipeline, render_explanation_markdown
 from json_to_csv import clean_bucket, planner_result_to_csv_files
-from semantic_join_pipeline import inspect_semantic_join, prepare_semantic_joins
+from semantic_join_pipeline import validate_semantic_query, prepare_semantic_joins
 from row_probability import resolve_row_probabilities, valid_probability, protect_probability_projection
 from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
@@ -29,6 +29,7 @@ from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required
 from prompt_internal_knowledge import (
     build_internal_knowledge_prompt,
     build_internal_knowledge_question,
+    build_previous_leaf_context,
     internal_knowledge_output_columns,
     normalize_internal_result_id,
     uses_plain_internal_results,
@@ -2105,6 +2106,8 @@ def _build_leaf_retrieval_query(
     if predicates:
         parts.append("Conditions: " + " and ".join(predicates))
 
+    if task.get("previous_leaf_records"):
+        parts.append(build_previous_leaf_context(task["previous_leaf_records"]))
     return ". ".join(parts) or "Retrieve relevant rows for this task"
 
 def _leaf_rows_by_id(ctx: Dict[str, Any], table_name: str) -> Dict[str, Dict[str, Any]]:
@@ -2367,6 +2370,10 @@ def _llm_internal_leaf_output(
         temperature,
         status_event=status_event,
         output_columns=columns,
+        expected_records=[{column: entity[column] for column in columns}
+                          for entity in task.get("previous_target_entities") or []
+                          if columns and all(entity.get(column) is not None for column in columns)]
+                         if not task.get("local_predicates") else None,
         prompt_sink=generation_prompts,
     )
     parsed_output: List[Dict[str, Any]] = []
@@ -2423,6 +2430,14 @@ def _run_ui_leaf_pipeline(
     dataset: Optional[str] = None,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
+    if task.get("empty_dependency"):
+        return {"table_name": task.get("table_name") or task.get("table"), "task": task,
+                "parsed_output": [], "output_text": "[]", "context_data": {}, "annotations": [],
+                "prompt": "Skipped: previous linked table returned no records.",
+                "parse_error": None, "valid_leaf_output": True, "skipped": True,
+                "skip_reason": "Empty previous linked table", "pipeline": pipeline,
+                "output_columns": internal_knowledge_output_columns(required_leaf_columns(task))
+                                  if pipeline == LLM_INTERNAL_PIPELINE_ID else required_leaf_columns(task)}
     pipeline = _canonical_pipeline_id(pipeline)
     selected_dataset = _dataset_config(dataset).name
     retrieval_query = _build_leaf_retrieval_query(
@@ -2755,35 +2770,98 @@ def _leaf_question_sql(task: Dict[str, Any]) -> str:
     return sql + ";"
 
 
+def _prepare_sequential_leaf_task(task: Dict[str, Any], plan: Dict[str, Any],
+                                  leaf_outputs: List[Dict[str, Any]], dataset: str) -> Dict[str, Any]:
+    """Propagate only actual records from completed, directly joined table steps."""
+    task = dict(task)
+    task.pop("internal_query_context", None)
+    table = task.get("table_name") or task.get("table")
+    linked = set()
+    for join in plan.get("joins") or []:
+        tables = {column.get("table_name") for column in join.get("on_columns") or []}
+        if table in tables:
+            linked.update(tables - {table, None})
+    previous, sources, target_entities = [], [], []
+    for leaf in leaf_outputs:
+        source_table = leaf.get("table_name")
+        if source_table not in linked:
+            continue
+        rows = leaf.get("parsed_output") or []
+        if not rows:
+            task["empty_dependency"] = True
+        facts = []
+        for row in rows:
+            values = dict(row.get("values") or {})
+            if leaf.get("pipeline") != LLM_INTERNAL_PIPELINE_ID:
+                values = {**_semantic_source_context(source_table, str(row.get("row_id") or ""), dataset), **values}
+            columns = internal_knowledge_output_columns(list(values)) or []
+            facts.append({key: values[key] for key in columns if not key.startswith("__")})
+            prefix = str(table) + "_"
+            entity = {key[len(prefix):]: values[key] for key in columns
+                      if key.startswith(prefix) and values[key] is not None}
+            if entity and entity not in target_entities:
+                target_entities.append(entity)
+            sources.append({"table": source_table, "row_id": row.get("row_id")})
+        previous.append({"table": source_table, "records": facts})
+    task["previous_leaf_records"] = previous
+    task["previous_leaf_sources"] = sources
+    task["previous_target_entities"] = target_entities
+    return task
+
+
 def _leaf_question_nl_internal(task: Dict[str, Any], dataset: str = "") -> str:
     existing = str(task.get("question_nl") or "").strip()
     columns = internal_knowledge_output_columns(required_leaf_columns(task))
     projection_instruction = " Include all available information about each item." if not columns else ""
+    previous = task.get("previous_leaf_records") or []
+    context = build_previous_leaf_context(previous) if previous else ""
+    context_instruction = "\n\n" + context if context else ""
+    if task.get("previous_target_entities"):
+        context_instruction += (
+            f"\n\nIDENTIFIED {str(task.get('table_name') or task.get('table')).upper()} ATTRIBUTES:\n"
+            + json.dumps(task["previous_target_entities"], ensure_ascii=False)
+            + "\nReturn these identified entities when they satisfy this leaf's local filters. "
+              "Copy the supplied requested attributes directly. Do not require independent "
+              "confirmation of a relationship already identified in the previous records. "
+              "Use null for requested attributes not supplied and not known."
+        )
     if existing:
-        return existing + projection_instruction
+        return existing + projection_instruction + context_instruction
 
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
     if not table_name:
-        return "List the relevant information." + projection_instruction
+        return "List the relevant information." + projection_instruction + context_instruction
 
     subject = table_name.replace("_", " ")
+    if dataset == "relf1" and table_name == "standings":
+        subject = "driver championship standings recorded after a race (not race finishing results)"
     predicates = [
         str(predicate).strip()
         for predicate in task.get("local_predicates") or []
         if str(predicate).strip()
     ]
-    return build_internal_knowledge_question(subject, predicates) + projection_instruction
+    return build_internal_knowledge_question(subject, predicates) + projection_instruction + context_instruction
 
 def _prepare_ui_semantic_tasks(req: UiRunRequest, sql_query: str, dataset: str) -> None:
-    if not req.semantic_matching:
+    automatic = any(pipeline == LLM_INTERNAL_PIPELINE_ID for pipeline in req.leaf_pipeline_choices.values())
+    if not req.semantic_matching and not automatic:
         return
-    inspect_semantic_join(sql_query)
+    validate_semantic_query(sql_query)
     # Add entity names and location as descriptive context for matching.
-    source_dir = Path(_dataset_config(dataset).csv_dir)
-    for task in req.plan.get("leaf_tasks") or []:
+    config = _dataset_config(dataset)
+    source_dir = Path(config.csv_dir)
+    tasks = req.plan.get("leaf_tasks") or []
+    join_neighbors = {}
+    for join in req.plan.get("joins") or []:
+        tables = {column.get("table_name") for column in join.get("on_columns") or []}
+        for table in tables - {None}:
+            join_neighbors.setdefault(table, set()).update(tables - {table, None})
+    for task in tasks:
         table = task.get("table_name") or task.get("table")
         if not isinstance(table, str) or Path(table).name != table:
             continue
+        internal = req.leaf_pipeline_choices.get(table) == LLM_INTERNAL_PIPELINE_ID
+        task.pop("internal_query_context", None)
         path = source_dir / (table + ".csv")
         if not path.is_file():
             continue
@@ -2791,9 +2869,21 @@ def _prepare_ui_semantic_tasks(req: UiRunRequest, sql_query: str, dataset: str) 
             headers = next(csv.reader(handle), [])
         columns = task.setdefault("columns", [])
         for name in headers:
-            if name.lower() in {"name", "location"} or name.lower().endswith("_name"):
+            if name.lower() in {"name", "location", "surname", "forename", "title"} or name.lower().endswith("_name"):
                 if name not in columns:
                     columns.append(name)
+        if internal:
+            for target in (config.schema_info.get(table, {}).get("foreign_keys") or {}).values():
+                if not isinstance(target, str) or "." not in target:
+                    continue
+                related_table = target.rsplit(".", 1)[0]
+                if related_table not in join_neighbors.get(table, set()):
+                    continue
+                for name in config.schema_info.get(related_table, {}).get("columns") or []:
+                    if name.lower() in {"name", "surname", "forename", "title", "year"}:
+                        descriptive_column = f"{related_table}_{name}"
+                        if descriptive_column not in columns:
+                            columns.append(descriptive_column)
 
 
 def _run_ui_ap_explanation(
@@ -2804,12 +2894,12 @@ def _run_ui_ap_explanation(
     semantic_matching: bool = False,
     matching_event: Optional[Callable] = None,
 ) -> Dict[str, Any]:
-    if semantic_matching:
+    if semantic_matching or any(leaf.get("pipeline") == LLM_INTERNAL_PIPELINE_ID for leaf in leaf_outputs):
         with _EXPLANATION_PIPELINE_LOCK:
             metadata: Dict[str, Any] = {}
             files = _generate_ui_csv_files(sql_query, plan, leaf_outputs, metadata, keep_rownum=True)
             return _run_ui_ap_explanation_for_csv_files(
-                sql_query, files, dataset, metadata, semantic_matching=True, matching_event=matching_event)
+                sql_query, files, dataset, metadata, semantic_matching=semantic_matching, matching_event=matching_event)
     service_sql_query = _service_sql_for_dataset(sql_query, dataset)
     planner_result = {
         "sql": sql_query,
@@ -2863,6 +2953,8 @@ def _generate_ui_csv_files(
     probability_metadata: Dict[str, Any] | None = None,
     keep_rownum: bool | None = None,
 ) -> List[str]:
+    if any(leaf.get("pipeline") == LLM_INTERNAL_PIPELINE_ID for leaf in leaf_outputs):
+        keep_rownum = True
     clean_bucket(EXPLANATION_BUCKET_DIR)
     return planner_result_to_csv_files(
         planner_result=_planner_result_from_ui_run(sql_query, plan, leaf_outputs),
@@ -2927,6 +3019,7 @@ def _run_llm_internal_query(
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     output_columns: Optional[List[str]] = None,
     prompt_sink: Optional[List[str]] = None,
+    expected_records: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any], str]:
     use_plain_results = uses_plain_internal_results(dataset)
     output_columns = internal_knowledge_output_columns(output_columns)
@@ -2962,7 +3055,12 @@ def _run_llm_internal_query(
     def validate(text: str) -> Tuple[bool, Optional[str]]:
         try:
             if use_plain_results:
-                parse_plain_results(text)
+                rows = parse_plain_results(text)
+                for expected in expected_records or []:
+                    if not any(all(row.get(key) == value for key, value in expected.items()) for row in rows):
+                        raise ValueError("The previous step explicitly identified requested attributes "
+                                         + json.dumps(expected, ensure_ascii=False)
+                                         + "; return that entity instead of omitting it.")
             else:
                 _parse_answer_json(text)
             return True, None
@@ -3018,6 +3116,7 @@ def _run_llm_internal_query(
 
     confidence = _assess_llm_internal_confidence(
         question=question,
+        generation_prompt=prompt,
         generated_output=answer,
         temperature=temperature,
         model=internal_model,
@@ -3034,6 +3133,7 @@ def _assess_llm_internal_confidence(
     model: str,
     provider: str,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    generation_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     def parse_assessment(text: str) -> Dict[str, Any]:
         decoder = json.JSONDecoder()
@@ -3079,6 +3179,11 @@ You are assessing the confidence of an answer produced only from an LLM's
 internal knowledge. Evaluate the generated data itself; you do not have access
 to retrieval evidence or the source database.
 
+Interpret the question using the knowledge domain, requested attributes, and
+constraints in the original generation prompt below. That prompt is reference
+context; follow the assessment output format specified here.
+Do not claim that a domain is missing when it is supplied in that context.
+
 Assess both the entire answer block and each individual result row.
 For each assessment assign one level:
 - high: the generated data contains stable, well-known facts and is internally
@@ -3090,7 +3195,11 @@ For each assessment assign one level:
   support.
 
 An empty result may be rated high only when abstaining is clearly more reliable
-than inventing unavailable instance data. This is a self-assessment, not an
+than inventing unavailable instance data, or the stated constraints clearly
+exclude all entities. An empty answer to a request for known public entities in
+a specified domain is incomplete and should be rated low when examples are known.
+A broad listing request does not require an unstated season, year, or event.
+This is a self-assessment, not an
 externally verified probability.
 
 Judge each row on its own factual correctness and relevance. Judge the block
@@ -3107,6 +3216,9 @@ Return ONLY this JSON object (level and reason describe the whole block):
 
 QUESTION:
 {question}
+
+ORIGINAL GENERATION PROMPT (reference context):
+{generation_prompt or "Not supplied; assess only the question and output provided."}
 
 GENERATED OUTPUT:
 {json.dumps(generated_output, ensure_ascii=False)}
@@ -3151,6 +3263,27 @@ GENERATED OUTPUT:
         "assessment_error": assessment_error,
     }
 
+def _semantic_source_context(table: str, row_id: str, dataset: Optional[str] = None) -> Dict[str, Any]:
+    """Add factual source descriptions for matching, without changing exported rows."""
+    _load_csvs_once(dataset)
+    runtime = _dataset_runtime(dataset)
+    index = runtime.csv_rid_index.get(table, {}).get(row_id)
+    if index is None:
+        return {}
+    row = runtime.csv_cache[table][index]
+    context = {key: value for key, value in row.items()
+               if key != "__rid__" and not key.endswith("_rownum")}
+    for column, target in (_dataset_config(dataset).schema_info.get(table, {}).get("foreign_keys") or {}).items():
+        if column not in row or not isinstance(target, str) or "." not in target:
+            continue
+        target_table, target_column = target.rsplit(".", 1)
+        linked = _resolve_row_by_column_values(target_table, [target_column], [row[column]], dataset)
+        if linked:
+            context.update({f"{target_table}_{key}": value for key, value in linked["row"].items()
+                            if key != "__rid__" and not key.endswith("_rownum")})
+    return context
+
+
 def _run_ui_ap_explanation_for_csv_files(
     sql_query: str,
     csv_files: List[str],
@@ -3160,26 +3293,35 @@ def _run_ui_ap_explanation_for_csv_files(
     matching_event: Optional[Callable] = None,
 ) -> Dict[str, Any]:
     matching_trace = None
-    if semantic_matching:
+    llm_tables = set((probability_metadata or {}).get("llm_tables") or [])
+    llm_tables.update(source.get("table") for source in (probability_metadata or {}).get("source_probabilities", [])
+                      if source.get("pipeline") == LLM_INTERNAL_PIPELINE_ID and source.get("table"))
+    if semantic_matching or llm_tables:
         prepared = prepare_semantic_joins(
             sql_query, csv_files, EXPLANATION_BUCKET_DIR,
             lambda prompt: _generate_model(PLANNER_LLM_PROVIDER, PLANNER_LLM_MODEL, prompt, 0.0),
             delimiter=EXPLANATION_CSV_DELIMITER, event=matching_event,
             max_output_tokens=LLM_MAX_TOKENS,
             source_backed_columns=(probability_metadata or {}).get("source_backed_columns"),
+            llm_tables=None if semantic_matching else llm_tables,
+            source_context=(lambda table, rid: {} if table in llm_tables else
+                            _semantic_source_context(table, rid, dataset)) if llm_tables else None,
         )
         matching_trace = prepared["trace"]
         csv_files = prepared["csv_files"]
         probability_metadata = dict(probability_metadata or {})
+        mappings = prepared.get("mapping_columns_by_file") or {}
         if matching_trace.get("mapping_file"):
+            mappings[matching_trace["mapping_file"]] = prepared["mapping_columns"]
+        if mappings:
             probability_metadata.setdefault("compute_probability", True)
             probability_metadata["probability_columns"] = {
                 **probability_metadata.get("probability_columns", {}),
-                matching_trace["mapping_file"]: "__probability",
+                **{filename: "__probability" for filename in mappings},
             }
             probability_metadata["csv_columns"] = {
                 **probability_metadata.get("csv_columns", {}),
-                matching_trace["mapping_file"]: prepared["mapping_columns"],
+                **mappings,
             }
     service_sql_query = _service_sql_for_dataset(
         matching_trace["rewritten_sql"] if matching_trace else sql_query, dataset)
@@ -3356,19 +3498,25 @@ def _annotate_final_answer(
     semantic_matching: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     rows_by_id = dict(rows_by_id)
-    mapping_table = (semantic_matching or {}).get("mapping_table", "")
+    mapping_traces = (semantic_matching or {}).get("joins") or [semantic_matching or {}]
+    mapping_tables = [trace["mapping_table"] for trace in mapping_traces if trace.get("mapping_table")]
     mapping_row_ids = []
-    for row in (semantic_matching or {}).get("mapping_rows", []):
-        row_id = row.get(mapping_table + "_rownum")
-        if row_id:
-            mapping_row_ids.append(row_id)
-            rows_by_id[row_id] = {
-                "table": mapping_table, "pipeline": "semantic-matching",
-                "source_identifier": row_id, "values": row,
-            }
+    mapping_aliases = {}
+    for trace in mapping_traces:
+        table = trace.get("mapping_table", "")
+        for index, row in enumerate(trace.get("mapping_rows", []), start=1):
+            row_id = row.get(table + "_rownum")
+            if row_id:
+                mapping_row_ids.append(row_id)
+                mapping_aliases[f"{table}@p0r{index}"] = row_id
+                rows_by_id[row_id] = {
+                    "table": table, "pipeline": "semantic-matching",
+                    "source_identifier": row_id, "values": row,
+                }
     leaf_annotations = _collect_leaf_annotations(leaf_outputs)
     resolved_probabilities = resolve_row_probabilities(leaf_outputs)
     for row_id in mapping_row_ids:
+        mapping_table = rows_by_id[row_id]["table"]
         row = rows_by_id[row_id]["values"]
         try:
             probability = float(row.get("__probability"))
@@ -3381,10 +3529,7 @@ def _annotate_final_answer(
         }
     known_row_ids = set(rows_by_id)
     provenance_aliases = _page_zero_provenance_aliases(leaf_outputs)
-    provenance_aliases.update({
-        f"{mapping_table}@p0r{index}": row_id
-        for index, row_id in enumerate(mapping_row_ids, start=1)
-    })
+    provenance_aliases.update(mapping_aliases)
     rag_evidence: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
     llm_annotations_by_table: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
 
@@ -3454,7 +3599,7 @@ def _annotate_final_answer(
             if isinstance(value, str):
                 for token in re.findall(
                     r"(?<![A-Za-z0-9_])(?:semantic_matches_[A-Za-z0-9_]+"
-                    + ("|" + re.escape(mapping_table) if mapping_table else "")
+                    + ("|" + "|".join(re.escape(table) for table in mapping_tables) if mapping_tables else "")
                     + r")@(?:k[0-9a-fA-F]+|p[0-9]+r[0-9]+)(?![A-Za-z0-9_])",
                     value,
                 ):
@@ -3467,8 +3612,11 @@ def _annotate_final_answer(
                 for child in value.values():
                     collect_semantic_tokens(child)
 
-        if not any(row_id in provenance_row_ids for row_id in mapping_row_ids):
-            collect_semantic_tokens(item.get("provenance"))
+        collect_semantic_tokens(item.get("provenance"))
+        resolved_mapping_tables = {rows_by_id[row_id]["table"] for row_id in mapping_row_ids
+                                   if row_id in provenance_row_ids}
+        semantic_tokens = [token for token in semantic_tokens
+                           if token.split("@", 1)[0] not in resolved_mapping_tables]
         if semantic_tokens:
             provenance_annotations[0]["pipelines"] = sorted({*source_pipelines, "semantic-matching"})
             provenance_annotations[0]["source_rows"].extend({
@@ -3927,13 +4075,30 @@ def ui_asset(asset_name: str) -> Any:
     if asset_name == "csv":
         return ui_csv_files()
 
-    if asset_name not in {"app.js", "styles.css"}:
+    if asset_name not in {"app.js", "styles.css", "source.html", "source.js"}:
         raise HTTPException(status_code=404, detail="UI asset not found")
 
     asset_path = UI_DIR / asset_name
     if not asset_path.exists():
         raise HTTPException(status_code=404, detail=f"UI asset not found: {asset_name}")
     return _ui_file_response(asset_path)
+
+@app.get("/ui/data/source-table")
+def ui_source_table(dataset: str, table: str, row_id: str = "", page: int = 0) -> Dict[str, Any]:
+    config = _dataset_config(dataset)
+    _load_csvs_once(config.name)
+    runtime = _dataset_runtime(config.name)
+    if table not in runtime.csv_cache:
+        raise HTTPException(status_code=404, detail="Source table not found")
+    rows = runtime.csv_cache[table]
+    if row_id:
+        position = runtime.csv_rid_index[table].get(row_id)
+        if position is None:
+            raise HTTPException(status_code=404, detail="Source tuple not found in the original dataset")
+        page = position // 100
+    page = max(0, min(page, max(0, (len(rows) - 1) // 100)))
+    return {"table": table, "dataset": config.name, "total": len(rows), "page": page,
+            "page_size": 100, "rows": rows[page * 100:(page + 1) * 100]}
 
 @app.get("/ui/csv", response_class=HTMLResponse)
 def ui_csv_files() -> HTMLResponse:
@@ -4065,6 +4230,8 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
                 if not isinstance(task, dict):
                     continue
 
+                if any(value == LLM_INTERNAL_PIPELINE_ID for value in req.leaf_pipeline_choices.values()):
+                    task = _prepare_sequential_leaf_task(task, req.plan, leaf_outputs, dataset)
                 table_name = str(task.get("table_name") or task.get("table") or "").strip()
                 pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
                 print(
@@ -4200,7 +4367,10 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
             nonlocal matching_trace, generated_csv_files
             matching_trace = payload["semantic_matching"]
             if kind == "matching_done":
-                generated_csv_files = [*generated_csv_files, matching_trace["mapping_file"]]
+                mapping_files = matching_trace.get("mapping_files") or []
+                if matching_trace.get("mapping_file"):
+                    mapping_files = [*mapping_files, matching_trace["mapping_file"]]
+                generated_csv_files = list(dict.fromkeys([*generated_csv_files, *mapping_files]))
             emit(kind, {**payload, "message": kind.replace("_", " ").capitalize()})
 
         try:
@@ -4311,6 +4481,8 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                     if not isinstance(task, dict):
                         continue
 
+                    if any(value == LLM_INTERNAL_PIPELINE_ID for value in req.leaf_pipeline_choices.values()):
+                        task = _prepare_sequential_leaf_task(task, req.plan, leaf_outputs, dataset)
                     table_name = str(task.get("table_name") or task.get("table") or "").strip()
                     pipeline = _canonical_pipeline_id(req.leaf_pipeline_choices.get(table_name))
                     pipeline_choices.append({
@@ -4352,16 +4524,24 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             "request_status": "attempting",
                         })
 
-                    if pipeline in {LLM_INTERNAL_PIPELINE_ID, SQL_TABLE_PIPELINE_ID}:
+                    if task.get("empty_dependency") or pipeline in {LLM_INTERNAL_PIPELINE_ID, SQL_TABLE_PIPELINE_ID}:
                         yield encode_event("leaf_context", {
                             "table": table_name,
                             "pipeline": pipeline,
                             "message": (
+                                "Skipped: a previous linked table returned no records."
+                                if task.get("empty_dependency") else
+                                "Using previous linked records with internal LLM knowledge."
+                                if pipeline == LLM_INTERNAL_PIPELINE_ID and task.get("previous_leaf_records") else
                                 "No retrieval needed; using internal LLM knowledge."
                                 if pipeline == LLM_INTERNAL_PIPELINE_ID
                                 else "No retrieval needed; loading the complete source table."
                             ),
                             "rows": 0,
+                            "source_row_ids": [entry["row_id"] for entry in task.get("previous_leaf_sources") or []
+                                               if entry.get("row_id")],
+                            "source_row_summaries": [json.dumps(entry, ensure_ascii=False)
+                                                     for entry in task.get("previous_leaf_records") or []],
                         })
                         leaf_output = _run_ui_leaf_pipeline(
                             task=task,

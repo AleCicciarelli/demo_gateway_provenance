@@ -1053,3 +1053,45 @@ tr:last-child td {
 
 .matching-progress-meter { display: grid; gap: 0.35rem; margin-top: 0.65rem; }
 .matching-progress-meter progress { width: 100%; height: 0.65rem; accent-color: #247c72; }
+.source-links { display: flex; flex-direction: column; gap: 0.5rem; }
+.source-link { display: flex; flex-direction: column; gap: 4px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; color: #334155; background: #fff; text-decoration: none; min-width: 170px; }
+.source-link:hover { background: #f1f5ff; border-color: #a5b4fc; }
+.source-link:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+.source-link-heading { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.source-kind { font-size: 10px; font-weight: 500; padding: 2px 5px; border-radius: 4px; background: #f1f5f9; color: #64748b; }
+.source-open { margin-left: auto; color: #6366f1; }
+.source-row-id { font-size: 11px; color: #64748b; overflow-wrap: anywhere; }
+.probability-panel { min-width: 230px; display: grid; gap: 9px; }
+.result-probability { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 12px; border-radius: 8px; background: #f8fafc; border: 1px solid var(--line); }
+.result-probability > span { font-size: 11px; font-weight: 600; color: #475569; }
+.result-probability > strong { font-size: 17px; border-radius: 5px; padding: 3px 6px; font-variant-numeric: tabular-nums; }
+.probability-source-heading { font-size: 10px; color: #64748b; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 3px; }
+.probability-source { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 3px 0; }
+.probability-source-label { display: grid; gap: 3px; }
+.probability-source-label strong { font-size: 12px; font-weight: 600; color: #334155; overflow-wrap: anywhere; }
+.probability-source-label > span { font-size: 10px; color: #64748b; }
+.probability-value { padding: 4px 7px; border-radius: 5px; font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.probability-panel .similarity-green { background: #15803d; color: #fff; border: 1px solid #166534; }
+.probability-panel .similarity-yellow { background: #fbbf24; color: #422006; border: 1px solid #d97706; }
+.probability-panel .similarity-red { background: #b91c1c; color: #fff; border: 1px solid #991b1b; }
+.probability-tone-green { --probability-color: #15803d; --probability-soft: #ecfdf3; --probability-ink: #fff; }
+.probability-tone-amber { --probability-color: #fbbf24; --probability-soft: #fffbeb; --probability-ink: #422006; }
+.probability-tone-red { --probability-color: #b91c1c; --probability-soft: #fff1f2; --probability-ink: #fff; }
+.probability-tone-unknown { --probability-color: #64748b; --probability-soft: #f8fafc; --probability-ink: #fff; }
+.result-probability[class*="probability-tone-"] { background: var(--probability-soft); border-left: 4px solid var(--probability-color); }
+.result-probability[class*="probability-tone-"] > strong { background: var(--probability-color); color: var(--probability-ink); padding: 5px 8px; }
+.probability-indicator { display: grid; gap: 5px; min-width: 68px; text-align: center; }
+.probability-indicator .probability-value { background: var(--probability-color); color: var(--probability-ink); }
+.probability-track { display: block; height: 4px; border-radius: 4px; background: #e2e8f0; overflow: hidden; }
+.probability-track > span { display: block; height: 100%; background: var(--probability-color); border-radius: inherit; }
+.probability-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 9px; font-size: 11px; color: #64748b; }
+.probability-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.probability-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.probability-legend .legend-green { background: #15803d; }
+.probability-legend .legend-yellow { background: #fbbf24; }
+.probability-legend .legend-red { background: #b91c1c; }
+.assessment-note { display: flex; gap: 12px; justify-content: space-between; font-size: 11px; color: #64748b; }
+.assessment-note strong { color: #475569; font-weight: 600; }
+.source-pagination { display: flex; align-items: center; gap: 1rem; margin: 1rem 0; }
+.source-highlight td { background: #eff6ff; color: #1e3a8a; box-shadow: inset 0 1px #bfdbfe, inset 0 -1px #bfdbfe; }
+.source-highlight td:first-child { box-shadow: inset 4px 0 #2563eb, inset 0 1px #bfdbfe, inset 0 -1px #bfdbfe; }

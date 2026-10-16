@@ -1,4 +1,4 @@
-"""Optional CSV semantic bridge and conservative AST-based SQL rewriting."""
+"""CSV semantic bridges and conservative AST-based SQL rewriting for generated joins."""
 from __future__ import annotations
 
 import csv
@@ -12,7 +12,7 @@ from sqlglot import exp
 from semantic_matching import build_mapping
 from row_probability import PROBABILITY_COLUMN
 
-# currently, semantic matching is only supported for a single SELECT with two base tables and one inner join.
+# Pair-level validation is reused for each edge of a multi-table join chain.
 def inspect_semantic_join(sql: str):
     statements = sqlglot.parse(sql)
     if len(statements) != 1 or not isinstance(statements[0], exp.Select):
@@ -53,8 +53,8 @@ def descriptive_fields(headers):
             and not name.lower().endswith(("id", "_rownum", "_key"))]
 
 
-def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, delimiter=",", event=None,
-                           source_backed_columns=None):
+def _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call, *, delimiter=",", event=None,
+                           source_backed_columns=None, max_output_tokens=None, source_context=None):
     """Publish the bridge only after a complete matching run. Never overwrite sources."""
     tree, left, right, join, replaced = inspect_semantic_join(sql_query)
     bucket = Path(bucket_dir)
@@ -96,7 +96,7 @@ def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, deli
         key = table.name + "_rownum"
         if key not in headers[table.name]:
             raise ValueError(f"Semantic matching requires the retained row identifier {key}.")
-        if not descriptive_fields(headers[table.name]):
+        if not descriptive_fields(headers[table.name]) and source_context is None:
             raise ValueError(f"No descriptive matching fields in {filename}; include names or other context in extraction.")
     # Adding idA/idB must not change unqualified-name or projection-alias resolution.
     for column in tree.find_all(exp.Column):
@@ -132,8 +132,14 @@ def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, deli
         trace.update(progress)
         send("matching_progress")
 
+    request_metadata = {}
+
+    def request_started(metadata):
+        request_metadata.clear()
+        request_metadata.update(metadata)
+
     def call(prompt):
-        entry = {"prompt": prompt}
+        entry = {"prompt": prompt, **request_metadata}
         trace["calls"].append(entry)
         send("matching_prompt")
         response = model_call(prompt)
@@ -144,17 +150,49 @@ def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, deli
     try:
         # The matcher expects comma CSV; normalize copies when AP uses another delimiter.
         inputs = [bucket / (t.name + ".csv") for t in (left, right)]
+        if source_context is not None:
+            enriched = bucket / ("semantic_context_" + token)
+            enriched.mkdir()
+            for index, table in enumerate((left, right)):
+                with inputs[index].open(newline="", encoding="utf-8-sig") as handle:
+                    rows = list(csv.DictReader(handle, delimiter=delimiter))
+                for row in rows:
+                    context = source_context(table.name, row.get(table.name + "_rownum", "")) or {}
+                    row.update({f"context_{key}": value for key, value in context.items()
+                                if key in descriptive_fields(context)})
+                fields = list(dict.fromkeys([*headers[table.name], *(key for row in rows for key in row)]))
+                target = enriched / inputs[index].name
+                with target.open("w", newline="", encoding="utf-8") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=fields)
+                    writer.writeheader()
+                    writer.writerows(rows)
+                trace["left_fields" if index == 0 else "right_fields"] = descriptive_fields(fields)
+                inputs[index] = target
+            trace["context_enriched"] = True
         if delimiter != ",":
             normalized = bucket / ("semantic_inputs_" + token)
             normalized.mkdir()
             for index, path in enumerate(inputs):
                 target = normalized / path.name
                 with path.open(newline="", encoding="utf-8-sig") as src, target.open("w", newline="", encoding="utf-8") as dst:
-                    csv.writer(dst).writerows(csv.reader(src, delimiter=delimiter))
+                    csv.writer(dst).writerows(csv.reader(src, delimiter="," if source_context else delimiter))
                 inputs[index] = target
+        definition = (
+            f"The left records are {left.name} and the right records are {right.name}. "
+            f"The query connects them through {replaced.sql()}. Determine whether the "
+            "specific relationship represented by that join is supported by their descriptive attributes. "
+            "The two records do NOT need to describe the same entity: a record referring to a race "
+            "can join that race, and a record identifying a driver can join that driver. "
+            "Matching explicit related-entity names and years can establish that relationship. "
+            "Do not reject a supported relationship merely because the records have different types. "
+            "A standings position is a standings rank, not automatically a race finishing position. "
+            "Do not compare synthetic IDs. Use no_match for contradictory attributes and uncertain "
+            "when the relationship cannot be established."
+        )
         audit = build_mapping(*inputs, left.name + "_rownum", right.name + "_rownum",
-                              trace["left_fields"], trace["right_fields"], None, run, call,
-                              cardinality="many_to_many", progress=report_progress)
+                              trace["left_fields"], trace["right_fields"], definition, run, call,
+                              cardinality="many_to_many", progress=report_progress,
+                              max_output_tokens=max_output_tokens, request_started=request_started)
         target = bucket / trace["mapping_file"]
         with (run / "matches.csv").open(newline="", encoding="utf-8") as src, target.open("w", newline="", encoding="utf-8") as dst:
             reader = csv.DictReader(src)
@@ -185,3 +223,125 @@ def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, deli
         trace.update(status="failed", error=str(exc))
         send("matching_failed")
         raise
+
+
+def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, delimiter=",", event=None,
+                           source_backed_columns=None, max_output_tokens=None, source_context=None,
+                           llm_tables=None, validate_only=False):
+    """Rewrite supported inner-join chains, preserving joins backed by real IDs."""
+    statements = sqlglot.parse(sql_query)
+    if len(statements) != 1 or not isinstance(statements[0], exp.Select):
+        raise ValueError("Semantic rewriting requires one SELECT.")
+    tree = statements[0]
+    joins = tree.args.get("joins") or []
+    source = tree.args.get("from_")
+    if (tree.args.get("with_") or len(list(tree.find_all(exp.Select))) != 1
+            or source is None or not isinstance(source.this, exp.Table)):
+        raise ValueError("Semantic rewriting requires base tables; CTEs/subqueries are unsupported.")
+    if not joins:
+        return {"sql_query": sql_query, "csv_files": list(csv_files), "mapping_columns": [],
+                "trace": {"status": "skipped", "reason": "No joins to rewrite.",
+                          "original_sql": sql_query, "rewritten_sql": sql_query, "calls": []}}
+    tables = [source.this, *(join.this for join in joins)]
+    if (not all(isinstance(table, exp.Table) for table in tables)
+            or len(list(tree.find_all(exp.Table))) != len(tables)
+            or len({table.name for table in tables}) != len(tables)
+            or len({table.alias_or_name for table in tables}) != len(tables)):
+        raise ValueError("Semantic rewriting requires distinct base tables and aliases.")
+    # Keep the existing two-table trace format for compatibility.
+    if len(tables) == 2 and (llm_tables is None or any(t.name in llm_tables for t in tables)):
+        if validate_only:
+            inspect_semantic_join(sql_query)
+            return {"validated": True}
+        return _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call,
+            delimiter=delimiter, event=event, source_backed_columns=source_backed_columns,
+            max_output_tokens=max_output_tokens, source_context=source_context)
+    if any(not c.table and c.name.lower() in {"ida", "idb"} for c in tree.find_all(exp.Column)):
+        raise ValueError("Qualify idA/idB columns before semantic rewriting.")
+    aliases = {tables[0].alias_or_name: tables[0]}
+    edges = []
+    # Validate every edge before making model requests or publishing mappings.
+    for join in joins:
+        right = join.this
+        equalities = [node for node in (join.args.get("on") or exp.Null()).find_all(exp.EQ)
+                      if isinstance(node.this, exp.Column) and isinstance(node.expression, exp.Column)
+                      and right.alias_or_name in {node.this.table, node.expression.table}
+                      and any(alias in aliases for alias in (node.this.table, node.expression.table))]
+        if len(equalities) != 1:
+            raise ValueError("Each semantic join requires one qualified equality to an earlier table.")
+        equality = equalities[0]
+        left_alias = next(alias for alias in (equality.this.table, equality.expression.table) if alias in aliases)
+        left = aliases[left_alias]
+        if any(column.table and column.table not in {*aliases, right.alias_or_name}
+               for column in join.args["on"].find_all(exp.Column)):
+            raise ValueError("A join predicate references a table that is not yet available.")
+        pair = exp.Select(expressions=[exp.Star()]).from_(left.copy())
+        pair.set("joins", [join.copy()])
+        inspect_semantic_join(pair.sql())
+        # Residual predicates referring to other earlier tables are preserved in
+        # the full query, but not passed to the isolated pair matcher.
+        pair.args["joins"][0].set("on", equality.copy())
+        mapping = left.name + "_" + right.name
+        if mapping + ".csv" in csv_files or mapping in {t.alias_or_name for t in tables}:
+            raise ValueError(f"Semantic mapping conflicts with source table or alias: {mapping}")
+        edges.append((join, equality, left, right, pair))
+        aliases[right.alias_or_name] = right
+    projections = []
+    for item in tree.expressions:
+        if isinstance(item, exp.Star):
+            if any(item.args.values()):
+                raise ValueError("Modified wildcard projections are unsupported in semantic mode.")
+            projections.extend(exp.Column(this=exp.Star(), table=exp.to_identifier(t.alias_or_name)) for t in tables)
+        else:
+            projections.append(item)
+    tree.set("expressions", projections)
+    if validate_only:
+        return {"validated": True}
+    traces, rewritten_joins, files, mapping_columns = [], [], list(csv_files), {}
+
+    def aggregate(status="running"):
+        return {"status": status, "original_sql": sql_query, "rewritten_sql": tree.sql(),
+                "joins": traces, "calls": [call for trace in traces for call in trace.get("calls", [])],
+                "accepted_count": sum(trace.get("accepted_count", 0) for trace in traces),
+                "mapping_files": [trace["mapping_file"] for trace in traces if trace.get("mapping_file")],
+                "reason": "All joins preserve source identifiers." if status == "skipped" else ""}
+
+    for join, equality, left, right, pair in edges:
+        if llm_tables is not None and left.name not in llm_tables and right.name not in llm_tables:
+            rewritten_joins.append(join)
+            continue
+        def relay(kind, payload):
+            current = payload["semantic_matching"]
+            snapshot = aggregate(current["status"])
+            snapshot["joins"] = [*traces, current]
+            snapshot["calls"] = [call for trace in snapshot["joins"] for call in trace.get("calls", [])]
+            if current.get("error"):
+                snapshot["error"] = current["error"]
+            if event:
+                event(kind, {"semantic_matching": snapshot})
+        prepared = _prepare_semantic_pair(pair.sql(), files, bucket_dir, model_call,
+            delimiter=delimiter, event=relay, source_backed_columns=source_backed_columns,
+            max_output_tokens=max_output_tokens, source_context=source_context)
+        trace = prepared["trace"]
+        traces.append(trace)
+        files = prepared["csv_files"]
+        if trace["status"] == "skipped":
+            rewritten_joins.append(join)
+            continue
+        pair_tree = sqlglot.parse_one(prepared["sql_query"])
+        bridge, mapped_join = pair_tree.args["joins"]
+        equality.replace(mapped_join.args["on"].copy())
+        rewritten_joins.extend([bridge, join])
+        mapping_columns[trace["mapping_file"]] = prepared["mapping_columns"]
+    tree.set("joins", rewritten_joins)
+    status = "complete" if mapping_columns else "skipped"
+    trace = aggregate(status)
+    if event:
+        event("matching_done" if mapping_columns else "matching_skipped", {"semantic_matching": trace})
+    return {"sql_query": tree.sql(), "csv_files": files, "trace": trace,
+            "mapping_columns": [], "mapping_columns_by_file": mapping_columns}
+
+
+def validate_semantic_query(sql_query):
+    """Validate query shape before extraction without reading data or invoking a model."""
+    prepare_semantic_joins(sql_query, [], "", None, validate_only=True)
