@@ -68,8 +68,18 @@ services:
       LLM_SSL_VERIFY: ${LLM_SSL_VERIFY:-false}
       LLM_TIMEOUT: ${LLM_TIMEOUT:-200}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-8192}
+      MATCH_MODE: ${MATCH_MODE:-block}
+      MATCH_BLOCK_ROWS: ${MATCH_BLOCK_ROWS:-8}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-8192}
+      RAG_CONTEXT_TOKENS: ${RAG_CONTEXT_TOKENS:-${MATCH_CONTEXT_TOKENS:-${OLLAMA_NUM_CTX:-8192}}}
+      RAG_PROMPT_RESERVE_TOKENS: ${RAG_PROMPT_RESERVE_TOKENS:-1024}
+      RAG_TOKENIZER_PATH: ${RAG_TOKENIZER_PATH:-}
       VERBOSE_MODEL_LOGS: "false"
-      RETRIEVER_CANDIDATE_K: "10"
+      RETRIEVER_CANDIDATE_K: ${RETRIEVER_CANDIDATE_K:-10}
+      RETRIEVER_MIN_SIMILARITY: ${RETRIEVER_MIN_SIMILARITY:-0.3}
+      RETRIEVER_CONTEXT_WINDOWS: ${RETRIEVER_CONTEXT_WINDOWS:-1}
+      RETRIEVER_NO_NEW_ROWS_PATIENCE: ${RETRIEVER_NO_NEW_ROWS_PATIENCE:-2}
+      RETRIEVER_MAX_ROUNDS: ${RETRIEVER_MAX_ROUNDS:-10}
       EMB_DEVICE: ${EMB_DEVICE:-auto}
       EMB_LOCAL_FILES_ONLY: "true"
       HF_HUB_OFFLINE: "1"
@@ -88,7 +98,12 @@ services:
 
     volumes:
       - ./gateway.py:/app/gateway.py:ro
+      - ./nl_to_sql.py:/app/nl_to_sql.py:ro
+      - ./rag_batching.py:/app/rag_batching.py:ro
+      - ./result_comparison.py:/app/result_comparison.py:ro
       - ./semantic_join_pipeline.py:/app/semantic_join_pipeline.py:ro
+      - ./semantic_block_matching.py:/app/semantic_block_matching.py:ro
+      - ./sql_leaf_execution.py:/app/sql_leaf_execution.py:ro
       - ./semantic_matching.py:/app/semantic_matching.py:ro
       - ./semantic_match_prompt.py:/app/semantic_match_prompt.py:ro
       - ./row_probability.py:/app/row_probability.py:ro

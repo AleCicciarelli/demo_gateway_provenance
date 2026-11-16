@@ -98,9 +98,20 @@ KNOWLEDGE DOMAIN:
 {knowledge_domain}
 
 Return known entities or facts that satisfy every stated constraint.
+Interpret the QUESTION within the KNOWLEDGE DOMAIN above.
+Apply only the constraints stated in the QUESTION; do not require an unstated
+season, year, event, or current-versus-historical restriction.
+
+For a broad listing request, return the relevant entities you confidently know.
+The list may be incomplete: uncertainty about exhaustive coverage is not a
+reason to omit known matching entities or return an empty array.
+Return [] only when you cannot identify any entity that you know satisfies the
+stated constraints. Do not invent entities to avoid an empty array.
 
 Use null for unknown requested attributes; keep otherwise valid entities.
 Do not guess attributes or derive them from relationships you do not know.
+Unknown output attributes are different from unknown filter conditions: do not
+include an entity unless you know it satisfies every stated filter condition.
 
 OUTPUT RULES:
 Return only a valid JSON array, with one object per entity and no duplicates.

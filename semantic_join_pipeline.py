@@ -3,6 +3,10 @@ from __future__ import annotations
 
 import csv
 import json
+import os
+import re
+import tempfile
+from decimal import Decimal, InvalidOperation
 import uuid
 from pathlib import Path
 
@@ -10,6 +14,7 @@ import sqlglot
 from sqlglot import exp
 
 from semantic_matching import build_mapping
+from semantic_block_matching import build_contextual_mapping
 from row_probability import PROBABILITY_COLUMN
 
 # Pair-level validation is reused for each edge of a multi-table join chain.
@@ -48,13 +53,256 @@ def inspect_semantic_join(sql: str):
     return tree, left, right, join, candidates[0]
 
 
-def descriptive_fields(headers):
-    return [name for name in headers if name.lower() not in {"id", "__rid__", "__probability"}
-            and not name.lower().endswith(("id", "_rownum", "_key"))]
+def identifier_fields(headers, table_schema=None):
+    """Prefer declared keys; use bounded ID naming conventions for unknown fields."""
+    schema = table_schema or {}
+    primary = schema.get("primary_key") or []
+    if isinstance(primary, str):
+        primary = [primary]
+    row_id = schema.get("row_id") or []
+    if isinstance(row_id, str):
+        row_id = [row_id]
+    declared = {str(name).lower() for name in [*primary, *row_id, *(schema.get("foreign_keys") or {})]}
+    known_columns = {str(name).lower() for name in schema.get("columns") or []}
+    result = set()
+    for name in headers:
+        lower = name.lower()
+        internal = lower in {"id", "__rid__", "__probability"} or lower.endswith("_rownum")
+        fallback = (lower.endswith(("_id", "_key")) or bool(re.search(r"[a-z0-9](?:Id|ID)$", name)))
+        if internal or lower in declared or (lower not in known_columns and fallback):
+            result.add(name)
+    return result
+
+
+def descriptive_fields(headers, table_schema=None):
+    identifiers = identifier_fields(headers, table_schema)
+    return [name for name in headers if name not in identifiers]
+
+
+def _query_matching_context(tree, edges, target_left, target_right, bucket, delimiter,
+                            source_backed_columns, llm_tables, schema_info=None):
+    """Prepare evidence lookups, never materialize or execute the query's joins.
+
+    Only exact, source-backed single-equality edges can attach evidence. In
+    particular, neither the target edge nor generated IDs may supply a link.
+    """
+    source_columns = source_backed_columns or {}
+    endpoints = {target_left.name, target_right.name}
+    adjacency, records, indexes, cache, references = {}, {}, {}, {}, {}
+    relationships = []
+    context_allowed = None
+    for join, equality, left, right, _ in edges:
+        if {left.name, right.name} == endpoints:
+            continue
+        if llm_tables is not None and {left.name, right.name} & set(llm_tables):
+            continue
+        # Residual conditions need actual SQL evaluation; do not claim a link
+        # from just one equality of a more restrictive predicate.
+        condition = join.args.get("on")
+        while isinstance(condition, exp.Paren):
+            condition = condition.this
+        if condition != equality:
+            continue
+        aliases = {left.alias_or_name: left.name, right.alias_or_name: right.name}
+        a, b = equality.this, equality.expression
+        ta, tb = aliases[a.table], aliases[b.table]
+        if (a.name not in source_columns.get(ta, [])
+                or b.name not in source_columns.get(tb, [])):
+            continue
+        adjacency.setdefault(ta, []).append((a.name, tb, b.name))
+        adjacency.setdefault(tb, []).append((b.name, ta, a.name))
+        relationships.append(equality.sql())
+
+    def load(table):
+        if table not in records:
+            with (Path(bucket) / (table + ".csv")).open(newline="", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f, delimiter=delimiter)
+                headers = reader.fieldnames or []
+                if len(headers) != len(set(headers)):
+                    raise ValueError(f"Duplicate CSV columns: {table}")
+                key = table + "_rownum"
+                if key not in headers:
+                    raise ValueError(f"Context table {table} requires {key}.")
+                rows = list(reader)
+                if any(None in row or any(v is None for v in row.values()) for row in rows):
+                    raise ValueError(f"Malformed context CSV: {table}")
+                if any(not row[key].strip() for row in rows) or len({row[key] for row in rows}) != len(rows):
+                    raise ValueError(f"Context row identifiers must be nonempty and unique: {table}")
+                records[table] = {row[key]: row for row in rows}
+                references.update({(table, row[key]): f"context{len(references) + i}"
+                                   for i, row in enumerate(rows)})
+        return records[table]
+
+    def linked(table, identity):
+        key = (table, identity)
+        if key in cache:
+            return cache[key]
+        pending, visited, evidence = [key], {key}, []
+        while pending:
+            current, rid = pending.pop()
+            row = load(current)[rid]
+            for column, other, other_column in adjacency.get(current, []):
+                if other in endpoints:
+                    continue
+                index_key = (other, other_column)
+                if index_key not in indexes:
+                    index = {}
+                    for other_id, other_row in load(other).items():
+                        if other_column not in other_row:
+                            raise ValueError(f"Missing context column {other}.{other_column}")
+                        value = other_row[other_column]
+                        if value != "":
+                            index.setdefault(value, []).append(other_id)
+                    indexes[index_key] = index
+                if column not in row:
+                    raise ValueError(f"Missing context column {current}.{column}")
+                for other_id in indexes[index_key].get(row[column], []):
+                    if context_allowed is not None and other in context_allowed and other_id not in context_allowed[other]:
+                        continue
+                    address = (other, other_id)
+                    if address in visited:
+                        continue
+                    visited.add(address)
+                    other_row = load(other)[other_id]
+                    evidence.append({"ref": references[address],
+                        "linked_from": "candidate" if (current, rid) == key else references[(current, rid)],
+                        "relationship": f"{current}.{column} = {other}.{other_column}",
+                        "table": other, "attributes": {
+                        field: other_row[field] for field in descriptive_fields(
+                            list(other_row), (schema_info or {}).get(other))}})
+                    pending.append(address)
+        cache[key] = evidence
+        return evidence
+
+    def context(batch):
+        candidates = {}
+        if isinstance(batch, dict):
+            # Direct block mode visits each row once, never creates pair objects.
+            addresses = [(ref, table, row["id"])
+                         for side, table in (("left", target_left.name), ("right", target_right.name))
+                         for ref, row in batch[side].items()]
+        else:
+            addresses = [(pair.get(side + "_ref", pair["pair_id"] + ":" + side), table, pair[id_key])
+                         for pair in batch
+                         for side, table, id_key in (("left", target_left.name, "idA"),
+                                                    ("right", target_right.name, "idB"))]
+        for ref, table, identity in addresses:
+            if ref not in candidates:
+                evidence = linked(table, identity) if table in adjacency else []
+                if evidence:
+                    candidates[ref] = evidence
+        if not candidates:
+            return {}
+        return {"target_predicate": next(e.sql() for _, e, l, r, _ in edges
+                    if l.name == target_left.name and r.name == target_right.name),
+                "source_relationships": relationships,
+                "query_filters": tree.args["where"].sql() if tree.args.get("where") else None,
+                "candidate_context": candidates}
+
+    def filter_candidates(left_rows, right_rows):
+        """Propagate necessary source equalities without constructing joined rows."""
+        nonlocal context_allowed
+        reachable, pending = set(), [target_left.name, target_right.name]
+        while pending:
+            table = pending.pop()
+            if table in reachable or table not in adjacency:
+                continue
+            reachable.add(table)
+            pending.extend(other for _, other, _ in adjacency[table])
+        allowed = {table: set(load(table)) for table in reachable}
+        for table, rows in ((target_left.name, left_rows), (target_right.name, right_rows)):
+            if table in allowed:
+                allowed[table].intersection_update(row["id"] for row in rows)
+
+        def key(value):
+            if value is None or value == "":
+                return None
+            # Conservative over-inclusion for numeric spellings such as 001/1.
+            # This never removes an exact text match; final SQL remains authoritative.
+            try:
+                number = Decimal(str(value))
+                if number.is_finite():
+                    return ("numeric", number)
+            except InvalidOperation:
+                pass
+            return ("text", str(value))
+
+        changed = True
+        while changed:
+            changed = False
+            for table in reachable:
+                for column, other, other_column in adjacency[table]:
+                    other_rows = load(other)
+                    if any(other_column not in other_rows[rid] for rid in allowed[other]):
+                        raise ValueError(f"Missing context column {other}.{other_column}")
+                    keys = {key(other_rows[rid][other_column]) for rid in allowed[other]}
+                    keys.discard(None)
+                    rows = load(table)
+                    if any(column not in rows[rid] for rid in allowed[table]):
+                        raise ValueError(f"Missing context column {table}.{column}")
+                    retained = {rid for rid in allowed[table] if key(rows[rid][column]) in keys}
+                    if retained != allowed[table]:
+                        allowed[table] = retained
+                        changed = True
+        selected = [[row for row in rows if table not in allowed or row["id"] in allowed[table]]
+                    for table, rows in ((target_left.name, left_rows), (target_right.name, right_rows))]
+        context_allowed = allowed
+        cache.clear()
+        return (*selected, {"left_before": len(left_rows), "left_after": len(selected[0]),
+                            "right_before": len(right_rows), "right_after": len(selected[1]),
+                            "source_relationships": relationships})
+
+    context.filter_candidates = filter_candidates
+    return context
+
+
+def join_match_definition(left, right, equality, schema_info=None):
+    """Describe edge meaning from schema metadata, never from stored source rows."""
+    aliases = {table.alias_or_name: table.name for table in (left, right)}
+    columns = (equality.this, equality.expression)
+    descriptions = []
+    kind = "association"
+    for source, target in (columns, columns[::-1]):
+        table = aliases[source.table]
+        target_name = aliases[target.table] + "." + target.name
+        spec = ((schema_info or {}).get(table, {}).get("relationship_descriptions") or {}).get(source.name)
+        if not isinstance(spec, dict) or spec.get("target") != target_name:
+            continue
+        description = spec.get("description")
+        if not isinstance(description, str) or not description.strip():
+            continue
+        if spec.get("kind") not in ("association", "identity"):
+            raise ValueError("Relationship description needs kind association or identity")
+        descriptions.append((spec["kind"], description.strip()))
+    if len(set(descriptions)) > 1:
+        raise ValueError("Conflicting schema relationship descriptions for " + equality.sql())
+    if descriptions:
+        kind, question = descriptions[0]
+    else:
+        question = (
+            f"Determine which {right.name} record each {left.name} record refers to through "
+            f"{equality.sql()}. Infer and name the specific factual relationship from the table "
+            "and attribute meanings before assessing it. Use year/date/location when relevant."
+        )
+    return (
+        f"Relationship type: {kind}. Left records: {left.name}. Right records: {right.name}. "
+        + question + " "
+        + ("Assess entity identity only, not other factual relationships. " if kind == "identity" else
+           "Assess this specific relationship, not whether the records are the same entity. ")
+        + "Use supplied descriptions and relevant remembered knowledge; label model knowledge as unverified. "
+        "Missing attributes are unknown, not contradictions. "
+        + ("" if kind == "identity" else
+           "Assess the association at the level of detail supplied by the records. "
+           "Use world knowledge to associate geographic or category attributes; a country-only candidate "
+           "does not require a venue name when the event can be associated with that country. ")
+        + 
+        "Do not compare synthetic IDs. Return uncertain when the relationship cannot be settled."
+    )
 
 
 def _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call, *, delimiter=",", event=None,
-                           source_backed_columns=None, max_output_tokens=None, source_context=None):
+                           source_backed_columns=None, max_output_tokens=None, source_context=None,
+                           matching_context=None, context_tokens=None, schema_info=None, publication_dir=None):
     """Publish the bridge only after a complete matching run. Never overwrite sources."""
     tree, left, right, join, replaced = inspect_semantic_join(sql_query)
     bucket = Path(bucket_dir)
@@ -64,7 +312,8 @@ def _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call, *, deli
     source_columns = source_backed_columns or {}
     join_columns = (replaced.this, replaced.expression)
     comparable_ids = all(
-        (column.name.lower() == "__rid__" or column.name.lower().endswith(("id", "_key", "_rownum")))
+        column.name.lower() != PROBABILITY_COLUMN
+        and column.name in identifier_fields([column.name], (schema_info or {}).get(aliases[column.table]))
         and column.name in source_columns.get(aliases[column.table], [])
         for column in join_columns
     )
@@ -96,7 +345,7 @@ def _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call, *, deli
         key = table.name + "_rownum"
         if key not in headers[table.name]:
             raise ValueError(f"Semantic matching requires the retained row identifier {key}.")
-        if not descriptive_fields(headers[table.name]) and source_context is None:
+        if not descriptive_fields(headers[table.name], (schema_info or {}).get(table.name)) and matching_context is None:
             raise ValueError(f"No descriptive matching fields in {filename}; include names or other context in extraction.")
     # Adding idA/idB must not change unqualified-name or projection-alias resolution.
     for column in tree.find_all(exp.Column):
@@ -121,8 +370,8 @@ def _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call, *, deli
         raise ValueError(f"Source alias conflicts with semantic mapping table: {mapping_table}")
     run = bucket / ("semantic_audit_" + token)
     trace = {"status": "running", "original_sql": sql_query, "calls": [],
-             "left_fields": descriptive_fields(headers[left.name]),
-             "right_fields": descriptive_fields(headers[right.name]),
+             "left_fields": descriptive_fields(headers[left.name], (schema_info or {}).get(left.name)),
+             "right_fields": descriptive_fields(headers[right.name], (schema_info or {}).get(right.name)),
              "replaced_predicate": replaced.sql(), "mapping_file": mapping_table + ".csv", "mapping_table": mapping_table,
              "rownum_column": rownum_column, "left_table": left.name, "right_table": right.name}
     def send(kind):
@@ -150,50 +399,27 @@ def _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call, *, deli
     try:
         # The matcher expects comma CSV; normalize copies when AP uses another delimiter.
         inputs = [bucket / (t.name + ".csv") for t in (left, right)]
-        if source_context is not None:
-            enriched = bucket / ("semantic_context_" + token)
-            enriched.mkdir()
-            for index, table in enumerate((left, right)):
-                with inputs[index].open(newline="", encoding="utf-8-sig") as handle:
-                    rows = list(csv.DictReader(handle, delimiter=delimiter))
-                for row in rows:
-                    context = source_context(table.name, row.get(table.name + "_rownum", "")) or {}
-                    row.update({f"context_{key}": value for key, value in context.items()
-                                if key in descriptive_fields(context)})
-                fields = list(dict.fromkeys([*headers[table.name], *(key for row in rows for key in row)]))
-                target = enriched / inputs[index].name
-                with target.open("w", newline="", encoding="utf-8") as handle:
-                    writer = csv.DictWriter(handle, fieldnames=fields)
-                    writer.writeheader()
-                    writer.writerows(rows)
-                trace["left_fields" if index == 0 else "right_fields"] = descriptive_fields(fields)
-                inputs[index] = target
-            trace["context_enriched"] = True
+        # Context, when supplied for a multi-join query, uses only other
+        # source-backed query edges; never resolve the target relationship.
         if delimiter != ",":
             normalized = bucket / ("semantic_inputs_" + token)
             normalized.mkdir()
             for index, path in enumerate(inputs):
                 target = normalized / path.name
                 with path.open(newline="", encoding="utf-8-sig") as src, target.open("w", newline="", encoding="utf-8") as dst:
-                    csv.writer(dst).writerows(csv.reader(src, delimiter="," if source_context else delimiter))
+                    csv.writer(dst).writerows(csv.reader(src, delimiter=delimiter))
                 inputs[index] = target
-        definition = (
-            f"The left records are {left.name} and the right records are {right.name}. "
-            f"The query connects them through {replaced.sql()}. Determine whether the "
-            "specific relationship represented by that join is supported by their descriptive attributes. "
-            "The two records do NOT need to describe the same entity: a record referring to a race "
-            "can join that race, and a record identifying a driver can join that driver. "
-            "Matching explicit related-entity names and years can establish that relationship. "
-            "Do not reject a supported relationship merely because the records have different types. "
-            "A standings position is a standings rank, not automatically a race finishing position. "
-            "Do not compare synthetic IDs. Use no_match for contradictory attributes and uncertain "
-            "when the relationship cannot be established."
-        )
-        audit = build_mapping(*inputs, left.name + "_rownum", right.name + "_rownum",
+        definition = join_match_definition(left, right, replaced, schema_info)
+        matcher = build_contextual_mapping if matching_context is not None else build_mapping
+        audit = matcher(*inputs, left.name + "_rownum", right.name + "_rownum",
                               trace["left_fields"], trace["right_fields"], definition, run, call,
                               cardinality="many_to_many", progress=report_progress,
-                              max_output_tokens=max_output_tokens, request_started=request_started)
-        target = bucket / trace["mapping_file"]
+                              max_output_tokens=max_output_tokens, context_tokens=context_tokens,
+                              request_started=request_started,
+                              **({"matching_context": matching_context,
+                                  "candidate_filter": matching_context.filter_candidates}
+                                 if matching_context is not None else {}))
+        target = Path(publication_dir or bucket) / trace["mapping_file"]
         with (run / "matches.csv").open(newline="", encoding="utf-8") as src, target.open("w", newline="", encoding="utf-8") as dst:
             reader = csv.DictReader(src)
             mapping_rows = [
@@ -225,9 +451,26 @@ def _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call, *, deli
         raise
 
 
+def _publish_semantic_mappings(staging, bucket, filenames):
+    """Publish complete files without overwriting others; undo this run on error."""
+    published = []
+    try:
+        for filename in filenames:
+            source, target = Path(staging) / filename, Path(bucket) / filename
+            # Staging is in the bucket's filesystem. A hard link publishes a
+            # complete file atomically and fails if a destination already exists.
+            os.link(source, target)
+            published.append((source, target))
+    except Exception:
+        for source, target in reversed(published):
+            if target.exists() and source.samefile(target):
+                target.unlink()
+        raise
+
+
 def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, delimiter=",", event=None,
                            source_backed_columns=None, max_output_tokens=None, source_context=None,
-                           llm_tables=None, validate_only=False):
+                           llm_tables=None, validate_only=False, context_tokens=None, schema_info=None):
     """Rewrite supported inner-join chains, preserving joins backed by real IDs."""
     statements = sqlglot.parse(sql_query)
     if len(statements) != 1 or not isinstance(statements[0], exp.Select):
@@ -255,7 +498,8 @@ def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, deli
             return {"validated": True}
         return _prepare_semantic_pair(sql_query, csv_files, bucket_dir, model_call,
             delimiter=delimiter, event=event, source_backed_columns=source_backed_columns,
-            max_output_tokens=max_output_tokens, source_context=source_context)
+            max_output_tokens=max_output_tokens, source_context=source_context,
+            context_tokens=context_tokens, schema_info=schema_info)
     if any(not c.table and c.name.lower() in {"ida", "idb"} for c in tree.find_all(exp.Column)):
         raise ValueError("Qualify idA/idB columns before semantic rewriting.")
     aliases = {tables[0].alias_or_name: tables[0]}
@@ -298,44 +542,85 @@ def prepare_semantic_joins(sql_query, csv_files, bucket_dir, model_call, *, deli
     if validate_only:
         return {"validated": True}
     traces, rewritten_joins, files, mapping_columns = [], [], list(csv_files), {}
+    eligible = [edge for edge in edges if llm_tables is None
+                or edge[2].name in llm_tables or edge[3].name in llm_tables]
+    published = False
+    active_trace = None
 
-    def aggregate(status="running"):
-        return {"status": status, "original_sql": sql_query, "rewritten_sql": tree.sql(),
-                "joins": traces, "calls": [call for trace in traces for call in trace.get("calls", [])],
-                "accepted_count": sum(trace.get("accepted_count", 0) for trace in traces),
-                "mapping_files": [trace["mapping_file"] for trace in traces if trace.get("mapping_file")],
-                "reason": "All joins preserve source identifiers." if status == "skipped" else ""}
+    def aggregate(status="running", current=None):
+        items = [*traces, current] if current is not None else traces
+        completed = len(traces) + int(current is not None and current["status"] in ("complete", "skipped"))
+        snapshot = {"status": status, "original_sql": sql_query, "rewritten_sql": tree.sql(),
+                "joins": items, "calls": [call for trace in items for call in trace.get("calls", [])],
+                "accepted_count": sum(trace.get("accepted_count", 0) for trace in items),
+                "mapping_files": list(mapping_columns) if published else [],
+                "edge_count": len(eligible), "completed_edges": completed,
+                "publication_status": "published" if published else "staged",
+                "reason": "All eligible joins preserve source identifiers." if status == "skipped" else ""}
+        if current is not None:
+            counters = {key: current[key] for key in ("total_requests", "completed_requests", "planned_requests",
+                        "left_row_count", "right_row_count") if key in current}
+            snapshot.update(counters)
+            snapshot.update(progress_scope="edge", current_edge={"index": len(traces) + 1,
+                "left_table": current["left_table"], "right_table": current["right_table"],
+                "status": current["status"], **counters})
+        else:
+            snapshot.update(progress_scope="query",
+                total_requests=sum(trace.get("total_requests", 0) for trace in items),
+                completed_requests=sum(trace.get("completed_requests", 0) for trace in items),
+                planned_requests=sum(trace.get("planned_requests", 0) for trace in items))
+        return snapshot
 
-    for join, equality, left, right, pair in edges:
-        if llm_tables is not None and left.name not in llm_tables and right.name not in llm_tables:
-            rewritten_joins.append(join)
-            continue
-        def relay(kind, payload):
-            current = payload["semantic_matching"]
-            snapshot = aggregate(current["status"])
-            snapshot["joins"] = [*traces, current]
-            snapshot["calls"] = [call for trace in snapshot["joins"] for call in trace.get("calls", [])]
-            if current.get("error"):
-                snapshot["error"] = current["error"]
+    # Capture the original query relationships before any equality is rewritten.
+    contexts = {id(join): _query_matching_context(tree, edges, left, right, bucket_dir,
+                    delimiter, source_backed_columns, llm_tables, schema_info)
+                for join, _, left, right, _ in edges} if len(joins) >= 2 else {}
+    with tempfile.TemporaryDirectory(prefix="semantic_staging_", dir=bucket_dir) as staging:
+        try:
+            for join, equality, left, right, pair in edges:
+                if llm_tables is not None and left.name not in llm_tables and right.name not in llm_tables:
+                    rewritten_joins.append(join)
+                    continue
+
+                def relay(kind, payload):
+                    nonlocal active_trace
+                    current = payload["semantic_matching"]
+                    active_trace = current
+                    snapshot = aggregate("failed" if current["status"] == "failed" else "running", current)
+                    if current.get("error"):
+                        snapshot["error"] = current["error"]
+                    if event:
+                        # Completing an edge does not complete the query or publish files.
+                        forwarded = "matching_progress" if kind in ("matching_done", "matching_skipped") else kind
+                        event(forwarded, {"semantic_matching": snapshot})
+
+                prepared = _prepare_semantic_pair(pair.sql(), files, bucket_dir, model_call,
+                    delimiter=delimiter, event=relay, source_backed_columns=source_backed_columns,
+                    max_output_tokens=max_output_tokens, source_context=source_context,
+                    matching_context=contexts.get(id(join)), context_tokens=context_tokens,
+                    schema_info=schema_info, publication_dir=staging)
+                trace = prepared["trace"]
+                traces.append(trace)
+                active_trace = None
+                files = prepared["csv_files"]
+                if trace["status"] == "skipped":
+                    rewritten_joins.append(join)
+                    continue
+                pair_tree = sqlglot.parse_one(prepared["sql_query"])
+                bridge, mapped_join = pair_tree.args["joins"]
+                equality.replace(mapped_join.args["on"].copy())
+                rewritten_joins.extend([bridge, join])
+                mapping_columns[trace["mapping_file"]] = prepared["mapping_columns"]
+            tree.set("joins", rewritten_joins)
+            _publish_semantic_mappings(staging, bucket_dir, mapping_columns)
+            published = True
+        except Exception as exc:
             if event:
-                event(kind, {"semantic_matching": snapshot})
-        prepared = _prepare_semantic_pair(pair.sql(), files, bucket_dir, model_call,
-            delimiter=delimiter, event=relay, source_backed_columns=source_backed_columns,
-            max_output_tokens=max_output_tokens, source_context=source_context)
-        trace = prepared["trace"]
-        traces.append(trace)
-        files = prepared["csv_files"]
-        if trace["status"] == "skipped":
-            rewritten_joins.append(join)
-            continue
-        pair_tree = sqlglot.parse_one(prepared["sql_query"])
-        bridge, mapped_join = pair_tree.args["joins"]
-        equality.replace(mapped_join.args["on"].copy())
-        rewritten_joins.extend([bridge, join])
-        mapping_columns[trace["mapping_file"]] = prepared["mapping_columns"]
-    tree.set("joins", rewritten_joins)
-    status = "complete" if mapping_columns else "skipped"
-    trace = aggregate(status)
+                failed = aggregate("failed", active_trace)
+                failed.update(error=str(exc), publication_status="rolled_back")
+                event("matching_failed", {"semantic_matching": failed})
+            raise
+    trace = aggregate("complete" if mapping_columns else "skipped")
     if event:
         event("matching_done" if mapping_columns else "matching_skipped", {"semantic_matching": trace})
     return {"sql_query": tree.sql(), "csv_files": files, "trace": trace,

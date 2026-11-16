@@ -99,6 +99,7 @@ def build_iterative_join_leaf_prompt(
     ctx: Dict[str, Any],
     inherited_bindings: Dict[str, Any] | None = None,
     source_row_ids: list[str] | None = None,
+    source_rows: list[Dict[str, Any]] | None = None,
 ) -> str:
     """Select target-table candidates using constraints"""
     constraints = {
@@ -109,6 +110,7 @@ def build_iterative_join_leaf_prompt(
         ],
         "inherited_bindings": inherited_bindings or {},
         "source_row_ids": source_row_ids or [],
+        "source_rows": source_rows or [],
     }
 
     return f"""You are a JSON extraction engine for one iterative join step.
@@ -127,6 +129,8 @@ SELECTION RULES:
 - Prefer rows satisfying all local_predicates and matching inherited_bindings.
 - If an inherited binding column is present in a row, it should match one of the supplied values.
 - source_row_ids identify the rows that produced the inherited bindings.
+- source_rows preserve earlier selected source values, including readable names, as supporting evidence.
+- source_rows are context only; emit rows exclusively from CONTEXT_DATA[TARGET_TABLE].
 - Empty constraints impose no additional filtering conditions.
 - If no row clearly satisfies the constraints, return [].
 

@@ -3,14 +3,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Provenance Query UI</title>
-    <link rel="stylesheet" href="/ui/styles.css?v=probability-colors-2" />
+    <title>Technical query workspace</title>
+    <link rel="stylesheet" href="/ui/styles.css?v=comparison-2" />
   </head>
   <body>
     <main class="app-shell">
       <section class="query-panel" aria-labelledby="query-title">
         <div>
-          <p class="eyebrow">Demo Gateway</p>
+          <p class="eyebrow">Technical workspace</p>
+          <a href="/ui/demo">Open demo view →</a>
           <h1 id="query-title">Query provenance workspace</h1>
         </div>
 
@@ -26,10 +27,21 @@
           </select>
         </div>
 
+        <label class="field-label" for="input-type">Input format</label>
+        <select id="input-type">
+          <option value="auto">Detect automatically</option>
+          <option value="nl">Natural language</option>
+          <option value="sql">SQL</option>
+        </select>
         <label class="field-label" for="query-input">Question or SQL query</label>
         <textarea id="query-input" spellcheck="false">SELECT *
 FROM drivers
 LIMIT 5;</textarea>
+
+        <div id="resolved-sql-panel" hidden>
+          <p class="field-label">SQL used by the gateway</p>
+          <pre id="resolved-sql" style="white-space: pre-wrap; overflow-wrap: anywhere;"></pre>
+        </div>
 
         <label class="field-label" for="execution-mode">After CSV extraction</label>
         <select id="execution-mode">
@@ -40,7 +52,7 @@ LIMIT 5;</textarea>
 
         <div class="actions">
           <button id="plan-button" type="button">Generate plan</button>
-          <button id="run-button" type="button" class="secondary">Run selected pipelines</button>
+          <button id="run-button" type="button" class="secondary" disabled>Run selected pipelines</button>
         </div>
 
         <p id="backend-status" class="status-note" role="status"></p>
@@ -74,20 +86,26 @@ LIMIT 5;</textarea>
             <span id="run-status" class="pill muted-pill">Waiting</span>
           </div>
 
+          <div id="comparison-view" aria-live="polite"></div>
+
           <div id="generation-prompt-view" aria-live="polite"></div>
           <div id="semantic-matching-view" aria-live="polite"></div>
 
           <div class="tabs" role="tablist" aria-label="Result views">
             <button class="tab active" type="button" data-tab="answer">Answer</button>
             <button class="tab" type="button" data-tab="provenance">Provenance</button>
+            <button class="tab" type="button" data-tab="execution">Execution</button>
+            <button class="tab" type="button" data-tab="evidence">Compare evidence</button>
           </div>
 
+          <div id="execution-view" class="tab-view hidden"></div>
+          <div id="evidence-view" class="tab-view hidden"></div>
           <div id="answer-view" class="tab-view"></div>
           <div id="provenance-view" class="tab-view hidden"></div>
         </section>
       </section>
     </main>
 
-    <script src="/ui/app.js?v=automatic-joins-1"></script>
+    <script src="/ui/app.js?v=nl-to-sql-2"></script>
   </body>
 </html>

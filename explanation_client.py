@@ -4,16 +4,55 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import requests
+import sqlglot
+from sqlglot import exp
+from sqlglot.optimizer.scope import traverse_scope
 
 from create_ap_template import build_ap_csv_template
 from row_probability import protect_probability_projection
 
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_csv_table_references(sql_query: str, csv_files: List[str]) -> str:
+    """Match the explanation service's CSV table names, preserving SQL aliases."""
+    names = {}
+    for filename in csv_files:
+        stem = Path(filename).stem
+        safe = re.sub(r"[^a-zA-Z0-9]+", "_", stem).strip("_").lower()
+        if safe in names.values():
+            raise ValueError(f"CSV table names collide after normalization: {filename}")
+        names[stem] = safe
+
+    tree = sqlglot.parse_one(sql_query, read="postgres")
+    changed = False
+    for scope in traverse_scope(tree):
+        for source in scope.sources.values():
+            # CTE and subquery sources are Scope objects, not physical tables.
+            if not isinstance(source, exp.Table) or source.name not in names:
+                continue
+            original = source.name
+            safe = names[original]
+            if original == safe and not source.db and not source.catalog:
+                continue
+            if original != safe and not source.args.get("alias"):
+                source.set("alias", exp.TableAlias(this=source.this.copy()))
+            source.set("this", exp.to_identifier(safe))
+            source.set("db", None)
+            source.set("catalog", None)
+            for column in scope.columns:
+                if column.table == source.alias_or_name:
+                    column.set("db", None)
+                    column.set("catalog", None)
+            changed = True
+    return tree.sql(dialect="postgres") if changed else sql_query
 
 
 class ExplanationClient:
@@ -54,6 +93,7 @@ class ExplanationClient:
     ) -> Dict[str, Any]:
         if probability_columns:
             sql_query = protect_probability_projection(sql_query, csv_columns)
+        sql_query = normalize_csv_table_references(sql_query, csv_files)
         payload = build_ap_csv_template(
             sql_query=sql_query,
             csv_files=csv_files,

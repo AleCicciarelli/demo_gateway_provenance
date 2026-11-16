@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 
-LeafRunner = Callable[[Dict[str, Any], str, Dict[str, List[str]], List[str]], Dict[str, Any]]
+LeafRunner = Callable[[Dict[str, Any], str, Dict[str, List[str]], List[str], List[Dict[str, Any]]], Dict[str, Any]]
 BaseQueryBuilder = Callable[[Dict[str, Any], bool], str]
 LogEvent = Callable[[Dict[str, Any]], None]
 
@@ -60,6 +60,13 @@ def run_iterative_join_pipeline(
         table = _task_table(task)
         inherited = _bindings_for_table(state, table)
         source_row_ids = _source_row_ids_for_table(state, table)
+        source_rows = []
+        for source_id in source_row_ids:
+            found = _find_selected_row_by_id(state, source_id)
+            if found is not None:
+                source_table, values = found
+                source_rows.append({"table_name": source_table, "row_id": source_id,
+                                    "values": dict(values)})
         source_row_summaries = _source_row_summaries_for_table(state, table)
         retrieval_query = _build_join_step_retrieval_query(
             task=task,
@@ -81,15 +88,17 @@ def run_iterative_join_pipeline(
                 "bindings": inherited,
                 "source_row_ids": source_row_ids,
                 "source_row_summaries": source_row_summaries,
+                "source_rows": source_rows,
             })
 
-        leaf_output = run_leaf(task, retrieval_query, inherited, source_row_ids)
+        leaf_output = run_leaf(task, retrieval_query, inherited, source_row_ids, source_rows)
         leaf_output["pipeline"] = pipeline_id
         leaf_output["iterative_join"] = {
             "step": step,
             "inherited_bindings": inherited,
             "source_row_ids": source_row_ids,
             "source_row_summaries": source_row_summaries,
+            "source_rows": source_rows,
         }
 
         leaf_outputs.append(leaf_output)
@@ -193,7 +202,7 @@ def _source_row_ids_for_table(state: IterativeJoinState, table: str) -> List[str
 def _source_row_summaries_for_table(
     state: IterativeJoinState,
     table: str,
-    max_rows: int = 4,
+    max_rows: int = 12,
     max_columns: int = 8,
 ) -> List[str]:
     source_ids = _source_row_ids_for_table(state, table)
@@ -207,7 +216,12 @@ def _source_row_summaries_for_table(
             continue
         source_table, row = found
         pieces = []
-        for column, value in row.items():
+        # Prioritize readable labels over numeric IDs within the summary budget.
+        items = sorted(row.items(), key=lambda item: not (
+            isinstance(item[1], str) and item[1].strip()
+            and not item[1].strip().isnumeric()
+        ))
+        for column, value in items:
             if column == "__rid__" or str(column).endswith("_rownum"):
                 continue
             text = str(value).strip()
@@ -271,6 +285,10 @@ def _build_join_step_retrieval_query(
     if predicates:
         parts.append("Filters: " + " and ".join(_dedupe_strings(predicates)))
 
+    if source_row_summaries:
+        parts.append("Related source rows (context, not target-table filters): "
+                     + " | ".join(_dedupe_strings(source_row_summaries)))
+
     return ". ".join(part for part in parts if part)
 
 
@@ -293,7 +311,10 @@ def _record_selected_rows(
         row_id = item.get("row_id")
         values = item.get("values")
         if isinstance(row_id, str) and isinstance(values, dict):
-            state.selected_rows_by_table[table][row_id] = values
+            # Retain descriptive columns when extraction projects only join keys.
+            context_rows = (leaf_output.get("context_data") or {}).get(table) or {}
+            source_values = context_rows.get(row_id) or {}
+            state.selected_rows_by_table[table][row_id] = {**source_values, **values}
 
 
 def _propagate_bindings(
@@ -333,7 +354,13 @@ def _add_binding(
     if not value_text:
         return
     state.bindings[target_table][target_column].add(value_text)
-    state.binding_sources[target_table][target_column][value_text].add(source_row_id)
+    sources = state.binding_sources[target_table][target_column][value_text]
+    sources.add(source_row_id)
+    found = _find_selected_row_by_id(state, source_row_id)
+    if found is not None:
+        source_table, _ = found
+        # Keep descriptive evidence across bridge tables containing only IDs.
+        sources.update(_source_row_ids_for_table(state, source_table))
 
 
 def _serializable_bindings(

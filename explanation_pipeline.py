@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -64,6 +65,7 @@ def run_planner_first_explanation_pipeline(
         probability_metadata=probability_metadata,
     )
 
+    ap_started = time.monotonic()
     explanation_output = explanation_client.run_explanation(
         sql_query=service_sql_query or sql_query,
         csv_files=generated_csv_files,
@@ -73,6 +75,7 @@ def run_planner_first_explanation_pipeline(
         delimiter=delimiter,
     )
 
+    ap_seconds = time.monotonic() - ap_started
     response_text = render_explanation_markdown(
         sql_query=sql_query,
         generated_csv_files=generated_csv_files,
@@ -81,6 +84,7 @@ def run_planner_first_explanation_pipeline(
     )
 
     return {
+        "execution_metrics": {"ap_seconds": ap_seconds},
         "generated_csv_files": generated_csv_files,
         "explanation_output": explanation_output,
         "probability_metadata": probability_metadata,

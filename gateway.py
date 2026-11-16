@@ -12,16 +12,23 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import csv
 import shutil
 from pathlib import Path
+from result_comparison import compare_answers
 from collections import defaultdict
+from numbers import Real
+from rag_batching import context_window, count_tokens, plan_batches, retrieval_limits
 import requests
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, StreamingResponse
 from embedding_strategies import EmbeddingStrategies
 from explanation_client import ExplanationClient
+import sqlglot
+from sqlglot import exp
+
 from explanation_pipeline import run_planner_first_explanation_pipeline, render_explanation_markdown
 from json_to_csv import clean_bucket, planner_result_to_csv_files
 from semantic_join_pipeline import validate_semantic_query, prepare_semantic_joins
+from semantic_matching import resolve_matching_limits
 from row_probability import resolve_row_probabilities, valid_probability, protect_probability_projection
 from faiss_index_manager import FaissIndexManager
 from iterative_join_pipeline import run_iterative_join_pipeline
@@ -29,13 +36,13 @@ from prompt import build_iterative_join_leaf_prompt, build_leaf_prompt, required
 from prompt_internal_knowledge import (
     build_internal_knowledge_prompt,
     build_internal_knowledge_question,
-    build_previous_leaf_context,
     internal_knowledge_output_columns,
     normalize_internal_result_id,
     uses_plain_internal_results,
 )
 from tpch_schema_info import SCHEMA_INFO as TPCH_SCHEMA_INFO
 from planner import  build_query_plan
+from nl_to_sql import resolve_query
 import uuid
 
 app = FastAPI()
@@ -125,6 +132,13 @@ RETRIEVER_CANDIDATE_K = int(os.getenv(
     "RETRIEVER_CANDIDATE_K",
     str(RETRIEVER_K * max(MAX_ITERATIVE_RETRIEVALS, 1)),
 ))
+
+# Progressive leaf retrieval: candidate budget is the initial top-k.
+RETRIEVER_MIN_SIMILARITY = float(os.getenv("RETRIEVER_MIN_SIMILARITY", "0.3"))
+if not 0.0 <= RETRIEVER_MIN_SIMILARITY <= 1.0:
+    raise ValueError("RETRIEVER_MIN_SIMILARITY must be finite and in [0, 1]")
+if RETRIEVER_CANDIDATE_K <= 0:
+    raise ValueError("RETRIEVER_CANDIDATE_K must be positive")
 
 # For ap-explanation service:
 EXPLANATION_URL = os.getenv("EXPLANATION_URL", "http://explanation_app:5000")
@@ -295,6 +309,7 @@ def _schema_info_from_profile(profile_path: str, csv_dir: Optional[str] = None) 
             "primary_key": primary_key,
             "row_id": row_id,
             "foreign_keys": {},
+            "relationship_descriptions": info.get("relationship_descriptions") or {},
         }
 
     for fk in foreign_key_candidates:
@@ -895,6 +910,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: Optional[float] = None
     stream: Optional[bool] = False
     dataset: Optional[str] = None
+    input_type: str = "auto"
     model_config = ConfigDict(extra="allow")  # allow extra fields, for compatibility with OpenAI's API which can use more fields
 
 class ProvenanceExplainRequest(BaseModel):
@@ -905,15 +921,17 @@ class ProvenanceExplainRequest(BaseModel):
     dataset: Optional[str] = None
 
 class UiPlanRequest(BaseModel):
-    question: str
+    question: str = ""
     sql: Optional[str] = None
     dataset: Optional[str] = None
+    input_type: str = "auto"
 
 class UiLeafPipelineOptions(BaseModel):
     pushdown: bool = False
     iterative: bool = False
 
 class UiRunRequest(BaseModel):
+    unavailable_tables: List[str] = Field(default_factory=list)
     semantic_matching: bool = False
     question: str
     sql: str
@@ -969,7 +987,7 @@ def _extract_user_question(messages: List[ChatMessage]) -> str:
     user_msgs = [m.content for m in messages if m.role == "user"]
     return (user_msgs[-1] if user_msgs else "").strip()
 
-def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
+def _ollama_generate(model: str, prompt: str, temperature: float, max_output_tokens: Optional[int] = None) -> str:
     url = f"{OLLAMA_HOST}/api/generate"
     payload: Dict[str, Any] = {
         "model": model,
@@ -978,7 +996,7 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
         "options": {
             "temperature": temperature,
             "num_ctx": OLLAMA_NUM_CTX,
-            "num_predict": LLM_MAX_TOKENS,
+            "num_predict": max_output_tokens if max_output_tokens is not None else LLM_MAX_TOKENS,
         },
     }
     try:
@@ -986,7 +1004,11 @@ def _ollama_generate(model: str, prompt: str, temperature: float) -> str:
         if not r.ok:
             raise RuntimeError(f"Ollama error {r.status_code}: {r.text}")
         data = r.json()
+        if data.get("done_reason") == "length":
+            raise OutputTokenLimitError("Model output reached the token limit")
         return data.get("response", "")
+    except GenerationLimitError:
+        raise
     except Exception as e:
         raise RuntimeError(f"Failed calling Ollama model '{model}' at {url}: {e}")
 
@@ -999,6 +1021,12 @@ def _model_error_details(error: Exception) -> Dict[str, Any]:
 
 class GenerationLimitError(RuntimeError):
     """A response was stopped before it could become a valid result."""
+
+
+class OutputTokenLimitError(GenerationLimitError):
+    """Provider explicitly reported output-token exhaustion; callers may split input."""
+
+    output_token_limit = True
 
 
 def _has_repeating_tail(text: str) -> bool:
@@ -1015,6 +1043,7 @@ def _has_repeating_tail(text: str) -> bool:
 def _openai_compatible_generate(
     model: str, prompt: str, temperature: float,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    max_output_tokens: Optional[int] = None,
 ) -> str:
     if not LLM_API_BASE:
         raise RuntimeError("LLM_API_BASE is required when PLANNER_LLM_PROVIDER=openai")
@@ -1036,8 +1065,11 @@ def _openai_compatible_generate(
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
             "stream": status_event is not None,
-            "max_tokens": LLM_MAX_TOKENS,
+            "max_tokens": max_output_tokens if max_output_tokens is not None else LLM_MAX_TOKENS,
         }
+        # This proxy deployment only accepts its default temperature (1).
+        if model_candidate.rsplit("/", 1)[-1] == "aws_gpt-5.6-sol":
+            payload.pop("temperature", None)
         started_at = time.monotonic()
         try:
             r = requests.post(
@@ -1121,7 +1153,7 @@ def _openai_compatible_generate(
                             **metadata, "channel": channel, "text": text,
                         })
                     if choice.get("finish_reason") == "length":
-                        raise GenerationLimitError("Model output reached the token limit")
+                        raise OutputTokenLimitError("Model output reached the token limit")
                     if choice.get("finish_reason") is not None:
                         completed = True
                         break
@@ -1145,7 +1177,7 @@ def _openai_compatible_generate(
         if not choices:
             raise RuntimeError(f"LLM API returned no choices: {data}")
         if choices[0].get("finish_reason") == "length":
-            raise GenerationLimitError("Model output reached the token limit")
+            raise OutputTokenLimitError("Model output reached the token limit")
         message = choices[0].get("message") or {}
         content = message.get("content")
         if content is None:
@@ -1182,6 +1214,7 @@ def _generate_model(
     prompt: str,
     temperature: float,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+    max_output_tokens: Optional[int] = None,
 ) -> str:
     provider = provider.strip().lower()
     if provider in {"openai", "openai-compatible"}:
@@ -1194,6 +1227,7 @@ def _generate_model(
             request_started_at = time.monotonic()
             output = _openai_compatible_generate(
                 model, prompt, temperature, status_event=status_event,
+                **({"max_output_tokens": max_output_tokens} if max_output_tokens is not None else {}),
             )
             _close_llm_circuit()
             if status_event:
@@ -1238,7 +1272,12 @@ def _generate_model(
                 })
             try:
                 fallback_started_at = time.monotonic()
-                output = _ollama_generate(PLANNER_LLM_FALLBACK_MODEL, prompt, temperature)
+                if (max_output_tokens is not None
+                        and count_tokens(prompt) + max_output_tokens + 256 > context_window("ollama")):
+                    raise RuntimeError("Fallback model has a smaller context window; rerun with the Ollama provider "
+                                       "to rebuild batches for its window")
+                output = _ollama_generate(PLANNER_LLM_FALLBACK_MODEL, prompt, temperature,
+                    **({"max_output_tokens": max_output_tokens} if max_output_tokens is not None else {}))
             except Exception as fallback_error:
                 _log_event({
                     "type": "model_fallback_failed", "model": PLANNER_LLM_FALLBACK_MODEL,
@@ -1259,7 +1298,8 @@ def _generate_model(
             return output
     if provider == "ollama":
         request_started_at = time.monotonic()
-        output = _ollama_generate(model, prompt, temperature)
+        output = _ollama_generate(model, prompt, temperature,
+            **({"max_output_tokens": max_output_tokens} if max_output_tokens is not None else {}))
         if status_event:
             status_event("model_response_received", {
                 "message": f"Response received from Ollama {model}.",
@@ -1316,6 +1356,9 @@ def _call_model_with_retry(
     retry_suffix: str = RETRY_SUFFIX,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     prompt_sink: Optional[List[str]] = None,
+    max_output_tokens: Optional[int] = None,
+    context_tokens: Optional[int] = None,
+    split_on_output_limit: bool = False,
 ) -> str:
     """
     Call to the model with the given prompt. If the output is not a valid JSON array, retry up to max_tries times by appending the RETRY_SUFFIX to the prompt.
@@ -1332,6 +1375,10 @@ def _call_model_with_retry(
     best_score = -1
     validate = validator or _is_valid_json_array
     for attempt in range(1, max_tries + 1):
+        if context_tokens is not None and (
+                count_tokens(prompt) + (max_output_tokens or LLM_MAX_TOKENS) + 256 > context_tokens):
+            raise ValueError("RAG prompt including retry text exceeds the configured context window")
+
         if prompt_sink is not None:
             prompt_sink.append(prompt)
         attempt_started_at = time.monotonic()
@@ -1368,7 +1415,16 @@ def _call_model_with_retry(
                 prompt,
                 temperature,
                 status_event=track_model_status,
+                **({"max_output_tokens": max_output_tokens} if max_output_tokens is not None else {}),
             )
+        except OutputTokenLimitError:
+            if split_on_output_limit:
+                raise
+            # Preserve the existing bounded retry behavior for other pipelines.
+            if attempt == max_tries:
+                raise
+            prompt = base_prompt + "\n\nPrevious output hit the token limit. Return concise JSON only."
+            continue
         except GenerationLimitError as exc:
             _log_event({
                 "type": "generation_stopped", "model": ollama_model,
@@ -1790,8 +1846,12 @@ def retrieve_context_data_iterative(
     annotation_sink: Optional[List[Dict[str, Any]]] = None,
     annotation_scope: Optional[Dict[str, str]] = None,
     annotation_pipeline: str = "rag",
+    unavailable_tables: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
-    """Retrieve FAISS candidates without correlated-row expansion by default."""
+    """Accumulate scored FAISS candidates before model extraction."""
+    blocked_tables = set(unavailable_tables or [])
+    if blocked_tables and include_correlated_rows:
+        raise ValueError("Correlated-row expansion is unavailable with source restrictions")
     retrieval_started_at = time.monotonic()
     config = _dataset_config(dataset)
     runtime = _dataset_runtime(config.name)
@@ -1813,15 +1873,21 @@ def retrieve_context_data_iterative(
     seen_docs = set()
     scored_evidence: List[Dict[str, Any]] = []
     correlated_rows_added = 0
-    # The old progressive k, 2k, ... loop embedded and searched the identical
-    # query repeatedly. Its last call already contained all earlier results.
     k = RETRIEVER_CANDIDATE_K
+    seen_candidates = set()
+    iteration = 0
+    stop_reason = None
+    context_budget, no_row_patience, max_rounds = retrieval_limits(
+        PLANNER_LLM_PROVIDER, LLM_MAX_TOKENS, question)
+    context_tokens = 0
+    empty_rounds = 0
 
-    for iteration in range(1, 2):
-        if annotation_sink is not None:
-            scored_docs = vs.similarity_search_with_relevance_scores(question, k=k)
-        else:
-            scored_docs = [(document, None) for document in vs.similarity_search(question, k=k)]
+    while stop_reason is None:
+        iteration += 1
+        # Scores are needed for stopping even when annotations are not requested.
+        scored_docs = vs.similarity_search_with_relevance_scores(question, k=k)
+        new_documents = 0
+        below_threshold = False
         new_count = 0
         new_rids = []
         correlated_additions: List[Dict[str, str]] = []
@@ -1830,7 +1896,22 @@ def retrieve_context_data_iterative(
 
         for rank, (d, relevance_score) in enumerate(scored_docs, start=1):
             meta = d.metadata or {}
+            document_key = (json.dumps(meta, sort_keys=True, default=str),
+                            getattr(d, "page_content", ""))
+            if document_key not in seen_candidates:
+                seen_candidates.add(document_key)
+                new_documents += 1
+            # Do not assume score ordering: retain every qualifying item in a round.
+            if not isinstance(relevance_score, Real) or isinstance(relevance_score, bool):
+                raise ValueError("FAISS returned a nonnumeric relevance score")
+            if not float("-inf") < relevance_score < float("inf"):
+                raise ValueError("FAISS returned a nonfinite relevance score")
+            if relevance_score < RETRIEVER_MIN_SIMILARITY:
+                below_threshold = True
+                continue
             table = meta.get("table")
+            if table in blocked_tables:
+                continue
             rid = _retrieval_metadata_rid(meta, runtime.csv_rid_index.get(table, {}))
 
             if not table or not rid:
@@ -1854,6 +1935,14 @@ def retrieve_context_data_iterative(
                 continue
 
             row = runtime.csv_cache[table][idx0]
+            row_tokens = count_tokens(json.dumps({table: {rid: row}}, ensure_ascii=False))
+            if context_tokens + row_tokens > context_budget:
+                if context_tokens == 0:
+                    raise ValueError("A source row exceeds the retrieval context budget; "
+                                     "increase the configured context window or RETRIEVER_CONTEXT_WINDOWS")
+                stop_reason = "context_budget"
+                break
+            context_tokens += row_tokens
             ctx[table][rid] = row
             seen_docs.add((table, rid))
             new_count += 1
@@ -1911,8 +2000,30 @@ def retrieve_context_data_iterative(
             for rank, table, rid in new_rids
         }
 
+        empty_rounds = empty_rounds + 1 if new_count == 0 else 0
+        if stop_reason is not None:
+            pass
+        elif new_documents == 0:
+            stop_reason = "no_new_documents"
+        elif empty_rounds >= no_row_patience:
+            stop_reason = "no_new_rows"
+        elif below_threshold:
+            stop_reason = "similarity_threshold"
+        elif len(scored_docs) < k:
+            stop_reason = "index_exhausted"
+        elif iteration >= max_rounds:
+            stop_reason = "max_rounds"
+
+        print(f"[ITERATION {iteration}] context_tokens={context_tokens}/{context_budget} "
+              f"| stop_reason={stop_reason or 'continue'}", flush=True)
         _log_event({
             "type": "iterative_retrieval",
+            "new_documents": new_documents,
+            "context_tokens": context_tokens,
+            "context_token_budget": context_budget,
+            "consecutive_no_new_rows": empty_rounds,
+            "min_similarity": RETRIEVER_MIN_SIMILARITY,
+            "stop_reason": stop_reason,
             "dataset": config.name,
             "iteration": iteration,
             "retriever_k": k,
@@ -1931,6 +2042,8 @@ def retrieve_context_data_iterative(
             "target_tables": sorted(target_table_set),
         })
 
+        k *= 2
+
     preview = {table: list(rows.keys())[:3] for table, rows in ctx.items()}
     final_rids = {table: list(rows.keys()) for table, rows in ctx.items()}
 
@@ -1944,6 +2057,11 @@ def retrieve_context_data_iterative(
     final_context_data = {table: dict(rows) for table, rows in ctx.items()}
     _log_event({
         "type": "iterative_retrieval_final",
+        "iterations": iteration,
+        "context_tokens": context_tokens,
+        "context_token_budget": context_budget,
+        "stop_reason": stop_reason,
+        "min_similarity": RETRIEVER_MIN_SIMILARITY,
         "dataset": config.name,
         "tables": list(ctx.keys()),
         "rows_preview": preview,
@@ -2105,110 +2223,102 @@ def _build_leaf_retrieval_query(
         parts.append("Columns: " + ", ".join(columns))
     if predicates:
         parts.append("Conditions: " + " and ".join(predicates))
+    return "\n".join(parts)
 
-    if task.get("previous_leaf_records"):
-        parts.append(build_previous_leaf_context(task["previous_leaf_records"]))
-    return ". ".join(parts) or "Retrieve relevant rows for this task"
 
 def _leaf_rows_by_id(ctx: Dict[str, Any], table_name: str) -> Dict[str, Dict[str, Any]]:
     return dict(ctx.get(table_name) or {})
 
+def _run_rag_leaf_batches(task, ollama_model, model_provider, temperature, ctx,
+                          retrieval_query, make_prompt, status_event=None):
+    table = str(task.get("table_name") or task.get("table") or "").strip()
+    task = {**task, "table_name": table}
+    batches = plan_batches(task, ctx, make_prompt,
+                           context_tokens=context_window(model_provider), max_output_tokens=LLM_MAX_TOKENS)
+    required = None if task.get("all_columns") else required_leaf_columns(task)
+    generation_prompts, batch_outputs, merged, errors = [], [], {}, []
+    pending = list(batches)
+    while pending:
+        batch = pending.pop(0)
+        index = len(batch_outputs) + 1
+        expected = _leaf_rows_by_id(batch["context"], table)
+        if status_event:
+            status_event("leaf_batch_start", {"batch": index, "batch_count": index + len(pending),
+                "context_tokens": batch["context_tokens"], "prompt_tokens": batch["prompt_tokens"],
+                "max_output_tokens": batch["max_output_tokens"]})
+        prompt_start = len(generation_prompts)
+        try:
+            text = _call_model_with_retry(ollama_model, batch["prompt"], temperature,
+                provider=model_provider, max_tries=2,
+                validator=lambda text: _validate_leaf_json_array(text, expected, required),
+                scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected, required)[2] or []),
+                status_event=status_event, prompt_sink=generation_prompts,
+                max_output_tokens=batch["max_output_tokens"], context_tokens=batch["context_tokens"],
+                split_on_output_limit=True)
+        except OutputTokenLimitError as exc:
+            target_rows = list(expected.items())
+            if len(target_rows) < 2:
+                raise OutputTokenLimitError(
+                    f"A single {table} row still exceeds the output limit; increase LLM_MAX_TOKENS "
+                    "or reduce requested columns. No truncated output was accepted."
+                ) from exc
+            mid = len(target_rows) // 2
+            children = []
+            for half in (target_rows[:mid], target_rows[mid:]):
+                child_context = {**batch["context"], table: dict(half)}
+                children.extend(plan_batches(task, child_context, make_prompt,
+                    context_tokens=batch["context_tokens"], max_output_tokens=LLM_MAX_TOKENS))
+            pending[0:0] = children
+            batch_outputs.append({**{k: v for k, v in batch.items() if k != "context"},
+                "generation_prompts": generation_prompts[prompt_start:],
+                "output_text": "", "valid_leaf_output": False,
+                "status": "split", "split_reason": "output_token_limit", "parse_error": str(exc)})
+            if status_event:
+                status_event("leaf_batch_split", {"batch": index,
+                    "message": "Output token limit reached; splitting candidate rows into smaller batches."})
+            continue
+        valid, error, rows = _parse_leaf_json_array_partial(text, expected, required)
+        if not valid:
+            errors.append(f"Batch {index}: {error}")
+        for row in rows or []:
+            merged.setdefault(row["row_id"], row)
+        batch_outputs.append({**{k: v for k, v in batch.items() if k != "context"},
+                              "generation_prompts": generation_prompts[prompt_start:],
+                              "output_text": text, "valid_leaf_output": valid, "parse_error": error})
+    # Retain source order and the full retrieved context for provenance/navigation.
+    parsed = [merged[rid] for rid in (ctx.get(table) or {}) if rid in merged]
+    return {"table_name": table, "task": task, "retrieval_query": retrieval_query,
+            "context_data": ctx, "prompt": batches[0]["prompt"],
+            "generation_prompts": generation_prompts,
+            "output_text": batch_outputs[0]["output_text"] if len(batch_outputs) == 1 else json.dumps(parsed),
+            "parsed_output": parsed, "parse_error": "; ".join(errors) if errors else None,
+            "valid_leaf_output": not errors, "batches": batch_outputs}
+
+
 def _run_leaf_task(
-    task: Dict[str, Any],
-    ollama_model: str,
-    model_provider: str,
-    temperature: float,
-    ctx: Dict[str, Any],
-    retrieval_query: str,
+    task: Dict[str, Any], ollama_model: str, model_provider: str, temperature: float,
+    ctx: Dict[str, Any], retrieval_query: str,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     pushdown: bool = False,
 ) -> Dict[str, Any]:
-    table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    return _run_rag_leaf_batches(task, ollama_model, model_provider, temperature, ctx,
+        retrieval_query, lambda context: build_leaf_prompt(task, context, mode="first", pushdown=pushdown),
+        status_event)
 
-    expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
-    required_columns = None if task.get("all_columns") else required_leaf_columns(task)
-
-    prompt = build_leaf_prompt(task, ctx, mode="first", pushdown=pushdown)
-    generation_prompts: List[str] = []
-    out_text = _call_model_with_retry(
-        ollama_model,
-        prompt,
-        temperature,
-        provider=model_provider,
-        max_tries=2,
-        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id, required_columns),
-        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id, required_columns)[2] or []),
-        status_event=status_event,
-        prompt_sink=generation_prompts,
-    )
-
-    valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
-        out_text, expected_rows_by_id, required_columns,
-    )
-    parse_error = None if valid_leaf_output else validation_error
-
-    return {
-        "table_name": table_name,
-        "task": task,
-        "retrieval_query": retrieval_query,
-        "context_data": ctx,
-        "prompt": prompt,
-        "generation_prompts": generation_prompts,
-        "output_text": out_text,
-        "parsed_output": parsed_output,
-        "parse_error": parse_error,
-        "valid_leaf_output": valid_leaf_output,
-    }
 
 def _run_iterative_join_leaf_task(
-    task: Dict[str, Any],
-    ollama_model: str,
-    model_provider: str,
-    temperature: float,
-    ctx: Dict[str, Any],
-    retrieval_query: str,
-    inherited_bindings: Dict[str, List[str]],
+    task: Dict[str, Any], ollama_model: str, model_provider: str, temperature: float,
+    ctx: Dict[str, Any], retrieval_query: str, inherited_bindings: Dict[str, List[str]],
     source_row_ids: List[str],
+    source_rows: Optional[List[Dict[str, Any]]] = None,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
-    table_name = str(task.get("table_name") or task.get("table") or "").strip()
-    expected_rows_by_id = _leaf_rows_by_id(ctx, table_name)
-    required_columns = None if task.get("all_columns") else required_leaf_columns(task)
-    prompt = build_iterative_join_leaf_prompt(
-        task=task,
-        ctx=ctx,
-        inherited_bindings=inherited_bindings,
-        source_row_ids=source_row_ids,
-    )
-    generation_prompts: List[str] = []
-    out_text = _call_model_with_retry(
-        ollama_model,
-        prompt,
-        temperature,
-        provider=model_provider,
-        max_tries=2,
-        validator=lambda text: _validate_leaf_json_array(text, expected_rows_by_id, required_columns),
-        scorer=lambda text: len(_parse_leaf_json_array_partial(text, expected_rows_by_id, required_columns)[2] or []),
-        status_event=status_event,
-        prompt_sink=generation_prompts,
-    )
-    valid_leaf_output, validation_error, parsed_output = _parse_leaf_json_array_partial(
-        out_text, expected_rows_by_id, required_columns,
-    )
-    parse_error = None if valid_leaf_output else validation_error
+    return _run_rag_leaf_batches(task, ollama_model, model_provider, temperature, ctx,
+        retrieval_query, lambda context: build_iterative_join_leaf_prompt(
+            task=task, ctx=context, inherited_bindings=inherited_bindings,
+            source_row_ids=source_row_ids, source_rows=source_rows),
+        status_event)
 
-    return {
-        "table_name": table_name,
-        "task": task,
-        "retrieval_query": retrieval_query,
-        "context_data": ctx,
-        "prompt": prompt,
-        "generation_prompts": generation_prompts,
-        "output_text": out_text,
-        "parsed_output": parsed_output,
-        "parse_error": parse_error,
-        "valid_leaf_output": valid_leaf_output,
-    }
 def _run_planner_first(
     sql_query: str,
     ollama_model: str,
@@ -2323,7 +2433,10 @@ def _sql_table_leaf_output(
     task: Dict[str, Any],
     dataset: str,
 ) -> Dict[str, Any]:
+    """Stage source rows; the AP service evaluates the complete SQL query."""
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
+    if table_name in task.get("unavailable_tables", []):
+        raise ValueError(f"Source data unavailable: {table_name}")
     _load_csvs_once(dataset)
     runtime = _dataset_runtime(dataset)
     rows = runtime.csv_cache.get(table_name)
@@ -2331,11 +2444,11 @@ def _sql_table_leaf_output(
         raise ValueError(f"SQL table leaf references unknown table: {table_name}")
     parsed_output = []
     columns = required_leaf_columns(task)
-    for index, row in enumerate(rows, start=1):
+    for source_index, row in enumerate(rows):
         row_id = str(
             row.get(f"{table_name}_rownum")
             or row.get("__rid__")
-            or f"{table_name}_{index}"
+            or f"{table_name}_{source_index + 1}"
         )
         parsed_output.append({
             "row_id": row_id,
@@ -2348,6 +2461,8 @@ def _sql_table_leaf_output(
         "retrieval_query": "",
         "context_data": {},
         "prompt": "SQL TABLE MODE",
+        "pushdown": False,
+        "question_sql": _leaf_question_sql(task),
         "output_text": "",
         "parsed_output": parsed_output,
         "parse_error": None,
@@ -2370,10 +2485,6 @@ def _llm_internal_leaf_output(
         temperature,
         status_event=status_event,
         output_columns=columns,
-        expected_records=[{column: entity[column] for column in columns}
-                          for entity in task.get("previous_target_entities") or []
-                          if columns and all(entity.get(column) is not None for column in columns)]
-                         if not task.get("local_predicates") else None,
         prompt_sink=generation_prompts,
     )
     parsed_output: List[Dict[str, Any]] = []
@@ -2430,6 +2541,9 @@ def _run_ui_leaf_pipeline(
     dataset: Optional[str] = None,
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
 ) -> Dict[str, Any]:
+    if ((task.get("table_name") or task.get("table")) in task.get("unavailable_tables", [])
+            and _canonical_pipeline_id(pipeline) != LLM_INTERNAL_PIPELINE_ID):
+        raise ValueError("Unavailable source tables require LLM internal")
     if task.get("empty_dependency"):
         return {"table_name": task.get("table_name") or task.get("table"), "task": task,
                 "parsed_output": [], "output_text": "[]", "context_data": {}, "annotations": [],
@@ -2469,6 +2583,7 @@ def _run_ui_leaf_pipeline(
         annotation_sink=annotations,
         annotation_scope={"type": "leaf", "table": str(task.get("table_name") or "")},
         annotation_pipeline=pipeline,
+        unavailable_tables=task.get("unavailable_tables"),
     )
     if pipeline == "manual":
         leaf_output = _manual_leaf_output(task, ctx, retrieval_query)
@@ -2591,6 +2706,7 @@ def _run_ui_iterative_join_pipeline(
         retrieval_query: str,
         inherited_bindings: Dict[str, List[str]],
         source_row_ids: List[str],
+        source_rows: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         table_name = str(task.get("table_name") or task.get("table") or "").strip()
         annotations: List[Dict[str, Any]] = []
@@ -2665,6 +2781,7 @@ def _run_ui_iterative_join_pipeline(
             retrieval_query=retrieval_query,
             inherited_bindings=inherited_bindings,
             source_row_ids=source_row_ids,
+            source_rows=source_rows,
             status_event=forward_model_status,
         )
         leaf_output["annotations"] = annotations
@@ -2792,8 +2909,6 @@ def _prepare_sequential_leaf_task(task: Dict[str, Any], plan: Dict[str, Any],
         facts = []
         for row in rows:
             values = dict(row.get("values") or {})
-            if leaf.get("pipeline") != LLM_INTERNAL_PIPELINE_ID:
-                values = {**_semantic_source_context(source_table, str(row.get("row_id") or ""), dataset), **values}
             columns = internal_knowledge_output_columns(list(values)) or []
             facts.append({key: values[key] for key in columns if not key.startswith("__")})
             prefix = str(table) + "_"
@@ -2813,77 +2928,26 @@ def _leaf_question_nl_internal(task: Dict[str, Any], dataset: str = "") -> str:
     existing = str(task.get("question_nl") or "").strip()
     columns = internal_knowledge_output_columns(required_leaf_columns(task))
     projection_instruction = " Include all available information about each item." if not columns else ""
-    previous = task.get("previous_leaf_records") or []
-    context = build_previous_leaf_context(previous) if previous else ""
-    context_instruction = "\n\n" + context if context else ""
-    if task.get("previous_target_entities"):
-        context_instruction += (
-            f"\n\nIDENTIFIED {str(task.get('table_name') or task.get('table')).upper()} ATTRIBUTES:\n"
-            + json.dumps(task["previous_target_entities"], ensure_ascii=False)
-            + "\nReturn these identified entities when they satisfy this leaf's local filters. "
-              "Copy the supplied requested attributes directly. Do not require independent "
-              "confirmation of a relationship already identified in the previous records. "
-              "Use null for requested attributes not supplied and not known."
-        )
     if existing:
-        return existing + projection_instruction + context_instruction
-
+        return existing + projection_instruction
     table_name = str(task.get("table_name") or task.get("table") or "").strip()
-    if not table_name:
-        return "List the relevant information." + projection_instruction + context_instruction
-
     subject = table_name.replace("_", " ")
-    if dataset == "relf1" and table_name == "standings":
-        subject = "driver championship standings recorded after a race (not race finishing results)"
     predicates = [
         str(predicate).strip()
         for predicate in task.get("local_predicates") or []
         if str(predicate).strip()
     ]
-    return build_internal_knowledge_question(subject, predicates) + projection_instruction + context_instruction
+    return build_internal_knowledge_question(subject, predicates) + projection_instruction
 
 def _prepare_ui_semantic_tasks(req: UiRunRequest, sql_query: str, dataset: str) -> None:
     automatic = any(pipeline == LLM_INTERNAL_PIPELINE_ID for pipeline in req.leaf_pipeline_choices.values())
     if not req.semantic_matching and not automatic:
         return
     validate_semantic_query(sql_query)
-    # Add entity names and location as descriptive context for matching.
-    config = _dataset_config(dataset)
-    source_dir = Path(config.csv_dir)
-    tasks = req.plan.get("leaf_tasks") or []
-    join_neighbors = {}
-    for join in req.plan.get("joins") or []:
-        tables = {column.get("table_name") for column in join.get("on_columns") or []}
-        for table in tables - {None}:
-            join_neighbors.setdefault(table, set()).update(tables - {table, None})
-    for task in tasks:
-        table = task.get("table_name") or task.get("table")
-        if not isinstance(table, str) or Path(table).name != table:
-            continue
-        internal = req.leaf_pipeline_choices.get(table) == LLM_INTERNAL_PIPELINE_ID
+    # Preserve the planner's projection: matching must use the requested data,
+    # without adding same-table descriptions or related-table attributes.
+    for task in req.plan.get("leaf_tasks") or []:
         task.pop("internal_query_context", None)
-        path = source_dir / (table + ".csv")
-        if not path.is_file():
-            continue
-        with path.open(newline="", encoding="utf-8-sig") as handle:
-            headers = next(csv.reader(handle), [])
-        columns = task.setdefault("columns", [])
-        for name in headers:
-            if name.lower() in {"name", "location", "surname", "forename", "title"} or name.lower().endswith("_name"):
-                if name not in columns:
-                    columns.append(name)
-        if internal:
-            for target in (config.schema_info.get(table, {}).get("foreign_keys") or {}).values():
-                if not isinstance(target, str) or "." not in target:
-                    continue
-                related_table = target.rsplit(".", 1)[0]
-                if related_table not in join_neighbors.get(table, set()):
-                    continue
-                for name in config.schema_info.get(related_table, {}).get("columns") or []:
-                    if name.lower() in {"name", "surname", "forename", "title", "year"}:
-                        descriptive_column = f"{related_table}_{name}"
-                        if descriptive_column not in columns:
-                            columns.append(descriptive_column)
 
 
 def _run_ui_ap_explanation(
@@ -2929,6 +2993,7 @@ def _run_ui_ap_explanation(
         "scope": "query",
         "query_sql": sql_query,
         "service_sql": service_sql_query,
+        "execution_metrics": pipeline_result.get("execution_metrics", {}),
         "generated_csv_files": pipeline_result["generated_csv_files"],
         "explanation_output": pipeline_result["explanation_output"],
         "response_text": pipeline_result["response_text"],
@@ -2967,6 +3032,7 @@ def _generate_ui_csv_files(
 def _copy_dataset_csv_files(
     dataset: Optional[str] = None,
     table_names: Optional[set[str]] = None,
+    unavailable_tables: Optional[List[str]] = None,
 ) -> List[str]:
     """Stage the selected database's source tables for deterministic AP execution."""
     config = _dataset_config(dataset)
@@ -2978,14 +3044,75 @@ def _copy_dataset_csv_files(
     copied: List[str] = []
     for source in sorted(source_dir.glob("*.csv")):
         table = source.stem.lower() if config.name == "rel_arxiv" else source.stem
+        if table in (unavailable_tables or []):
+            continue
         if table_names is not None and table not in table_names:
             continue
         destination = EXPLANATION_BUCKET_DIR / f"{table}.csv"
         shutil.copy2(source, destination)
         copied.append(destination.name)
-    if not copied:
+    if not copied and not unavailable_tables:
         raise RuntimeError(f"No CSV tables found for dataset '{config.name}'")
     return copied
+
+def _run_ui_sql_reference(sql_query: str, dataset: str,
+                          unavailable_tables: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Execute SQL over permitted source tables; never send restricted tables to AP."""
+    started = time.monotonic()
+    try:
+        with _EXPLANATION_PIPELINE_LOCK:
+            files = (_copy_dataset_csv_files(dataset, unavailable_tables=unavailable_tables)
+                     if unavailable_tables else _copy_dataset_csv_files(dataset))
+            if unavailable_tables:
+                referenced = {table.name for table in sqlglot.parse_one(sql_query).find_all(exp.Table)}
+                missing = sorted(referenced.intersection(unavailable_tables))
+                if missing:
+                    return {"status": "unavailable", "answer": [],
+                            "unavailable_tables": sorted(unavailable_tables),
+                            "error": "Cannot execute SQL: source data unavailable for " + ", ".join(missing)}
+            explanation = _run_ui_ap_explanation_for_csv_files(
+                sql_query=sql_query, csv_files=files, dataset=dataset,
+            )
+        output = explanation.get("explanation_output") or {}
+        if not isinstance(output.get("result"), dict) or not isinstance(output["result"].get("derivations"), list):
+            raise ValueError("SQL reference service did not return answer derivations")
+        return {"status": "complete", "answer": _answer_from_ap_explanation(explanation),
+                "explanation": explanation,
+                "execution_metrics": {"total_seconds": time.monotonic() - started,
+                    "ap_seconds": explanation.get("execution_metrics", {}).get("ap_seconds"),
+                    "table_count": len(files), "engine": "AP"}}
+    except Exception as exc:
+        _log_event({"type": "ui_sql_reference_error", "error": str(exc), "dataset": dataset})
+        return {"status": "failed", "answer": [], "error": str(exc)}
+
+
+def _ui_result_comparison(answer: List[Dict[str, Any]], reference: Dict[str, Any],
+                          errors: List[str]) -> Dict[str, Any]:
+    if reference["status"] != "complete" or errors:
+        return {"status": "unavailable", "reference": reference,
+                "reason": reference.get("error", "SQL reference failed") if reference["status"] != "complete" else "Selected pipeline did not complete"}
+    return {"status": "complete", "reference": reference, **compare_answers(answer, reference["answer"])}
+
+
+def _validate_ui_source_restrictions(req: UiRunRequest, dataset: str,
+                                     leaf_tasks: List[Dict[str, Any]]) -> None:
+    blocked = sorted(set(req.unavailable_tables))
+    unknown = set(blocked) - set(_dataset_config(dataset).schema_info)
+    if unknown:
+        raise ValueError("Unknown unavailable tables: " + ", ".join(sorted(unknown)))
+    if blocked and _ui_uses_iterative_join_pipeline(leaf_tasks, req.leaf_pipeline_choices):
+        raise ValueError("Disable iterative RAG when source tables are unavailable; it overrides all leaves with RAG")
+    for task in leaf_tasks:
+        if not isinstance(task, dict):
+            continue
+        table = task.get("table_name") or task.get("table")
+        if table in blocked and req.leaf_pipeline_choices.get(table) != LLM_INTERNAL_PIPELINE_ID:
+            raise ValueError(f"Source data unavailable: {table}. Select LLM internal or restore source access")
+        # Overwrite client-supplied task metadata, including when restrictions are removed.
+        task["unavailable_tables"] = blocked
+    req.unavailable_tables = blocked
+    req.plan["unavailable_tables"] = blocked
+
 
 def _apply_ui_leaf_pipeline_options(req: UiRunRequest, leaf_tasks: List[Dict[str, Any]]) -> None:
     choices: Dict[str, str] = {}
@@ -3019,7 +3146,6 @@ def _run_llm_internal_query(
     status_event: Optional[Callable[[str, Dict[str, Any]], None]] = None,
     output_columns: Optional[List[str]] = None,
     prompt_sink: Optional[List[str]] = None,
-    expected_records: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[List[Dict[str, Any]], str, Dict[str, Any], str]:
     use_plain_results = uses_plain_internal_results(dataset)
     output_columns = internal_knowledge_output_columns(output_columns)
@@ -3055,12 +3181,7 @@ def _run_llm_internal_query(
     def validate(text: str) -> Tuple[bool, Optional[str]]:
         try:
             if use_plain_results:
-                rows = parse_plain_results(text)
-                for expected in expected_records or []:
-                    if not any(all(row.get(key) == value for key, value in expected.items()) for row in rows):
-                        raise ValueError("The previous step explicitly identified requested attributes "
-                                         + json.dumps(expected, ensure_ascii=False)
-                                         + "; return that entity instead of omitting it.")
+                parse_plain_results(text)
             else:
                 _parse_answer_json(text)
             return True, None
@@ -3263,27 +3384,6 @@ GENERATED OUTPUT:
         "assessment_error": assessment_error,
     }
 
-def _semantic_source_context(table: str, row_id: str, dataset: Optional[str] = None) -> Dict[str, Any]:
-    """Add factual source descriptions for matching, without changing exported rows."""
-    _load_csvs_once(dataset)
-    runtime = _dataset_runtime(dataset)
-    index = runtime.csv_rid_index.get(table, {}).get(row_id)
-    if index is None:
-        return {}
-    row = runtime.csv_cache[table][index]
-    context = {key: value for key, value in row.items()
-               if key != "__rid__" and not key.endswith("_rownum")}
-    for column, target in (_dataset_config(dataset).schema_info.get(table, {}).get("foreign_keys") or {}).items():
-        if column not in row or not isinstance(target, str) or "." not in target:
-            continue
-        target_table, target_column = target.rsplit(".", 1)
-        linked = _resolve_row_by_column_values(target_table, [target_column], [row[column]], dataset)
-        if linked:
-            context.update({f"{target_table}_{key}": value for key, value in linked["row"].items()
-                            if key != "__rid__" and not key.endswith("_rownum")})
-    return context
-
-
 def _run_ui_ap_explanation_for_csv_files(
     sql_query: str,
     csv_files: List[str],
@@ -3292,22 +3392,31 @@ def _run_ui_ap_explanation_for_csv_files(
     semantic_matching: bool = False,
     matching_event: Optional[Callable] = None,
 ) -> Dict[str, Any]:
+    preparation_started = time.monotonic()
+    matching_seconds = 0.0
     matching_trace = None
     llm_tables = set((probability_metadata or {}).get("llm_tables") or [])
     llm_tables.update(source.get("table") for source in (probability_metadata or {}).get("source_probabilities", [])
                       if source.get("pipeline") == LLM_INTERNAL_PIPELINE_ID and source.get("table"))
     if semantic_matching or llm_tables:
+        matching_limits = resolve_matching_limits(
+            context_tokens=OLLAMA_NUM_CTX if PLANNER_LLM_PROVIDER == "ollama" else None,
+            default_output_tokens=LLM_MAX_TOKENS)
+        matching_started = time.monotonic()
         prepared = prepare_semantic_joins(
             sql_query, csv_files, EXPLANATION_BUCKET_DIR,
-            lambda prompt: _generate_model(PLANNER_LLM_PROVIDER, PLANNER_LLM_MODEL, prompt, 0.0),
+            lambda prompt: _generate_model(PLANNER_LLM_PROVIDER, PLANNER_LLM_MODEL, prompt, 0.0,
+                max_output_tokens=matching_limits["max_output_tokens"]),
             delimiter=EXPLANATION_CSV_DELIMITER, event=matching_event,
-            max_output_tokens=LLM_MAX_TOKENS,
+            max_output_tokens=matching_limits["max_output_tokens"],
+            context_tokens=matching_limits["context_tokens"],
+            schema_info=_dataset_config(dataset).schema_info,
             source_backed_columns=(probability_metadata or {}).get("source_backed_columns"),
             llm_tables=None if semantic_matching else llm_tables,
-            source_context=(lambda table, rid: {} if table in llm_tables else
-                            _semantic_source_context(table, rid, dataset)) if llm_tables else None,
         )
+        matching_seconds = time.monotonic() - matching_started
         matching_trace = prepared["trace"]
+        matching_trace["budget_policy"] = matching_limits
         csv_files = prepared["csv_files"]
         probability_metadata = dict(probability_metadata or {})
         mappings = prepared.get("mapping_columns_by_file") or {}
@@ -3337,6 +3446,7 @@ def _run_ui_ap_explanation_for_csv_files(
         timeout=EXPLANATION_REQUEST_TIMEOUT,
         event_logger=_log_event,
     )
+    ap_started = time.monotonic()
     explanation_output = explanation_client.run_explanation(
         sql_query=service_sql_query,
         csv_files=csv_files,
@@ -3345,11 +3455,13 @@ def _run_ui_ap_explanation_for_csv_files(
         csv_columns=(probability_metadata or {}).get("csv_columns", {}),
         delimiter=EXPLANATION_CSV_DELIMITER,
     )
+    ap_seconds = time.monotonic() - ap_started
     response_text = render_explanation_markdown(
         sql_query, csv_files, explanation_output, probability_metadata,
     )
 
     return {
+        "execution_metrics": {"ap_seconds": ap_seconds, "matching_seconds": matching_seconds, "preparation_seconds": ap_started - preparation_started},
         "semantic_matching": matching_trace,
         "scope": "query",
         "query_sql": sql_query,
@@ -3396,16 +3508,22 @@ def _answer_from_ap_explanation(explanation: Dict[str, Any]) -> List[Dict[str, A
 
 def _provenance_row_ids(provenance: Any, known_row_ids: set[str]) -> List[str]:
     found: List[str] = []
+    seen: set[str] = set()
+    pattern = re.compile(
+        r"(?<![A-Za-z0-9_])(?:"
+        + "|".join(re.escape(row_id) for row_id in sorted(known_row_ids, key=len, reverse=True))
+        + r")(?![A-Za-z0-9_])"
+    ) if known_row_ids else None
 
     def visit(value: Any) -> None:
         if isinstance(value, str):
-            for row_id in known_row_ids:
-                if row_id in found:
-                    continue
-                if value == row_id or re.search(
-                    rf"(?<![A-Za-z0-9_]){re.escape(row_id)}(?![A-Za-z0-9_])",
-                    value,
-                ):
+            if value in known_row_ids:
+                matches = [value]
+            else:
+                matches = (match.group(0) for match in pattern.finditer(value)) if pattern else []
+            for row_id in matches:
+                if row_id not in seen:
+                    seen.add(row_id)
                     found.append(row_id)
             return
         if isinstance(value, list):
@@ -3458,16 +3576,19 @@ def _provenance_alias_row_ids(
     aliases: Dict[str, str],
 ) -> List[str]:
     found: List[str] = []
+    seen: set[str] = set()
+    pattern = re.compile(
+        r"(?<![A-Za-z0-9_])(?:"
+        + "|".join(re.escape(alias) for alias in sorted(aliases, key=len, reverse=True))
+        + r")(?![A-Za-z0-9_])"
+    ) if aliases else None
 
     def visit(value: Any) -> None:
         if isinstance(value, str):
-            for alias, row_id in aliases.items():
-                if row_id in found:
-                    continue
-                if re.search(
-                    rf"(?<![A-Za-z0-9_]){re.escape(alias)}(?![A-Za-z0-9_])",
-                    value,
-                ):
+            for match in pattern.finditer(value) if pattern else []:
+                row_id = aliases[match.group(0)]
+                if row_id not in seen:
+                    seen.add(row_id)
                     found.append(row_id)
             return
         if isinstance(value, list):
@@ -4062,6 +4183,8 @@ def _ui_file_response(path: Path) -> FileResponse:
 def root() -> RedirectResponse:
     return RedirectResponse(url="/ui")
 
+@app.get("/ui/technical", response_class=HTMLResponse)
+@app.get("/ui/technical/", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 @app.get("/ui/", response_class=HTMLResponse)
 def ui_index() -> FileResponse:
@@ -4070,12 +4193,20 @@ def ui_index() -> FileResponse:
         raise HTTPException(status_code=404, detail="UI index.html not found")
     return _ui_file_response(index_path)
 
+@app.get("/ui/demo", response_class=HTMLResponse)
+@app.get("/ui/demo/", response_class=HTMLResponse)
+def ui_demo() -> FileResponse:
+    demo_path = UI_DIR / "demo.html"
+    if not demo_path.exists():
+        raise HTTPException(status_code=404, detail="Demo UI not found")
+    return _ui_file_response(demo_path)
+
 @app.get("/ui/{asset_name}")
 def ui_asset(asset_name: str) -> Any:
     if asset_name == "csv":
         return ui_csv_files()
 
-    if asset_name not in {"app.js", "styles.css", "source.html", "source.js"}:
+    if asset_name not in {"app.js", "styles.css", "source.html", "source.js", "demo.js", "demo.css"}:
         raise HTTPException(status_code=404, detail="UI asset not found")
 
     asset_path = UI_DIR / asset_name
@@ -4145,14 +4276,31 @@ def ui_csv_files() -> HTMLResponse:
         """
     )
 
+def _resolve_input_query(query: str, dataset: str, input_type: str = "auto") -> Dict[str, Any]:
+    schema = _dataset_config(dataset).schema_info
+    try:
+        return resolve_query(
+            query, schema,
+            lambda prompt: _generate_model(PLANNER_LLM_PROVIDER, PLANNER_LLM_MODEL, prompt, 0.0),
+            input_type=input_type,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"NL-to-SQL translation failed: {exc}") from exc
+
+
 @app.post("/ui/plan")
 def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
-    sql_query = (req.sql or req.question).strip()
+    explicit_sql = (req.sql or "").strip()
+    sql_query = explicit_sql or req.question.strip()
     if not sql_query:
-        raise HTTPException(status_code=400, detail="Empty SQL query")
+        raise HTTPException(status_code=400, detail="Empty query")
 
     try:
         dataset = _dataset_config(req.dataset).name
+        resolution = _resolve_input_query(sql_query, dataset, "sql" if explicit_sql else req.input_type)
+        sql_query = resolution["sql"]
         plan = build_query_plan(sql_query)
         if plan is None:
             raise RuntimeError("build_query_plan returned None")
@@ -4166,14 +4314,19 @@ def ui_plan(req: UiPlanRequest) -> Dict[str, Any]:
             "type": "ui_plan",
             "dataset": dataset,
             "sql_query": sql_query,
+            "question": req.question,
+            "query_resolution": resolution,
             "leaf_tasks": len(plan_dict.get("leaf_tasks", [])),
         })
         return {
             "source": "gateway",
             "dataset": dataset,
             "sql": sql_query,
+            "query_resolution": resolution,
             "plan": plan_dict,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -4205,6 +4358,9 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
         dataset = _dataset_config(req.dataset).name
         _prepare_ui_semantic_tasks(req, sql_query, dataset)
         _apply_ui_leaf_pipeline_options(req, leaf_tasks)
+        _validate_ui_source_restrictions(req, dataset, leaf_tasks)
+        sql_reference = _run_ui_sql_reference(sql_query, dataset, req.unavailable_tables)
+        selected_started = time.monotonic()
         if _ui_uses_iterative_join_pipeline(leaf_tasks, req.leaf_pipeline_choices):
             print("\n[UI] Running iterative join-aware query pipeline\n", flush=True)
             planner_result = _run_ui_iterative_join_pipeline(
@@ -4255,6 +4411,8 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
         _leaf_answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
         explanations: List[Dict[str, Any]] = []
         answer: List[Dict[str, Any]] = []
+        evidence_seconds = time.monotonic() - selected_started
+        finalization_started = time.monotonic()
         try:
             explanation = _run_ui_ap_explanation(
                 sql_query=sql_query,
@@ -4277,6 +4435,17 @@ def ui_run(req: UiRunRequest) -> Dict[str, Any]:
             })
 
         result = {
+            "comparison": _ui_result_comparison(answer, sql_reference, errors),
+            "execution_metrics": {
+                "total_seconds": time.monotonic() - selected_started,
+                "evidence_seconds": evidence_seconds,
+                "finalization_seconds": time.monotonic() - finalization_started,
+                "ap_seconds": (explanations[-1].get("execution_metrics", {}).get("ap_seconds") if explanations else None),
+                "matching_seconds": (explanations[-1].get("execution_metrics", {}).get("matching_seconds", 0) if explanations else None),
+                "table_count": len(leaf_outputs),
+                "materialized_rows": sum(len(leaf.get("parsed_output") or []) for leaf in leaf_outputs),
+                "engine": "AP",
+            },
             "semantic_matching": matching_trace,
             "source": "gateway",
             "dataset": dataset,
@@ -4336,7 +4505,11 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
         _prepare_ui_semantic_tasks(req, sql_query, dataset)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    _apply_ui_leaf_pipeline_options(req, leaf_tasks)
+    try:
+        _apply_ui_leaf_pipeline_options(req, leaf_tasks)
+        _validate_ui_source_restrictions(req, dataset, leaf_tasks)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     def encode_event(event_type: str, payload: Dict[str, Any]) -> str:
         return json.dumps(
@@ -4380,6 +4553,11 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 "leaf_count": len(leaf_tasks),
             })
 
+            yield encode_event("reference_start", {"message": "Computing SQL reference using permitted source tables."})
+            sql_reference = _run_ui_sql_reference(sql_query, dataset, req.unavailable_tables)
+            yield encode_event("reference_done", {"reference": sql_reference, "message": "SQL reference execution finished."})
+
+            selected_started = time.monotonic()
             if _ui_uses_iterative_join_pipeline(leaf_tasks, req.leaf_pipeline_choices):
                 yield encode_event("leaf_start", {
                     "table": "",
@@ -4563,6 +4741,7 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                             annotation_sink=annotations,
                             annotation_scope={"type": "leaf", "table": table_name},
                             annotation_pipeline=pipeline,
+                            unavailable_tables=req.unavailable_tables,
                         )
                         yield encode_event("leaf_context", {
                             "table": table_name,
@@ -4598,6 +4777,8 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
 
             leaf_answer, rows_by_id, errors = _ui_rows_from_leaf_outputs(leaf_outputs)
 
+            evidence_seconds = time.monotonic() - selected_started
+            finalization_started = time.monotonic()
             try:
                 with _EXPLANATION_PIPELINE_LOCK:
                     probability_metadata: Dict[str, Any] = {}
@@ -4650,6 +4831,17 @@ def ui_run_stream(req: UiRunRequest) -> StreamingResponse:
                 })
 
             result = {
+                "comparison": _ui_result_comparison(answer, sql_reference, errors),
+                "execution_metrics": {
+                    "total_seconds": time.monotonic() - selected_started,
+                    "evidence_seconds": evidence_seconds,
+                    "finalization_seconds": time.monotonic() - finalization_started,
+                    "ap_seconds": (explanations[-1].get("execution_metrics", {}).get("ap_seconds") if explanations else None),
+                    "matching_seconds": (explanations[-1].get("execution_metrics", {}).get("matching_seconds", 0) if explanations else None),
+                    "table_count": len(leaf_outputs),
+                    "materialized_rows": sum(len(leaf.get("parsed_output") or []) for leaf in leaf_outputs),
+                    "engine": "AP",
+                },
                 "source": "gateway",
                 "dataset": dataset,
                 "sql": sql_query,
@@ -4757,6 +4949,11 @@ def chat_completions(
     temperature = 0.0 if req.temperature is None else float(req.temperature)
     dataset = _dataset_config(req.dataset).name
 
+    resolution = _resolve_input_query(question, dataset, req.input_type)
+    _log_event({"type": "query_resolution", "request_id": request_id,
+                "dataset": dataset, "question": question, **resolution})
+    question = resolution["sql"]
+
     if ui_model == SQL_TABLE_PIPELINE_ID:
         try:
             plan = build_query_plan(question)
@@ -4778,6 +4975,7 @@ def chat_completions(
             return {
                 "id": f"chatcmpl-{created}",
                 "object": "chat.completion",
+                "query_resolution": resolution,
                 "created": created,
                 "model": ui_model,
                 "choices": [{
@@ -4848,6 +5046,7 @@ def chat_completions(
             return {
                 "id": f"chatcmpl-{created}",
                 "object": "chat.completion",
+                "query_resolution": resolution,
                 "created": created,
                 "model": ui_model,
                 "choices": [
@@ -4917,6 +5116,7 @@ def chat_completions(
                 return {
                     "id": f"chatcmpl-{created}",
                     "object": "chat.completion",
+                    "query_resolution": resolution,
                     "created": created,
                     "model": ui_model,
                     "choices": [
@@ -4993,6 +5193,7 @@ def chat_completions(
             return {
                 "id": f"chatcmpl-{created}",
                 "object": "chat.completion",
+                "query_resolution": resolution,
                 "created": created,
                 "model": ui_model,
                 "choices": [
@@ -5049,6 +5250,7 @@ def chat_completions(
         return {
             "id": f"chatcmpl-{_now()}",
             "object": "chat.completion",
+            "query_resolution": resolution,
             "created": _now(),
             "model": req.model,
             "choices": [
@@ -5131,6 +5333,7 @@ def chat_completions(
     return {
         "id": f"chatcmpl-{created}",
         "object": "chat.completion",
+        "query_resolution": resolution,
         "created": created,
         "model": req.model,
         "choices": [

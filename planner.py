@@ -472,7 +472,10 @@ def _finalize_leaf_tasks(leaf_map: Dict[str, LeafExtractionTask]) -> List[LeafEx
 
 def build_query_plan(sql: str) -> QueryPlan:
     # Parse the SQL query into a sqlglot AST
-    tree = sqlglot.parse_one(sql)
+    try:
+        tree = sqlglot.parse_one(sql)
+    except (sqlglot.errors.TokenError, sqlglot.errors.ParseError) as exc:
+        raise ValueError(f"Invalid SQL: {exc}") from exc
 
     if not isinstance(tree, exp.Select):
         raise ValueError(f"Only select for now: {type(tree)}")

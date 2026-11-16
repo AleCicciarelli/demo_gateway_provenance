@@ -1,3 +1,4 @@
+const IS_DEMO = document.body.dataset.view === "demo";
 const BACKEND_ENDPOINTS = {
   plan: window.location.protocol === "file:" ? "" : "/ui/plan",
   run: window.location.protocol === "file:" ? "" : "/ui/run",
@@ -13,17 +14,24 @@ const PIPELINES = [
 const state = {
   dataset: "relf1",
   plan: null,
+  planInput: null,
+  planRevision: 0,
   selectedPipelines: {},
   leafRagOptions: {},
+  unavailableTables: {},
   output: null,
   progress: [],
   explanationOpen: false,
+  ragAnnotationsOpen: false,
 };
 
 const DEFAULT_PIPELINE = "rag";
 
 const els = {
   queryInput: document.querySelector("#query-input"),
+  inputType: document.querySelector("#input-type"),
+  sqlPreview: document.querySelector("#resolved-sql"),
+  sqlPreviewPanel: document.querySelector("#resolved-sql-panel"),
   datasetSelect: document.querySelector("#dataset-select"),
   planButton: document.querySelector("#plan-button"),
   runButton: document.querySelector("#run-button"),
@@ -36,8 +44,11 @@ const els = {
   leafList: document.querySelector("#leaf-list"),
   runStatus: document.querySelector("#run-status"),
   answerView: document.querySelector("#answer-view"),
+  comparisonView: document.querySelector("#comparison-view"),
   generationPromptView: document.querySelector("#generation-prompt-view"),
   provenanceView: document.querySelector("#provenance-view"),
+  executionView: document.querySelector("#execution-view"),
+  evidenceView: document.querySelector("#evidence-view"),
   tabs: document.querySelectorAll(".tab"),
 };
 
@@ -591,53 +602,88 @@ async function postJsonStream(url, payload, onEvent) {
   }
 }
 
+function currentPlanInput() {
+  return {
+    question: els.queryInput.value.trim(),
+    dataset: els.datasetSelect?.value ?? "relf1",
+    input_type: els.inputType?.value ?? "auto",
+  };
+}
+
+function invalidatePlan(message) {
+  state.planRevision += 1;
+  state.plan = null;
+  state.planInput = null;
+  state.selectedPipelines = {};
+  state.leafRagOptions = {};
+  state.unavailableTables = {};
+  els.sqlPreview.textContent = "";
+  els.sqlPreviewPanel.hidden = true;
+  els.runButton.disabled = true;
+  els.planButton.disabled = false;
+  renderPlan();
+  clearOutput();
+  if (message) setStatus(message);
+}
+
 async function generatePlan() {
   const query = els.queryInput.value.trim();
   if (!query) {
-    setStatus("Write a question or SQL query first.");
+    invalidatePlan("Write a question or SQL query first.");
     return;
   }
 
+  const input = currentPlanInput();
+  invalidatePlan();
+  const revision = state.planRevision;
   els.planButton.disabled = true;
-  setStatus("Building query plan...");
+  setStatus("Preparing SQL and building query plan...");
 
   try {
-    state.dataset = els.datasetSelect?.value ?? "relf1";
+    state.dataset = input.dataset;
+    let preparedPlan;
     if (hasBackend(BACKEND_ENDPOINTS.plan)) {
-      state.plan = await postJson(BACKEND_ENDPOINTS.plan, {
-        question: query,
-        sql: query,
-        dataset: state.dataset,
-      });
-      setStatus("Plan loaded from backend.");
+      preparedPlan = await postJson(BACKEND_ENDPOINTS.plan, input);
+      if (revision !== state.planRevision) return;
+      setStatus(preparedPlan.query_resolution?.translated
+        ? "Question translated to SQL. Review the SQL before running."
+        : "Plan loaded from backend.");
     } else {
-      state.plan = makeMockPlan(query);
+      preparedPlan = makeMockPlan(query);
       setStatus("Backend endpoints are empty. Showing local mock plan data.");
     }
+    state.plan = preparedPlan;
+    state.planInput = input;
 
     state.selectedPipelines = {};
     state.leafRagOptions = {};
+    state.unavailableTables = {};
     for (const leaf of state.plan.plan.leaf_tasks) {
       state.selectedPipelines[leaf.table_name] = DEFAULT_PIPELINE;
       state.leafRagOptions[leaf.table_name] = { pushdown: false, iterative: false };
     }
 
+    els.sqlPreview.textContent = state.plan.sql;
+    els.sqlPreviewPanel.hidden = false;
+    els.runButton.disabled = false;
     renderPlan();
     clearOutput();
   } catch (error) {
-    setStatus(error.message);
+    if (revision === state.planRevision) setStatus(error.message);
   } finally {
-    els.planButton.disabled = false;
+    if (revision === state.planRevision) els.planButton.disabled = false;
   }
 }
 
 async function runSelectedPipelines() {
-  if (!state.plan) {
-    setStatus("Generate a plan before running pipelines.");
+  if (!state.plan || JSON.stringify(state.planInput) !== JSON.stringify(currentPlanInput())) {
+    invalidatePlan("Prepare the current question, dataset and input format before running pipelines.");
     return;
   }
 
   els.runButton.disabled = true;
+  const queryControls = [els.queryInput, els.datasetSelect, els.inputType, els.planButton].filter(Boolean);
+  queryControls.forEach((control) => { control.disabled = true; });
   els.runStatus.textContent = "Running";
   els.runStatus.classList.remove("muted-pill");
   setStatus("Running selected leaf pipelines...");
@@ -645,12 +691,13 @@ async function runSelectedPipelines() {
   state.explanationOpen = false;
 
   const payload = {
-    question: els.queryInput.value.trim(),
+    question: state.planInput.question,
     sql: state.plan.sql,
     plan: state.plan.plan,
     leaf_pipeline_choices: state.selectedPipelines,
     leaf_pipeline_options: state.leafRagOptions,
-    semantic_matching: els.executionMode.value === "semantic",
+    unavailable_tables: Object.keys(state.unavailableTables).filter((table) => state.unavailableTables[table]),
+    semantic_matching: !IS_DEMO && els.executionMode?.value === "semantic",
     dataset: state.plan.dataset ?? state.dataset,
   };
 
@@ -670,6 +717,7 @@ async function runSelectedPipelines() {
     setStatus(error.message);
   } finally {
     els.runButton.disabled = false;
+    queryControls.forEach((control) => { control.disabled = false; });
   }
 }
 
@@ -719,12 +767,32 @@ function pushProgress(event, tone = "info") {
   });
 }
 
+function matchingRequestSize(call = {}) {
+  if (Number.isFinite(call.pair_count)) {
+    return `${call.pair_count} ${call.pair_count === 1 ? "pair" : "pairs"}`;
+  }
+  if (Number.isFinite(call.left_row_count) && Number.isFinite(call.right_row_count)) {
+    return `${call.left_row_count} left + ${call.right_row_count} right rows`;
+  }
+  return "";
+}
+
+function matchingEdgeLabel(trace) {
+  if (!Number.isFinite(trace.edge_count)) return "";
+  const completed = trace.completed_edges ?? 0;
+  const current = trace.current_edge;
+  return `${completed}/${trace.edge_count} join edges complete${current
+    ? ` · Edge ${current.index} (${current.left_table} → ${current.right_table})` : ""} — `;
+}
+
 function updateMatchingProgress(event) {
   const trace = event.semantic_matching ?? {};
   const calls = trace.calls ?? [];
   const received = calls.filter((call) => typeof call.response === "string").length;
-  const total = trace.total_requests;
-  const completed = trace.completed_requests ?? received;
+  const edge = trace.current_edge;
+  const total = edge ? edge.total_requests : trace.total_requests;
+  const completed = edge ? (edge.completed_requests ?? 0) : (trace.completed_requests ?? received);
+  const edgeLabel = matchingEdgeLabel(trace);
   const percentage = Number.isFinite(total) && total > 0
     ? Math.floor(100 * Math.min(completed, total) / total) : (trace.status === "complete" ? 100 : null);
   const countText = Number.isFinite(total) ? `${completed}/${total} requests complete` : `${received} responses received`;
@@ -734,14 +802,15 @@ function updateMatchingProgress(event) {
     message = `Matching skipped — ${trace.reason}`;
     tone = "success";
   } else if (event.type === "matching_prompt") {
-    const pairCount = calls[calls.length - 1]?.pair_count;
-    const pairsText = Number.isFinite(pairCount) ? `${pairCount} ${pairCount === 1 ? "pair" : "pairs"} — ` : "";
-    message = `Comparing records — ${pairsText}request ${calls.length}${Number.isFinite(total) ? ` of ${total}` : ""} in progress (${percentage ?? 0}%).`;
+    const size = matchingRequestSize(calls[calls.length - 1]);
+    const pairsText = size ? `${size} — ` : "";
+    const requestNumber = edge ? completed + 1 : calls.length;
+    message = `${edgeLabel}Comparing records — ${pairsText}request ${requestNumber}${Number.isFinite(total) ? ` of ${total}` : ""} in progress (${percentage ?? 0}%).`;
   } else if (["matching_response", "matching_progress"].includes(event.type)) {
-    message = `Comparing records — ${countText}${percentage !== null ? ` (${percentage}%)` : ""}…`;
+    message = `${edgeLabel}Comparing records — ${countText}${percentage !== null ? ` (${percentage}%)` : ""}…`;
   } else if (event.type === "matching_done" || event.type === "matching_sql") {
     const count = trace.accepted_count ?? 0;
-    message = `Matching complete — ${count} accepted ${count === 1 ? "pair" : "pairs"}.`;
+    message = `${edgeLabel}Matching complete — ${count} accepted ${count === 1 ? "pair" : "pairs"}.`;
     tone = "success";
   } else if (event.type === "matching_failed") {
     message = `Matching failed: ${trace.error ?? "Unable to complete matching."}`;
@@ -753,7 +822,8 @@ function updateMatchingProgress(event) {
     state.progress.push(item);
   }
   Object.assign(item, { message, tone, matchingProgress: { total, completed, percentage,
-    retries: Math.max(0, (total ?? 0) - (trace.planned_requests ?? total ?? 0)) } });
+    edgeIndex: edge?.index,
+    retries: Math.max(0, (total ?? 0) - (edge?.planned_requests ?? trace.planned_requests ?? total ?? 0)) } });
   setStatus(message);
 }
 
@@ -909,6 +979,7 @@ function applyRunEvent(event) {
     pushProgress(event, "warning");
   } else if (event.type === "fatal_error") {
     state.output.errors = [event.message];
+    if (state.output.comparison) state.output.comparison.status = "unavailable";
     pushProgress(event, "warning");
     els.runStatus.textContent = "Error";
   } else if (event.type === "complete") {
@@ -917,6 +988,10 @@ function applyRunEvent(event) {
       && state.output.generated_csv_files.length > 0;
     state.output.progress = state.progress;
     els.runStatus.textContent = state.output.errors?.length ? "Error" : "Complete";
+  } else if (event.type === "reference_start" || event.type === "reference_done") {
+    if (event.type === "reference_done") state.output.comparison = { status: "pending", reference: event.reference };
+    setStatus(event.type === "reference_start" ? "Computing the SQL reference answer and provenance…" : "SQL reference finished. Running your selected pipelines…");
+    pushProgress(event);
   } else if (event.type === "start") {
     pushProgress(event);
   } else if (event.type === "heartbeat") {
@@ -932,7 +1007,7 @@ function renderPlan() {
   const leaves = plan?.leaf_tasks ?? [];
 
   els.leafCount.textContent = `${leaves.length} ${leaves.length === 1 ? "leaf" : "leaves"}`;
-  els.planSummary.innerHTML = [
+  els.planSummary.innerHTML = IS_DEMO ? "" : [
     ["Type", plan?.query_type ?? "-"],
     ["Joins", plan?.joins?.length ?? 0],
     ["Post-ops", plan?.post_ops?.length ?? 0],
@@ -949,7 +1024,8 @@ function renderPlan() {
     )
     .join("");
 
-  renderPlanTree(plan);
+  if (IS_DEMO) renderDemoPlanTree(plan);
+  else renderPlanTree(plan);
 
   if (!leaves.length) {
     els.leafList.className = "leaf-list empty-state";
@@ -964,6 +1040,18 @@ function renderPlan() {
     select.addEventListener("change", (event) => {
       const table = event.target.dataset.table;
       state.selectedPipelines[table] = event.target.value;
+      renderPlan();
+    });
+  });
+  els.leafList.querySelectorAll("input[data-source-unavailable]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const table = event.target.dataset.table;
+      state.unavailableTables[table] = event.target.checked;
+      if (event.target.checked) {
+        state.selectedPipelines[table] = "llm-internal";
+        for (const options of Object.values(state.leafRagOptions)) options.iterative = false;
+      }
+      clearOutput();
       renderPlan();
     });
   });
@@ -982,16 +1070,65 @@ function renderPlan() {
   });
 }
 
+function renderDemoPlanTree(plan) {
+  const tree = planToTree(plan);
+  els.planTree.replaceChildren();
+  els.planTree.className = "plan-tree demo-query-tree";
+  if (!tree) {
+    els.planTree.textContent = "Prepare your query to see its plan.";
+    return;
+  }
+  const labels = { Project: "Choose result columns", GroupBy: "Group related rows", Aggregate: "Calculate summaries", OrderBy: "Sort results", Limit: "Limit results", Distinct: "Remove duplicates", LeafScan: "Read records" };
+  function branch(node) {
+    const item = document.createElement("li");
+    const label = document.createElement("div");
+    label.className = `demo-plan-node demo-node-${node.type}`;
+    const title = document.createElement("strong");
+    const detail = document.createElement("span");
+    if (node.type === "table") {
+      title.textContent = "Source table";
+      detail.textContent = node.label;
+    } else if (node.type === "filter") {
+      title.textContent = "Filter rows";
+      detail.textContent = node.label.replace(/^sigma /, "");
+    } else if (node.type === "join") {
+      title.textContent = "Combine matching rows";
+      detail.textContent = node.label.replace(/^join\s*/, "");
+    } else {
+      title.textContent = labels[node.label] ?? node.label;
+    }
+    label.append(title);
+    if (detail.textContent) label.append(detail);
+    item.append(label);
+    if (node.children.length) {
+      const children = document.createElement("ul");
+      children.append(...node.children.map(branch));
+      item.append(children);
+    }
+    return item;
+  }
+  const root = document.createElement("ul");
+  root.className = "demo-plan-tree";
+  root.setAttribute("aria-label", "Query plan; read from source tables up to the results");
+  root.append(branch(tree));
+  const hint = document.createElement("p");
+  hint.className = "demo-tree-hint";
+  hint.textContent = "Read from the source tables at the bottom ↑ to the final result at the top.";
+  els.planTree.append(hint, root);
+}
+
 function renderLeafCard(leaf, index) {
   const selected = state.selectedPipelines[leaf.table_name] ?? DEFAULT_PIPELINE;
   const ragOptions = state.leafRagOptions[leaf.table_name] ?? {
     pushdown: false,
     iterative: false,
   };
+  const sourceUnavailable = Boolean(state.unavailableTables[leaf.table_name]);
+  const hasUnavailableSources = Object.values(state.unavailableTables).some(Boolean);
   const options = PIPELINES.map(
     (pipeline) => `
-      <option value="${escapeHtml(pipeline.id)}" ${pipeline.id === selected ? "selected" : ""}>
-        ${escapeHtml(pipeline.label)}
+      <option value="${escapeHtml(pipeline.id)}" ${pipeline.id === selected ? "selected" : ""} ${sourceUnavailable && pipeline.id !== "llm-internal" ? "disabled" : ""}>
+        ${escapeHtml(IS_DEMO ? ({rag: "RAG · retrieve records from documents", "sql-table": "Database · use source table records", "llm-internal": "LLM · generate records from model knowledge"}[pipeline.id]) : pipeline.label)}
       </option>
     `,
   ).join("");
@@ -999,7 +1136,7 @@ function renderLeafCard(leaf, index) {
     <article class="leaf-card">
       <div class="leaf-card-header">
         <div>
-          <h3>Leaf ${index + 1}: ${escapeHtml(leaf.table_name)}</h3>
+          <h3>${IS_DEMO ? "Table" : `Leaf ${index + 1}:`} ${escapeHtml(leaf.table_name)}</h3>
           <div class="leaf-meta">
             <span class="meta-chip">${escapeHtml(leaf.scan_op)}</span>
             ${leaf.alias ? `<span class="meta-chip">alias ${escapeHtml(leaf.alias)}</span>` : ""}
@@ -1010,6 +1147,12 @@ function renderLeafCard(leaf, index) {
             <span class="field-label">Pipeline</span>
             <select data-table="${escapeHtml(leaf.table_name)}">${options}</select>
           </label>
+          <label>
+            <input type="checkbox" data-source-unavailable data-table="${escapeHtml(leaf.table_name)}"
+              ${sourceUnavailable ? "checked" : ""} />
+            Source data unavailable
+          </label>
+          <small>${sourceUnavailable ? "Stored rows blocked for this run. Uses LLM knowledge; SQL reference may be unavailable." : "Source data available. Check to block stored rows for this run."}</small>
           ${selected === "rag" ? `
             <div class="leaf-rag-options">
               <label>
@@ -1021,9 +1164,10 @@ function renderLeafCard(leaf, index) {
               <label>
                 <input type="checkbox" data-table="${escapeHtml(leaf.table_name)}"
                   data-rag-option="iterative" ${ragOptions.iterative ? "checked" : ""}
-                  ${ragOptions.pushdown ? "disabled" : ""} />
-                Iterative RAG
+                  ${ragOptions.pushdown || hasUnavailableSources ? "disabled" : ""} />
+                Iterative RAG (whole query)
               </label>
+              <small>Iterative RAG runs every leaf with RAG and includes local predicates.</small>
             </div>
           ` : ""}
         </div>
@@ -1050,11 +1194,14 @@ function renderDetail(label, value) {
 
 function clearOutput() {
   state.output = null;
+  if (els.executionView) els.executionView.innerHTML = "";
+  if (els.evidenceView) els.evidenceView.innerHTML = "";
   state.progress = [];
   state.explanationOpen = false;
   els.runStatus.textContent = "Waiting";
   els.runStatus.classList.add("muted-pill");
   els.answerView.innerHTML = `<div class="empty-state">Run the selected pipelines to see final output.</div>`;
+  els.comparisonView.innerHTML = "";
   els.semanticMatchingView.innerHTML = "";
   delete els.semanticMatchingView.dataset.rendered;
   els.generationPromptView.innerHTML = "";
@@ -1085,9 +1232,20 @@ function renderSemanticMatching(trace) {
     return `<section class="matching-summary"><h3>Matching skipped</h3><p>${escapeHtml(trace.reason)}</p></section>`;
   }
   const accepted = trace.audit?.accepted_pairs ?? [];
+  const coverage = trace.audit?.assessment_summary;
+  const coverageHtml = coverage && Object.keys(coverage).length ? `
+    <p>Assessments across completed blocks: ${coverage.assessed_left_rows ?? 0} left-row assessments ·
+      ${coverage.explicit_matches ?? 0} explicit matches · ${coverage.explicit_rejections ?? 0} explicit rejections ·
+      ${coverage.uncertain_pairs ?? 0} uncertain pairs · ${coverage.unresolved_left_rows ?? 0} unresolved row assessments ·
+      ${coverage.no_partner_left_rows ?? 0} no-partner assessments ·
+      ${coverage.omitted_pairs ?? 0} pairs without an explicit pair decision ·
+      ${coverage.validation_downgrades ?? 0} validation downgrades.</p>
+    <p>Omitted pairs are not explicit rejections. Row assessments apply to one candidate block;
+      a row may be assessed in several blocks. Completed requests do not establish factual correctness.</p>` : "";
   const summary = trace.status === "complete" ? `<section class="matching-summary">
     <h3>Retained pairs (${escapeHtml(trace.accepted_count ?? accepted.length)})</h3>
-    <p>The join retains matches at probability 0.9 and uncertain pairs at probability 0.3.</p>
+    <p>The join retains only explicit matches, with a fixed weight of 0.9. This weight is not calibrated factual confidence. Unmatch and uncertain decisions remain in the audit.</p>
+    ${coverageHtml}
     ${accepted.length ? `<div class="matched-pairs">${accepted.map((pair, index) => `
       <article class="matched-pair">
         <h4>Pair ${index + 1}</h4>
@@ -1099,17 +1257,17 @@ function renderSemanticMatching(trace) {
         </div>
         <p class="match-reason"><strong>Reason:</strong> ${escapeHtml(pair.reason)}</p>
         ${trace.mapping_rows?.[index]?.[trace.rownum_column] ? `<small>Mapping row: <code>${escapeHtml(trace.mapping_rows[index][trace.rownum_column])}</code></small>` : ""}
-      </article>`).join("")}</div>` : `<p class="empty-state">${trace.accepted_count ? "Pair details are unavailable for this run." : "No pairs were retained. Rejected pairs are excluded from the join."}</p>`}
+      </article>`).join("")}</div>` : `<p class="empty-state">${trace.accepted_count ? "Pair details are unavailable for this run." : "No explicit matches were retained. Consult row assessments and pair decisions below."}</p>`}
   </section>` : "";
   const calls = (trace.calls ?? []).map((call, index) => `
     <details class="matching-call" data-matching-detail="request-${index}">
-      <summary>Request ${index + 1}${Number.isFinite(call.pair_count) ? ` · ${call.pair_count} ${call.pair_count === 1 ? "pair" : "pairs"}` : ""}${call.is_retry ? " · Retry" : ""} · ${call.response !== undefined ? "Response received" : trace.status === "failed" ? "Failed" : "In progress"}</summary>
+      <summary>Request ${index + 1}${matchingRequestSize(call) ? ` · ${matchingRequestSize(call)}` : ""}${call.is_retry ? " · Retry" : ""} · ${call.response !== undefined ? "Response received" : trace.status === "failed" ? "Failed" : "In progress"}</summary>
       <h4>Prompt</h4><pre>${escapeHtml(call.prompt)}</pre>
       <h4>Model output</h4><pre>${escapeHtml(call.response ?? "Waiting for response…")}</pre>
     </details>`).join("");
   return `${summary}<details class="semantic-trace" data-matching-detail="overview">
     <summary>Matching requests and details · ${escapeHtml(trace.status)}</summary>
-    ${Number.isFinite(trace.total_requests) ? `<p>${trace.completed_requests ?? 0} of ${trace.total_requests} requests complete. ${Math.max(0, trace.total_requests - (trace.calls?.length ?? 0))} not started yet. Extra retries are added if needed.</p>` : ""}
+    ${Number.isFinite(trace.total_requests) ? `<p>${escapeHtml(matchingEdgeLabel(trace))}${trace.completed_requests ?? 0} of ${trace.total_requests} ${trace.current_edge ? "current-edge " : ""}requests complete. Missing assessments get at most one retry per block. Request completion does not validate matching accuracy.</p>` : ""}
     ${trace.error ? `<p>${escapeHtml(trace.error)}</p>` : ""}
     ${calls}
     ${trace.rewritten_sql ? `<h4>Rewritten SQL</h4><pre>${escapeHtml(trace.service_sql ?? trace.rewritten_sql)}</pre>` : ""}
@@ -1117,8 +1275,57 @@ function renderSemanticMatching(trace) {
   </details>`;
 }
 
+function renderSqlComparison(output) {
+  const comparison = output?.comparison;
+  if (!comparison) return "";
+  const reference = comparison.reference;
+  const complete = comparison.status === "complete";
+  const summary = comparison.status === "pending" ? "SQL reference ready. Waiting for the selected pipelines to finish…" : complete
+    ? `${comparison.answers_equal ? "Answers match" : "Answers differ"} · ${comparison.matched_count} shared · ${comparison.missing_count} missing from selected pipelines · ${comparison.extra_count} extra`
+    : `Comparison unavailable: ${comparison.reason ?? reference.error ?? "one of the executions did not complete."}`;
+  function table(answer, statuses) {
+    if (!answer.length) return '<p class="empty-state">No result rows.</p>';
+    const columns = [...new Set(answer.flatMap((item) => Object.keys(item.result ?? {})))];
+    return `<div class="table-wrap"><table><thead><tr><th>Comparison</th>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr></thead><tbody>${answer.map((item, index) => {
+      const status = complete ? statuses[index] : "unavailable";
+      const label = {shared: "Shared", missing: "Missing from selected", extra: "Extra in selected", unavailable: "Not compared"}[status];
+      return `<tr class="comparison-${status}"><td><strong>${label}</strong></td>${columns.map((column) => `<td>${escapeHtml(item.result?.[column] == null ? "—" : typeof item.result[column] === "object" ? JSON.stringify(item.result[column]) : item.result[column])}</td>`).join("")}</tr>`;
+    }).join("")}</tbody></table></div>`;
+  }
+  return `<section class="sql-comparison" aria-labelledby="comparison-title">
+    <h3 id="comparison-title">Output tuples: SQL vs selected pipelines</h3>
+    <p role="status">${escapeHtml(summary)}</p>
+    <p class="status-note">The SQL reference uses source tables permitted for this run. Unavailable source tables are excluded; queries requiring them cannot execute. With full access, the original query runs through the explanation service. Rows are compared by all column names and values, including duplicate counts; row order is ignored. Queries with LIMIT without a unique ordering may return different valid subsets.</p>
+    <div class="comparison-grid">
+      <section><h4>SQL reference · ${reference.answer.length} rows</h4>${reference.status !== "complete" ? `<p>${escapeHtml(reference.error ?? "SQL reference unavailable.")}</p>` : table(reference.answer, comparison.reference_status ?? [])}</section>
+      <section><h4>Selected pipelines · ${output.answer?.length ?? 0} rows</h4>${table(output.answer ?? [], comparison.selected_status ?? [])}</section>
+    </div>
+  </section>`;
+}
+
+function renderRunProvenance(output) {
+  const selected = renderProvenance(output?.answer ?? []);
+  const reference = output?.comparison?.reference;
+  if (!reference || reference.status !== "complete") return selected;
+  return `<h3>Selected pipelines</h3>${selected}<h3>SQL reference</h3>${renderProvenance(reference.answer, { reference: true })}`;
+}
+
 function renderOutput() {
+  renderComparisonViews();
   preparedSourceSnapshots = new WeakSet();
+  els.comparisonView.innerHTML = renderSqlComparison(state.output);
+  if (IS_DEMO) {
+    const answer = state.output?.answer ?? [];
+    els.answerView.innerHTML = `
+      ${state.output?.errors?.length ? '<p role="status">The query could not finish completely. Any available results are shown below. See the technical workspace for diagnostics.</p>' : ""}
+      ${renderAnswerTable(answer)}
+      ${state.output?.explanations?.length ? `<button class="secondary" type="button" data-action="toggle-explanation">${state.explanationOpen ? "Hide" : "Show"} explanation</button>` : ""}
+      ${renderInlineExplanation(state.output)}
+    `;
+    els.provenanceView.innerHTML = renderRunProvenance(state.output);
+    bindOutputActions();
+    return;
+  }
   const semanticHtml = renderSemanticMatching(state.output?.semantic_matching);
   if (els.semanticMatchingView.dataset.rendered !== semanticHtml) {
     const openDetails = new Set([...els.semanticMatchingView.querySelectorAll("details[open][data-matching-detail]")]
@@ -1150,7 +1357,7 @@ function renderOutput() {
     ${renderAnswerTable(answer)}
     ${renderInlineExplanation(state.output)}
   `;
-  els.provenanceView.innerHTML = renderProvenance(answer);
+  els.provenanceView.innerHTML = renderRunProvenance(state.output);
   bindOutputActions();
 }
 
@@ -1166,8 +1373,20 @@ function renderGenerationPrompts(leafOutputs) {
     <section class="annotation-section" aria-label="LLM generation prompts">
       <h3>LLM generation prompts</h3>
       ${leaves.map((leaf) => {
-        const prompts = Array.isArray(leaf.generation_prompts) && leaf.generation_prompts.length
-          ? leaf.generation_prompts : [leaf.prompt];
+        const batches = Array.isArray(leaf.batches) ? leaf.batches : [];
+        const prompts = batches.length
+          ? batches.flatMap((batch, batchIndex) => {
+              const attempts = Array.isArray(batch.generation_prompts) && batch.generation_prompts.length
+                ? batch.generation_prompts : [batch.prompt];
+              return attempts.map((prompt, attemptIndex) => ({
+                prompt,
+                label: `batch ${batchIndex + 1}/${batches.length} · attempt ${attemptIndex + 1}${attemptIndex ? " (retry)" : ""}${batch.status === "split" ? " · split after output limit" : ""}`,
+              }));
+            })
+          : (Array.isArray(leaf.generation_prompts) && leaf.generation_prompts.length
+              ? leaf.generation_prompts : [leaf.prompt]).map((prompt, index) => ({
+                prompt, label: `request ${index + 1}`,
+              }));
         return `
           <div class="annotation-card">
             <strong>${escapeHtml(leaf.table_name ?? "query")} · ${escapeHtml(pipelineLabel(leaf.pipeline))}</strong>
@@ -1175,9 +1394,9 @@ function renderGenerationPrompts(leafOutputs) {
               <summary>View retrieval query</summary>
               <pre>${escapeHtml(leaf.retrieval_query)}</pre>
             </details>` : ""}
-            ${prompts.map((prompt, index) => `
+            ${prompts.map(({ prompt, label }) => `
               <details class="context-preview internal-prompt" open>
-                <summary>View generation prompt · attempt ${index + 1}${index ? " (retry)" : ""}</summary>
+                <summary>View generation prompt · ${escapeHtml(label)}</summary>
                 <pre>${escapeHtml(prompt)}</pre>
               </details>
             `).join("")}
@@ -1263,8 +1482,10 @@ function renderRagAnnotations(annotations) {
   }
 
   return `
-    <section class="annotation-section" aria-label="RAG annotations">
-      <h3>RAG annotations</h3>
+    <details class="annotation-section rag-annotations" data-rag-annotations
+      ${state.ragAnnotationsOpen ? "open" : ""}>
+      <summary>RAG annotations · ${ragAnnotations.length} retrieval ${ragAnnotations.length === 1 ? "step" : "steps"}</summary>
+      <div class="rag-annotations-content">
       ${ragAnnotations
         .map((annotation) => {
           const evidence = Array.isArray(annotation.evidence)
@@ -1340,7 +1561,8 @@ function renderRagAnnotations(annotations) {
           `;
         })
         .join("")}
-    </section>
+      </div>
+    </details>
   `;
 }
 
@@ -1440,8 +1662,8 @@ function renderMatchingProgress(item) {
   const progress = item.matchingProgress;
   if (!progress || progress.percentage === null) return "";
   return `<div class="matching-progress-meter">
-    <progress max="100" value="${progress.percentage}" aria-label="Matching requests completed"></progress>
-    <small>${escapeHtml(progress.completed)}/${escapeHtml(progress.total)} requests complete · ${progress.percentage}%${progress.retries ? ` · includes ${progress.retries} extra retries` : ""}</small>
+    <progress max="100" value="${progress.percentage}" aria-label="${progress.edgeIndex ? "Current join matching" : "Matching"} requests completed"></progress>
+    <small>${progress.edgeIndex ? `Edge ${escapeHtml(progress.edgeIndex)} · ` : ""}${escapeHtml(progress.completed)}/${escapeHtml(progress.total)} requests complete · ${progress.percentage}%${progress.retries ? ` · includes ${progress.retries} extra retries` : ""}</small>
   </div>`;
 }
 
@@ -1518,6 +1740,12 @@ function renderInlineExplanation(output) {
 }
 
 function bindOutputActions() {
+  els.answerView.querySelector("[data-rag-annotations]")?.addEventListener("toggle", (event) => {
+    // Keep the user's choice when streaming progress re-renders the answer panel.
+    if (event.currentTarget.isConnected) {
+      state.ragAnnotationsOpen = event.currentTarget.open;
+    }
+  });
   els.answerView.querySelector("[data-action='toggle-explanation']")?.addEventListener("click", () => {
     state.explanationOpen = !state.explanationOpen;
     renderOutput();
@@ -1542,8 +1770,8 @@ function renderExplanationOutput(output) {
           (explanation, index) => `
             <div class="formula-card">
               <strong>AP explanation ${index + 1}: ${escapeHtml(explanation.scope ?? "query")}</strong>
-              ${explanation.query_sql ? `<code>${escapeHtml(explanation.query_sql)}</code>` : ""}
-              ${explanation.question_sql ? `<code>${escapeHtml(explanation.question_sql)}</code>` : ""}
+              ${!IS_DEMO && explanation.query_sql ? `<code>${escapeHtml(explanation.query_sql)}</code>` : ""}
+              ${!IS_DEMO && explanation.question_sql ? `<code>${escapeHtml(explanation.question_sql)}</code>` : ""}
               <div class="explanation-markdown">
                 ${
                   explanationMarkdown(explanation)
@@ -1750,7 +1978,38 @@ function renderFinalAnswerConfidence(annotations) {
   </div>`;
 }
 
-function renderProvenance(answer) {
+function provenanceTupleSources(item, reference = false) {
+  const sources = new Map();
+  function add(source) {
+    if (!source.table || !source.row_id || source.row_id.includes("@")) return;
+    sources.set(`${source.table}:${source.row_id}`, source);
+  }
+  // AP resolves each UUID reference to its actual exported row data.
+  function visit(value) {
+    if (!value || typeof value !== "object") return;
+    if (typeof value.reference === "string" && value.data && typeof value.data === "object") {
+      const table = value.reference.split("@")[0];
+      const rowId = value.data[`${table}_rownum`] ?? value.data.__rid__;
+      if (typeof rowId === "string" && rowId) {
+        const pipeline = reference ? "sql-table"
+          : state.output?.leaf_outputs?.find((leaf) => leaf.table_name === table)?.pipeline
+            ?? (semanticMappingTraces().some((trace) => trace.mapping_table === table) ? "semantic-matching" : "sql-table");
+        add({ table, row_id: rowId, pipeline, reference: value.reference });
+      }
+    }
+    for (const child of Object.values(value)) visit(child);
+  }
+  visit(item.provenance);
+  for (const source of (item.provenance_annotations ?? []).flatMap((annotation) => annotation.source_rows ?? [])) add(source);
+  return [...sources.values()];
+}
+
+function semanticMappingTraces() {
+  const matching = state.output?.semantic_matching;
+  return matching?.joins ?? (matching ? [matching] : []);
+}
+
+function renderProvenance(answer, options = {}) {
   if (!answer.length) {
     return `<div class="empty-state">No provenance rows.</div>`;
   }
@@ -1760,23 +2019,22 @@ function renderProvenance(answer) {
       ${answer
         .map((item, index) => {
           const formula = formatProvenance(item.provenance);
-          const sourceRows = (item.provenance_annotations ?? [])
-            .flatMap((annotation) => annotation.source_rows ?? []);
+          const sourceRows = provenanceTupleSources(item, options.reference);
           return `
             <div class="formula-card">
               <strong>Result ${index + 1}</strong>
               <code>${escapeHtml(formula || "no provenance")}</code>
               ${
                 sourceRows.length
-                  ? `<div class="provenance-sources">
+                  ? `<p class="provenance-row-label">Contributing tuples</p><div class="provenance-sources">
                       ${sourceRows
                         .map(
                           (source) =>
-                            sourceLink(source),
+                            `<div class="provenance-tuple"><code class="provenance-row-id">${escapeHtml(source.row_id)}</code>${sourceLink(source)}</div>`,
                         )
                         .join("")}
                     </div>`
-                  : ""
+                  : '<p class="status-note">The service did not return a row identifier mapping for this result.</p>'
               }
             </div>
           `;
@@ -1811,18 +2069,21 @@ function switchTab(tabName) {
 
   els.answerView.classList.toggle("hidden", tabName !== "answer");
   els.provenanceView.classList.toggle("hidden", tabName !== "provenance");
+  els.executionView?.classList.toggle("hidden", tabName !== "execution");
+  els.evidenceView?.classList.toggle("hidden", tabName !== "evidence");
 }
 
 els.planButton.addEventListener("click", generatePlan);
 els.runButton.addEventListener("click", runSelectedPipelines);
 els.datasetSelect?.addEventListener("change", () => {
   state.dataset = els.datasetSelect.value;
-  state.plan = null;
-  state.selectedPipelines = {};
-  state.leafRagOptions = {};
-  renderPlan();
-  clearOutput();
-  setStatus("Dataset changed. Generate a new plan before running pipelines.");
+  invalidatePlan("Dataset changed. Prepare a new plan before running pipelines.");
+});
+els.inputType?.addEventListener("change", () => {
+  invalidatePlan("Input format changed. Prepare the query again before running pipelines.");
+});
+els.queryInput.addEventListener("input", () => {
+  invalidatePlan("Query changed. Prepare it again before running pipelines.");
 });
 els.tabs.forEach((tab) => {
   tab.addEventListener("click", () => switchTab(tab.dataset.tab));
@@ -1830,7 +2091,95 @@ els.tabs.forEach((tab) => {
 
 clearOutput();
 if (hasBackend(BACKEND_ENDPOINTS.plan) && hasBackend(BACKEND_ENDPOINTS.run)) {
-  setStatus("Connected mode. Planning, leaf runs, and explanation runs will call the gateway.");
+  setStatus(IS_DEMO ? "Prepare your query, choose a pipeline for each table, then find answers." : "Connected mode. Planning, leaf runs, and explanation runs will call the gateway.");
 } else {
   setStatus("Backend endpoints are empty in file mode; the UI is running with mock data.");
+}
+
+// Runs stay in this browser tab; source snapshots are carried with each result.
+const comparisonRuns = [];
+let inspectedRun = null;
+let inspectedAnswer = 0;
+function metricSeconds(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(2)} s` : 'Unavailable';
+}
+function probabilityText(item) {
+  return typeof item?.probability === 'number' && Number.isFinite(item.probability)
+    ? `${(item.probability * 100).toFixed(2)}%` : 'Unavailable';
+}
+function renderComparisonViews() {
+  if (!els.executionView || !els.evidenceView) return;
+  const output = state.output;
+  if (output?.execution_metrics && !comparisonRuns.includes(output)) {
+    comparisonRuns.push(output);
+    inspectedRun = comparisonRuns.length - 1;
+    inspectedAnswer = 0;
+  }
+  const compatible = comparisonRuns.map((run, index) => ({run, index}))
+    .filter(({run}) => run.sql === output?.sql && run.dataset === output?.dataset);
+  const rows = compatible.flatMap(({run, index}) => [
+    {label: `Run ${index + 1}: SQL reference`, metrics: run.comparison?.reference?.execution_metrics, reference: true},
+    {label: `Run ${index + 1}: ${(run.leaf_outputs ?? []).map(l => `${l.table_name}: ${l.pipeline}`).join(', ')}`, metrics: run.execution_metrics},
+  ]);
+  const maximum = Math.max(1, ...rows.map(r => r.metrics?.total_seconds ?? 0));
+  els.executionView.innerHTML = `<h3>Execution through AP</h3><p>Same query and dataset. Runs are retained in this browser tab. AP time includes submission, processing and polling; total excludes the other comparison execution.</p>
+    <p class="status-note">Blue: evidence preparation · Amber: identity matching · Purple: AP submission to result · Gray: other finalization and waiting</p>
+    ${rows.map(({label, metrics: m, reference}) => {
+      const total = m?.total_seconds ?? 0;
+      const ap = m?.ap_seconds ?? 0;
+      const matching = m?.matching_seconds ?? 0;
+      const preparation = reference ? (typeof m?.ap_seconds === "number" ? Math.max(0, total - ap) : 0) : m?.evidence_seconds ?? 0;
+      const rest = Math.max(0, total - preparation - matching - ap);
+      return `<div class="execution-row"><strong>${escapeHtml(label)}</strong><div class="execution-bar" role="img" aria-label="${escapeHtml(label)}: ${metricSeconds(m?.total_seconds)}">
+        ${[[preparation,'preparation'],[matching,'matching'],[ap,'ap'],[rest,'other']].map(([seconds, cls]) => `<span class="execution-${cls}" style="width:${seconds / maximum * 100}%" title="${cls}: ${metricSeconds(seconds)}"></span>`).join('')}</div><span>${metricSeconds(m?.total_seconds)}</span></div>`;
+    }).join('')}
+    <div class="table-wrap"><table><thead><tr><th>Execution</th><th>Total</th><th>Identity matching</th><th>AP</th><th>Tables supplied</th><th>Materialized rows</th></tr></thead><tbody>${rows.map(({label,metrics:m}) => `<tr><td>${escapeHtml(label)}</td><td>${metricSeconds(m?.total_seconds)}</td><td>${metricSeconds(m?.matching_seconds)}</td><td>${metricSeconds(m?.ap_seconds)}</td><td>${m?.table_count ?? 'Unavailable'}</td><td>${m?.materialized_rows ?? 'Unavailable'}</td></tr>`).join('')}</tbody></table></div><p class="status-note">Model calls, retries and token usage are unavailable in this summary; no counts are inferred from leaf count.</p>`;
+  const run = comparisonRuns[inspectedRun];
+  if (!run || !compatible.some(r => r.index === inspectedRun)) {
+    els.evidenceView.innerHTML = '<p class="empty-state">Finish a run to compare its evidence with the AP reference.</p>';
+    return;
+  }
+  const reference = run.comparison?.reference;
+  // Pair answer occurrences, preserving duplicates rather than merging equal rows.
+  const remaining = (reference?.answer ?? []).map((item,index) => ({item,index}));
+  const pairs = (run.answer ?? []).map(item => {
+    const key = JSON.stringify(Object.entries(item.result ?? {}).sort());
+    const match = remaining.findIndex(r => JSON.stringify(Object.entries(r.item.result ?? {}).sort()) === key);
+    return {selected:item, reference:match < 0 ? null : remaining.splice(match,1)[0].item};
+  });
+  pairs.push(...remaining.map(r => ({reference:r.item,selected:null})));
+  inspectedAnswer = Math.min(inspectedAnswer, Math.max(0,pairs.length - 1));
+  const pair = pairs[inspectedAnswer];
+  els.evidenceView.innerHTML = `<h3>Answer and evidence comparison</h3>
+    <label>Saved run <select id="evidence-run">${compatible.map(({index}) => `<option value="${index}" ${index === inspectedRun ? 'selected' : ''}>Run ${index + 1}</option>`).join('')}</select></label>
+    <p>Reference: ${escapeHtml(reference?.status ?? 'unavailable')}. Matching answer values do not establish matching provenance. Probabilities are computed from assigned inputs, not calibrated factual correctness.</p>
+    <div class="table-wrap"><table><thead><tr><th>Answer</th><th>Reference comparison</th><th>Selected probability</th><th>Reference probability</th></tr></thead><tbody>${pairs.map((p,i) => `<tr><td><button type="button" class="secondary" data-evidence-answer="${i}" aria-pressed="${i === inspectedAnswer}">${escapeHtml(JSON.stringify((p.selected ?? p.reference).result))}</button></td><td>${p.selected && p.reference ? 'Matches' : p.selected ? (reference?.status === 'complete' ? 'Extra' : 'Not compared') : 'Missing'}</td><td>${probabilityText(p.selected)}</td><td>${probabilityText(p.reference)}</td></tr>`).join('')}</tbody></table></div>
+    ${pair ? `<div class="comparison-grid">${evidenceGraph(pair.reference, true, pair.selected, run)}${evidenceGraph(pair.selected, false, pair.reference, run)}</div>` : '<p>No answer rows on either side.</p>'}`;
+  document.querySelector('#evidence-run')?.addEventListener('change', event => { inspectedRun = Number(event.target.value); inspectedAnswer = 0; renderComparisonViews(); });
+  els.evidenceView.querySelectorAll('[data-evidence-answer]').forEach(button => button.addEventListener('click', () => {inspectedAnswer = Number(button.dataset.evidenceAnswer); renderComparisonViews();}));
+}
+function evidenceGraph(item, reference, other, run) {
+  const title = reference ? 'Full-data AP reference' : 'Selected evidence → AP';
+  if (!item) return `<section><h4>${title}</h4><p>No corresponding answer.</p></section>`;
+  // Resolve pipeline identities against the inspected run, including saved runs.
+  const original = state.output;
+  state.output = run;
+  const sources = provenanceTupleSources(item, reference);
+  const others = provenanceTupleSources(other ?? {}, !reference);
+  state.output = original;
+  const key = s => `${s.table}:${s.row_id}`;
+  const isGenerated = s => ['llm-internal','semantic-matching'].includes(s.pipeline);
+  const shared = new Set(others.filter(s => !isGenerated(s)).map(key));
+  const height = Math.max(130, sources.length * 66 + 20);
+  const annotations = (item.probability_annotations ?? []).find(a => a.type === 'final_answer_probability');
+  const graph = sources.length ? `<svg class="evidence-graph" viewBox="0 0 560 ${height}" role="img" aria-label="Contributing evidence for ${title}">
+    ${sources.map((s,i) => {
+      const y = 10 + i * 66;
+      const status = isGenerated(s) ? 'generated' : shared.has(key(s)) ? 'shared' : 'different';
+      const assessment = annotations?.source_probabilities?.find(p => p.table === s.table && p.row_id === s.row_id);
+      const score = assessment ? `${assessment.metric}: ${probabilityText(assessment)}` : reference ? 'SQL input: 100%' : `${s.pipeline}; score unavailable`;
+      return `<path d="M 288 ${y+24} C 325 ${y+24}, 325 ${height/2}, 360 ${height/2}" fill="none" stroke="#8795a5"/><g class="evidence-${status}"><title>${escapeHtml(`${s.table}: ${s.row_id}; ${status}; ${score}`)}</title><rect x="5" y="${y}" width="283" height="50" rx="7"/><text x="14" y="${y+19}">${escapeHtml(s.row_id)}</text><text x="14" y="${y+38}" class="evidence-score">${escapeHtml(score)}</text></g>`;
+    }).join('')}
+    <g class="evidence-answer"><rect x="360" y="${height/2-27}" width="190" height="54" rx="7"/><text x="370" y="${height/2-5}">Answer</text><text x="370" y="${height/2+15}">AP: ${probabilityText(item)}</text></g></svg>` : '<p>AP did not return resolvable source row identities.</p>';
+  return `<section><h4>${title}</h4><p class="status-note">Green: shared source identity · Amber: different source · Purple: generated or mapping record</p>${graph}<p class="status-note">Edges show contributing records; AND/OR derivations are retained in the service provenance below.</p><details><summary>Probability inputs and service provenance</summary>${renderFinalAnswerConfidence(item.probability_annotations ?? [])}<pre>${escapeHtml(JSON.stringify(item.provenance,null,2))}</pre></details></section>`;
 }

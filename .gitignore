@@ -24,6 +24,7 @@ docs/*.blg
 docs/*.log
 docs/*.out
 docs/*.toc
+docs/int_docs/
 test_iterative_join_pipeline.py
 .cache/
 faiss_index_relarxiv_*/
@@ -35,3 +36,16 @@ faiss_index_relstack_*/
 faiss_index_relstack_*.checkpoint/
 rel-stack_csv/
 rel_arxiv/
+faiss_index_wikidata_movies_*/
+faiss_index_wikidata_movies_*.checkpoint/
+wikidata_movies/.cache
+mathe_csv/*.csv
+faiss_index_mathe_*/
+test_*
+paper/
+demos/
+wikidata_movies/
+donwload_wikidata_movies.py
+mathe_csv/
+mathe/
+tests/
