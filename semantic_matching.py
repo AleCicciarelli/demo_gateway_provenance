@@ -141,6 +141,8 @@ def is_block_row_assessment(item, left_refs):
     ref = item.get("left_ref")
     if not isinstance(ref, str) or ref not in left_refs:
         raise ValueError("Unknown row assessment left_ref")
+    if "decision" not in item:
+        raise ValueError(f"Row assessment {ref} is missing required decision; use unmatch or uncertain with null right_ref")
     if item.get("decision") not in ("unmatch", "uncertain"):
         raise ValueError("Null right_ref requires unmatch or uncertain, never match")
     if not isinstance(item.get("reason"), str) or not item["reason"].strip():
@@ -179,8 +181,26 @@ def parse_block_decisions(response: str, pairs: list[dict], *, match_definition=
 BLOCK_COVERAGE_RETRY = (
     "COVERAGE RETRY: The previous response was invalid or omitted left-row assessments. "
     "Assess every left row in this block. Return candidate pairs or reasoned null-right_ref "
-    "unmatch/uncertain row assessments; do not force matches.\n\n"
+    "unmatch/uncertain row assessments; do not force matches. "
+    "Every decisions item MUST include left_ref, right_ref, reason AND decision, even when right_ref is null. "
+    "Keep the repair concise: list supported match/uncertain candidate pairs; for a left row with no such "
+    "pairs, return exactly one null-right_ref unmatch/uncertain assessment instead of listing rejected pairs. "
+    "Do not mix a null assessment and candidate pair decisions for the same left row. "
+    'For example: {"left_ref":"l0","right_ref":null,"reason":"Unresolved evidence",'
+    '"decision":"uncertain"}. Return a complete replacement JSON object, not a patch.\n\n'
 )
+
+# Reserve the maximum escaped feedback size when planning blocks so the retry fits.
+BLOCK_RETRY_ERROR_CHARS = 160
+BLOCK_RETRY_RESERVE_TOKENS = (
+    len(BLOCK_COVERAGE_RETRY.encode("utf-8")) + len("VALIDATION ERROR (data): \n\n")
+    + 12 * BLOCK_RETRY_ERROR_CHARS + 2 + 2
+) // 3
+
+
+def block_retry_prompt(prompt, error):
+    feedback = json.dumps(str(error)[:BLOCK_RETRY_ERROR_CHARS], ensure_ascii=True)
+    return BLOCK_COVERAGE_RETRY + "VALIDATION ERROR (data): " + feedback + "\n\n" + prompt
 
 
 class MissingBlockAssessment(ValueError):
@@ -364,7 +384,7 @@ def build_mapping(
     def fits(batch):
         return ((batch_size is None or len(batch) <= batch_size)
                 and prompt_tokens(batch) + max_output_tokens
-                    + ((len(BLOCK_COVERAGE_RETRY.encode("utf-8")) + 2) // 3 if matching_mode == "block" else 0) <= token_budget)
+                    + (BLOCK_RETRY_RESERVE_TOKENS if matching_mode == "block" else 0) <= token_budget)
 
     if matching_mode == "block":
         # Bound both row dimensions and response size. Reserve approximately 96
@@ -434,7 +454,7 @@ def build_mapping(
                           "pair_counts": [len(batch) for batch in batches],
                           "estimated_prompt_tokens": [prompt_tokens(batch) for batch in batches]},
              "pair_ids": identities, "decisions": [], "requests": []}
-    coverage_retries = set()
+    coverage_retries = {}
     total_requests = len(batches)
     completed_requests = 0
 
@@ -459,7 +479,7 @@ def build_mapping(
         for index, batch in enumerate(batches):
             prompt = make_prompt(match_definition, batch)
             if id(batch) in coverage_retries:
-                prompt = BLOCK_COVERAGE_RETRY + prompt
+                prompt = block_retry_prompt(prompt, coverage_retries[id(batch)])
             (output / f"prompt_{index:04d}.txt").write_text(prompt, encoding="utf-8")
             record_request(batch, f"prompt_{index:04d}.txt", is_retry=id(batch) in coverage_retries)
             if model_call is None:
@@ -503,7 +523,7 @@ def build_mapping(
                     audit["requests"][-1].update(status="incomplete_assessment" if incomplete else "invalid_response", error=str(exc))
                     if id(batch) in coverage_retries:
                         raise ValueError(f"Block assessment failed after one retry: {exc}") from exc
-                    coverage_retries.add(id(batch))
+                    coverage_retries[id(batch)] = str(exc)
                     batches.insert(index + 1, batch)
                     audit.setdefault("retries", []).append({"batch_index": index, "reason": "missing_assessments" if incomplete else "invalid_response"})
                     total_requests += 1

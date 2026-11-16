@@ -6,7 +6,8 @@ from collections import Counter
 
 from semantic_matching import (build_mapping, read_source, MATCH_PROBABILITIES, resolve_matching_limits, normalize_decision,
                                validate_block_coverage, block_assessment_summary, aggregate_assessment_summary,
-                               MissingBlockAssessment, BLOCK_COVERAGE_RETRY, is_block_row_assessment)
+                               MissingBlockAssessment, BLOCK_RETRY_RESERVE_TOKENS, block_retry_prompt,
+                               is_block_row_assessment)
 from semantic_match_prompt import (build_block_match_prompt, with_matching_context,
                                    DEFAULT_MATCH_DEFINITION, CONTEXT_BLOCK_PROMPT_VERSION)
 from row_probability import PROBABILITY_COLUMN
@@ -101,7 +102,7 @@ def build_sparse_block_mapping(
     blocks = []
     def plan(block):
         tokens = (len(prompt_for(block).encode("utf-8")) + 2) // 3
-        if (tokens + max_output_tokens + (len(BLOCK_COVERAGE_RETRY.encode("utf-8")) + 2) // 3 <= token_budget and
+        if (tokens + max_output_tokens + BLOCK_RETRY_RESERVE_TOKENS <= token_budget and
                 (batch_size is None or len(block[0]) * len(block[1]) <= batch_size)):
             blocks.append(block)
         else:
@@ -126,7 +127,7 @@ def build_sparse_block_mapping(
     planned = len(blocks)
     completed = 0
     retry_blocks = set()
-    coverage_retries = set()
+    coverage_retries = {}
 
     def report():
         if progress:
@@ -139,7 +140,7 @@ def build_sparse_block_mapping(
             lrows, rrows = block
             prompt = prompt_for(block)
             if id(block) in coverage_retries:
-                prompt = BLOCK_COVERAGE_RETRY + prompt
+                prompt = block_retry_prompt(prompt, coverage_retries[id(block)])
             filename = f"prompt_{index:04d}.txt"
             (output / filename).write_text(prompt, encoding="utf-8")
             metadata = {"prompt_file": filename, "left_row_count": len(lrows), "right_row_count": len(rrows),
@@ -172,7 +173,7 @@ def build_sparse_block_mapping(
                 metadata.update(status="incomplete_assessment" if incomplete else "invalid_response", error=str(exc))
                 if id(block) in coverage_retries:
                     raise ValueError(f"Block assessment failed after one retry: {exc}") from exc
-                coverage_retries.add(id(block))
+                coverage_retries[id(block)] = str(exc)
                 retry_blocks.add(id(block))
                 blocks.insert(index + 1, block)
                 audit.setdefault("retries", []).append({"batch_index": index, "reason": "missing_assessments" if incomplete else "invalid_response"})

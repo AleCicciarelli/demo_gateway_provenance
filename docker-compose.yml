@@ -57,8 +57,8 @@ services:
       - .env
     environment:
       OLLAMA_HOST: http://ollama:11434
-      PLANNER_LLM_PROVIDER: openai
-      # Fall back locally when Kimi is unreachable or rejects the request.
+      PLANNER_LLM_PROVIDER: ${PLANNER_LLM_PROVIDER:-openai}
+      # Fall back locally when the remote model is unavailable.
       PLANNER_LLM_FALLBACK_ENABLED: "true"
       PLANNER_LLM_FALLBACK_MODEL: llama3:8b
       LLM_API_BASE: ${LLM_API_BASE}
@@ -103,7 +103,6 @@ services:
       - ./result_comparison.py:/app/result_comparison.py:ro
       - ./semantic_join_pipeline.py:/app/semantic_join_pipeline.py:ro
       - ./semantic_block_matching.py:/app/semantic_block_matching.py:ro
-      - ./sql_leaf_execution.py:/app/sql_leaf_execution.py:ro
       - ./semantic_matching.py:/app/semantic_matching.py:ro
       - ./semantic_match_prompt.py:/app/semantic_match_prompt.py:ro
       - ./row_probability.py:/app/row_probability.py:ro
@@ -195,6 +194,7 @@ services:
       retries: 5
 
   postgres-provsql:
+    profiles: [legacy-mathe]
     mem_limit: ${PROVSQL_MEMORY_LIMIT:-2g}
     memswap_limit: ${PROVSQL_MEMORY_LIMIT:-2g}
     deploy:
@@ -205,7 +205,12 @@ services:
     container_name: postgres-provsql
     volumes:
       - wp4_poc_postgres_data:/var/lib/postgresql/data
-      - ./01_mathe_pgsql.sql:/docker-entrypoint-initdb.d/01_mathe_pgsql.sql:ro
+      - type: bind
+        source: ${MATHE_SQL_DUMP:-./01_mathe_pgsql.sql}
+        target: /docker-entrypoint-initdb.d/01_mathe_pgsql.sql
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       - POSTGRES_USER=provdemo
       - POSTGRES_PASSWORD=provdemo

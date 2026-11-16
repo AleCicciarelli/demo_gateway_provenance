@@ -2404,31 +2404,6 @@ def _manual_leaf_output(
         "valid_leaf_output": True,
     }
 
-def _raw_model_leaf_output(
-    task: Dict[str, Any],
-    pipeline: str,
-    model_id: str,
-    model_provider: str,
-    temperature: float,
-    retrieval_query: str,
-    raw_output: str,
-) -> Dict[str, Any]:
-    table_name = str(task.get("table_name") or task.get("table") or "").strip()
-    return {
-        "table_name": table_name,
-        "task": task,
-        "retrieval_query": retrieval_query,
-        "context_data": {},
-        "prompt": f"{pipeline.upper()} MODE",
-        "output_text": raw_output,
-        "parsed_output": [],
-        "parse_error": "Pipeline returned free-form model output, not leaf rows.",
-        "valid_leaf_output": False,
-        "pipeline": pipeline,
-        "model_id": model_id,
-        "model_provider": model_provider,
-    }
-
 def _sql_table_leaf_output(
     task: Dict[str, Any],
     dataset: str,
